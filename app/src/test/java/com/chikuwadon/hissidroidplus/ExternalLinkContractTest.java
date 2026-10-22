@@ -41,6 +41,7 @@ public class ExternalLinkContractTest {
         assertTrue("Must support text/plain sharing",send);
         assertTrue(xml.contains("hissi.org"));
         assertTrue(xml.contains("kyodemo.net"));
+        assertTrue("ChMate uses text/* MIME matching",xml.contains("android:mimeType=\"text/*\""));
     }
 
     @Test public void parsesChMateUrlVariants() {
