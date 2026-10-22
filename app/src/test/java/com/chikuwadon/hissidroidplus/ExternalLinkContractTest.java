@@ -13,8 +13,8 @@ public class ExternalLinkContractTest {
     private static final String ANDROID_NS="http://schemas.android.com/apk/res/android";
 
     @Test public void resultsAreExternallyLaunchableWithoutRouter() throws Exception {
-        Path path=Path.of("src/main/AndroidManifest.xml");
-        String xml=Files.readString(path,StandardCharsets.UTF_8);
+        Path path=java.nio.file.Paths.get("src/main/AndroidManifest.xml");
+        String xml=new String(Files.readAllBytes(path),StandardCharsets.UTF_8);
         assertFalse("Avoid intermediate trampoline activities",xml.contains("LinkRouterActivity"));
         DocumentBuilderFactory factory=DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
