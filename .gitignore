@@ -1,0 +1,27 @@
+# Android and Gradle build outputs
+.gradle/
+**/build/
+local.properties
+.cxx/
+.externalNativeBuild/
+captures/
+*.apk
+*.aab
+
+# IDE and operating system
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Sensitive local files
+*.jks
+*.keystore
+google-services.json
+.env
+.env.*
+
+# Temporary source restoration outputs
+checksum.txt
+v014_delta.tar.xz
+*.tar.xz.b64

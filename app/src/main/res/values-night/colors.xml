@@ -1,0 +1,12 @@
+<resources>
+    <color name="divider">#293438</color>
+    <color name="surface">#101517</color>
+    <color name="panel">#1D2629</color>
+    <color name="accent">#00B8AF</color>
+    <color name="text_primary">#EEF3F4</color>
+    <color name="text_secondary">#AEBCC0</color>
+    <color name="icon_background">#2A2B2D</color>
+    <color name="input_surface">#1A272B</color>
+    <color name="border">#30464A</color>
+    <color name="panel_pressed">#294E52</color>
+</resources>

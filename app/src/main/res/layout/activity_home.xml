@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:fillViewport="true" android:background="@color/surface">
+    <LinearLayout android:orientation="vertical" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:paddingStart="16dp"
+        android:paddingEnd="16dp" android:paddingTop="14dp" android:paddingBottom="22dp">
+        <LinearLayout android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_width="match_parent" android:layout_height="48dp">
+            <TextView android:id="@+id/app_title" android:text="必死チェッカーdroid +"
+                android:textColor="@color/text_primary" android:textSize="20sp"
+                android:fontFamily="sans-serif-medium" android:singleLine="true"
+                android:ellipsize="end" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" />
+            <TextView android:id="@+id/home_more" android:text="⋮" android:textSize="26sp"
+                android:contentDescription="設定" android:gravity="center" android:textColor="@color/text_primary"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:layout_width="48dp" android:layout_height="48dp" />
+        </LinearLayout>
+        <TextView android:text="IDから書き込みを探す" android:textColor="@color/text_secondary"
+            android:textSize="12sp" android:layout_marginTop="2dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <LinearLayout android:orientation="vertical" android:background="@drawable/section_background"
+            android:padding="14dp" android:layout_marginTop="18dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content">
+            <TextView android:text="5ch" android:textSize="16sp" android:fontFamily="sans-serif-medium"
+                android:textColor="@color/accent" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:text="板" android:textColor="@color/text_secondary" android:textSize="12sp"
+                android:layout_marginTop="13dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <EditText android:id="@+id/board" android:hint="例：news4vip" android:singleLine="true"
+                android:inputType="textNoSuggestions" android:background="@drawable/input_background"
+                android:paddingStart="12dp" android:paddingEnd="12dp" android:layout_marginTop="5dp"
+                android:textColor="@color/text_primary" android:layout_width="match_parent" android:layout_height="46dp" />
+            <LinearLayout android:orientation="horizontal" android:layout_marginTop="8dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content">
+                <Button android:id="@+id/choose_board" android:text="カテゴリから板を選択" style="@style/HissiSubButton"
+                    android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp"/>
+                <Button android:id="@+id/add_favorite" android:text="☆ 保存" style="@style/HissiSubButton"
+                    android:layout_marginStart="6dp" android:layout_width="80dp" android:layout_height="44dp"/>
+                <Button android:id="@+id/show_favorites" android:text="★" android:contentDescription="お気に入り"
+                    style="@style/HissiSubButton" android:layout_marginStart="6dp" android:layout_width="52dp" android:layout_height="44dp"/>
+            </LinearLayout>
+            <TextView android:text="検索日" android:textColor="@color/text_secondary" android:textSize="12sp"
+                android:layout_marginTop="14dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/date_summary" android:text="日付を選ぶ" android:gravity="center_vertical|start"
+                style="@style/HissiSubButton" android:layout_marginTop="5dp"
+                android:paddingStart="12dp" android:layout_width="match_parent" android:layout_height="44dp"/>
+            <TextView android:text="ID" android:textColor="@color/text_secondary" android:textSize="12sp"
+                android:layout_marginTop="14dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <EditText android:id="@+id/user_id" android:hint="検索したいID" android:singleLine="true"
+                android:background="@drawable/input_background" android:paddingStart="12dp"
+                android:paddingEnd="12dp" android:layout_marginTop="5dp" android:inputType="textNoSuggestions"
+                android:textColor="@color/text_primary" android:layout_width="match_parent" android:layout_height="46dp"/>
+            <Button android:id="@+id/search" android:text="IDを検索" style="@style/HissiPrimaryButton"
+                android:layout_marginTop="16dp" android:layout_width="match_parent" android:layout_height="46dp" />
+        </LinearLayout>
+        <LinearLayout android:orientation="vertical" android:background="@drawable/section_background"
+            android:padding="14dp" android:layout_marginTop="12dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content">
+            <TextView android:text="エッヂ  ·  試験対応" android:textSize="16sp"
+                android:fontFamily="sans-serif-medium" android:textColor="@color/accent"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:text="必死チェッカーのURLを貼り付け" android:textSize="12sp"
+                android:layout_marginTop="8dp" android:textColor="@color/text_secondary"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <EditText android:id="@+id/edge_url" android:hint="https://www.kyodemo.net/…"
+                android:inputType="textUri" android:singleLine="false" android:maxLines="2"
+                android:background="@drawable/input_background" android:padding="12dp"
+                android:layout_marginTop="7dp" android:textSize="14sp" android:textColor="@color/text_primary"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"/>
+            <Button android:id="@+id/open_edge" android:text="URLを開く" style="@style/HissiSubButton"
+                android:layout_marginTop="10dp" android:layout_width="match_parent" android:layout_height="44dp"/>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
