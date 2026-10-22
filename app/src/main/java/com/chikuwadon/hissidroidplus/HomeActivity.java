@@ -101,13 +101,17 @@ public final class HomeActivity extends Activity {
             });
         });
     }
+    private String installedVersion(){
+        try { return getPackageManager().getPackageInfo(getPackageName(),0).versionName; }
+        catch(Exception ignored){ return "不明"; }
+    }
     private void showSettings(){
         String[] options={"テーマ", "リンクの開き方", "このアプリについて"};
         new AlertDialog.Builder(this).setTitle("設定").setItems(options,(d,i)->{
             if(i==0)showThemePicker();
             else if(i==1)showLinkModePicker();
             else new AlertDialog.Builder(this).setTitle("必死チェッカーdroid +")
-                    .setMessage("Hissi Checker Droid Plus / v0.1.4\nオリジナルAPKを基準に再構築。\nエッヂは実験的対応です。")
+                    .setMessage("Hissi Checker Droid Plus / v"+installedVersion()+"\nオリジナルAPKを基準に再構築。\nエッヂは実験的対応です。")
                     .setPositiveButton("閉じる",null).show();
         }).setNegativeButton("閉じる",null).show();
     }
