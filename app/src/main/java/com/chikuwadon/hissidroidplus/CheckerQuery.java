@@ -46,7 +46,7 @@ public final class CheckerQuery {
         String host=uri.getHost();
         if (host==null||uri.getRawUserInfo()!=null||uri.getPort()!=-1) throw new IllegalArgumentException("接続先が不正です");
         String path=uri.getPath();
-        if ((host.equalsIgnoreCase("hissi.org")) && ("http".equals(uri.getScheme())||"https".equals(uri.getScheme()))) {
+        if ((host.equalsIgnoreCase("hissi.org")||host.equalsIgnoreCase("www.hissi.org")) && ("http".equals(uri.getScheme())||"https".equals(uri.getScheme()))) {
             Matcher match=HISSI_PATH.matcher(path);
             if(!match.matches()) throw new IllegalArgumentException("hissi.orgの結果URLを指定してください");
             return new CheckerQuery(Site.HISSI,match.group(1),"","","",url);
