@@ -67,6 +67,7 @@ public final class ResultActivity extends Activity {
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        if (routeStandaloneLinkToOwnTask()) return;
         setContentView(R.layout.activity_results);
         AppTitle.apply(findViewById(R.id.toolbar_title));
         AppSettings.configureBars(this);
@@ -185,6 +186,27 @@ public final class ResultActivity extends Activity {
         });
     }
 
+    /**
+     * Connected mode stays in the caller's task. Standalone mode is explicitly
+     * re-launched in our own task only once, without a translucent trampoline.
+     */
+    private boolean routeStandaloneLinkToOwnTask() {
+        Intent incoming=getIntent();
+        if(incoming==null)return false;
+        String action=incoming.getAction();
+        if(!Intent.ACTION_VIEW.equals(action)&&!Intent.ACTION_SEND.equals(action))return false;
+        if(!AppSettings.standalone(this) || incoming.getBooleanExtra("internal_standalone_routed",false))return false;
+        Intent standalone=new Intent(this,ResultActivity.class);
+        standalone.setAction(action);
+        if(incoming.getType()!=null)standalone.setDataAndType(incoming.getData(),incoming.getType());
+        else standalone.setData(incoming.getData());
+        if(incoming.getExtras()!=null)standalone.putExtras(incoming.getExtras());
+        standalone.putExtra("internal_standalone_routed",true);
+        standalone.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        startActivity(standalone);
+        finish();
+        return true;
+    }
     private boolean launchedExternally(){
         String action=getIntent().getAction();
         return Intent.ACTION_SEND.equals(action) || Intent.ACTION_VIEW.equals(action);
