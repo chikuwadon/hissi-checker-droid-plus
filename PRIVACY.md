@@ -1,6 +1,6 @@
 # プライバシーとデータの取り扱い
 
-この文書は、必死チェッカーdroid +（Hissi Checker Droid Plus）v0.1.21のソースコードに基づく説明です。
+この文書は、必死チェッカーdroid +（Hissi Checker Droid Plus）v1.0.0のソースコードに基づく説明です。
 
 ## 端末内に保存するデータ
 

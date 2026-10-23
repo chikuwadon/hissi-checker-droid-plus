@@ -60,6 +60,10 @@ jobs:
             exit 1
           fi
           unzip -Z1 "$apk" | grep -Fxq 'assets/third_party_licenses.txt'
+          if unzip -Z1 "$apk" | grep -Fxq 'assets/original_boards.tsv'; then
+            echo "::error::Legacy board asset must not be bundled."
+            exit 1
+          fi
           "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-signing-check.txt"
           expected="C908661AC6522B031D8E1FBC6E04194B774788F37161E4B979D941C4A80B7C2C"
           actual="$(grep -i 'Signer #1 certificate SHA-256 digest:' "$RUNNER_TEMP/apk-signing-check.txt" | head -1 | sed 's/.*: //' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"

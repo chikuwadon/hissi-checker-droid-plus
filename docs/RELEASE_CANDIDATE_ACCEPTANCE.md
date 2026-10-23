@@ -12,11 +12,12 @@ The candidate workflow is limited to the private release-candidate branch. It do
 - ChMate/other bulletin board apps (0, 1, multiple), accurate thread/post navigation
 - 5ch and Edge availability, HTTP denial/failure conditions and HTML changes
 - Startup/scroll/UI/CPU/memory/network benchmark measurements
-- Rights to original 1.5-derived content, modified launcher icon, original_boards.tsv and choice of repository LICENSE
+- Repository LICENSE choice by the developer, and Public visibility of deleted legacy board data in Git/Actions history
+- Authorship of Java code and self-created launcher icon as stated by the developer; removed board asset is not included in the current build
 - Owner's GitHub Security settings and full legal approval
 
 Treat this APK only as a private **release candidate**. Public visibility and official release still require explicit separate approval.
 
 ## Emulator smoke checks
-- API 26, 34, 36 emulator smoke tests are supplemental to physical-device tests
+- API 26, 34, 36 emulator smoke tests pass signed upgrade and board favorite persistence; physical-device tests remain required
 - They cannot validate ChMate interop or live board server availability on user phones

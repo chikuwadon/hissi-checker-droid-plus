@@ -15,7 +15,7 @@ public class CheckerQueryTest {
         assertEquals("AbC123",CheckerQuery.hissi("news4vip","20261022","ID：AbC123").id);
         assertEquals("AbC123",CheckerQuery.hissi("news4vip","20261022","AbC123").id);
     }
-    @Test public void parsesOriginalSiteUrl() {
+    @Test public void parsesHissiSiteUrl() {
         CheckerQuery q=CheckerQuery.parseUrl("http://hissi.org/read.php/news4vip/20261022/example.html");
         assertEquals(CheckerQuery.Site.HISSI,q.site);
     }

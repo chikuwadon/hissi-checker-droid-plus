@@ -4,7 +4,7 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 
 public class ParserContractTest {
-    @Test public void syntheticOriginalHissiHtml() {
+    @Test public void syntheticHissiHtml() {
         String data="<html><body><h3>書き込んだスレッド一覧</h3>"+
            "<table><tr><td>名前<br></td><td><a href='http://example.com/thread/1'>サンプルスレ</a></td></tr></table>"+
            "<h3>書き込みレス一覧</h3>"+
