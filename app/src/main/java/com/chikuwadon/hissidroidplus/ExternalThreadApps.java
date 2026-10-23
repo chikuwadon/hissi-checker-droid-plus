@@ -58,7 +58,7 @@ final class ExternalThreadApps {
                 String pkg=ai.packageName;
                 if(pkg.equals(ownPackage)||pkg.equals(MATE)||pkg.equals("android")||
                         pkg.equals("com.android.internal.app")||genericWeb.contains(pkg)||
-                        BrowserLauncher.isKnownBrowserPackage(pkg)||info.handleAllWebDataURI)continue;
+                        BrowserLauncher.isKnownBrowserPackage(pkg))continue;
                 readers.putIfAbsent(pkg,new Handler(pkg,ai.name,url));
             }
         }
