@@ -68,7 +68,8 @@ public final class EdgeAdapter {
         return result;
     }
     private static final Pattern RES_DATE=Pattern.compile("20\\d{2}/\\d{2}/\\d{2}\\([^)]*\\)\\s+\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?");
-    private static final Pattern POST_HEAD=Pattern.compile("^\\d+\\s*[:：]\\s*");
+    private static final Pattern POST_HEAD=Pattern.compile("^\\s*\\d{1,6}(?:\\(\\d+\\))?\\s*[:：]?\\s*");
+    private static final Pattern POST_REF=Pattern.compile("^\\s*\\d{1,6}\\s*\\((\\d+)\\)");
     private static final Pattern SUMMARY=Pattern.compile("(?m)^(レス数|被参照数|スレッド数)\\s*[:：]\\s*(\\d+)");
 
     private static void parseKyodemo(Document doc, CheckerResult result) {
@@ -101,18 +102,27 @@ public final class EdgeAdapter {
                 String href=link.absUrl("href");
                 if(!isThreadLink(href)||!seen.add(href))continue;
                 String meta=head.text().trim();
+                String linkedNumber=link.text().trim();
+                String number=linkedNumber.replaceFirst("[^0-9].*$","");
+                if(number.isEmpty())number=meta.replaceFirst("^\\\\s*(\\\\d+).*$","$1");
+                int references=0;
+                Matcher ref=POST_REF.matcher(linkedNumber);
+                if(!ref.find())ref=POST_REF.matcher(meta);
+                if(ref.find())try{references=Integer.parseInt(ref.group(1));}catch(NumberFormatException ignored){}
                 String raw=POST_HEAD.matcher(meta).replaceFirst("").trim();
                 String author="";
                 Matcher date=RES_DATE.matcher(raw);
-                if(date.find()) author=raw.substring(0,date.start()).trim();
-                else author=raw.replaceFirst("\\s+ID:.*$", "").trim();
+                if(date.find()) author=PostIndex.cleanAuthor(raw.substring(0,date.start()));
+                else author=PostIndex.cleanAuthor(raw.replaceFirst("\\s+ID:.*$", ""));
+                String header=PostFormatter.header(new CheckerResult.Post(
+                        title,author,number+" "+raw,"",href));
                 Element bodyNode=node.clone();
                 Element bodyHead=bodyNode.selectFirst(".r-head");
                 if(bodyHead!=null)bodyHead.remove();
                 String body=bodyNode.wholeText().replace('\u00a0',' ').trim();
                 if(body.isEmpty())body=bodyNode.text().trim();
                 if(body.isEmpty()||body.length()>30000)continue;
-                result.posts.add(new CheckerResult.Post(title,author,meta,body,href));
+                result.posts.add(new CheckerResult.Post(title,author,header,body,href,references));
                 if(!author.isEmpty()&&!result.names.contains(author))result.names.add(author);
             }
         }
