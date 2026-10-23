@@ -189,14 +189,41 @@ public final class HomeActivity extends Activity {
                 String url=EdgeSearchLink.searchUrl(code,date,user);
                 String html=HttpTransport.get(url,StandardCharsets.UTF_8);
                 List<EdgeSearchResults.Item> matches=EdgeSearchResults.parse(html,url,code,date,user);
+                // Site search date parameters alone cannot prove that a linked
+                // thread contains a post by this ID on the selected day.
+                // Examine a bounded number of checker pages, stopping at the
+                // first verified match. Preserve WebView fallback if HTTP is
+                // inaccessible, but never display unverified posts.
+                EdgeSearchResults.Item chosen=null;
+                EdgeSearchResults.Item unverified=null;
+                int inspected=0;
+                for(EdgeSearchResults.Item item:matches){
+                    if(inspected++>=6)break;
+                    try{
+                        CheckerQuery candidate=CheckerQuery.parseUrl(item.checkerUrl);
+                        CheckerResult check=new EdgeAdapter().load(candidate);
+                        if(check.posts.isEmpty()){
+                            if(unverified==null)unverified=item;
+                        }else if(!EdgeSearchValidation.matchingPosts(check,date,user).posts.isEmpty()){
+                            chosen=item;break;
+                        }
+                    }catch(Exception inaccessible){
+                        if(unverified==null)unverified=item;
+                    }
+                }
+                final EdgeSearchResults.Item ready=chosen==null?unverified:chosen;
+                final boolean noMatches=!matches.isEmpty()&&ready==null;
                 runOnUiThread(()->{
                     busy=false;
                     if(isFinishing()||isDestroyed())return;
-                    if(!matches.isEmpty()){
+                    if(ready!=null){
                         startActivity(new Intent(this,ResultActivity.class)
-                            .setData(android.net.Uri.parse(matches.get(0).checkerUrl)));
+                            .setData(android.net.Uri.parse(ready.checkerUrl))
+                            .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE,true));
                     }else{
-                        Toast.makeText(this,"検索結果がありません。サイトで検索を確認してください",
+                        Toast.makeText(this,noMatches
+                            ?"指定した日付・IDに一致する投稿が見つかりませんでした"
+                            :"検索結果がありません。サイトで検索を確認してください",
                             Toast.LENGTH_LONG).show();
                     }
                 });

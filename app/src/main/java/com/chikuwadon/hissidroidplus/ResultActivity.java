@@ -46,6 +46,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class ResultActivity extends Activity {
+    public static final String EXTRA_VERIFY_EDGE_SEARCH_DATE="verify_edge_search_date";
+    private boolean verifyEdgeSearchDate(){
+        return query!=null && query.site==CheckerQuery.Site.EDGE &&
+                getIntent().getBooleanExtra(EXTRA_VERIFY_EDGE_SEARCH_DATE,false);
+    }
+    private void showWrongDay(){
+        loading=false;
+        showMessage("指定日の投稿なし",
+            "このIDについて、選択した日付に一致する投稿は確認できませんでした。別の日付の投稿は表示しません。",
+            "戻る",this::exitResults,null,null);
+    }
+
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private CheckerQuery query;
     private CheckerResult result=new CheckerResult();
@@ -145,9 +157,14 @@ public final class ResultActivity extends Activity {
         status.setText(query.site==CheckerQuery.Site.EDGE?"エッヂ / 取得中…":"5ch / 取得中…");
         worker.execute(()->{
             try{
-                CheckerResult received=query.site==CheckerQuery.Site.EDGE?new EdgeAdapter().load(query):new HissiAdapter().load(query);
+                CheckerResult parsed=query.site==CheckerQuery.Site.EDGE?new EdgeAdapter().load(query):new HissiAdapter().load(query);
+                boolean wrongDay=verifyEdgeSearchDate() && !parsed.posts.isEmpty();
+                CheckerResult received=wrongDay
+                        ?EdgeSearchValidation.matchingPosts(parsed,query.date,query.id):parsed;
+                boolean rejected=wrongDay && received.posts.isEmpty();
                 runOnUiThread(()->{
                     if(isFinishing()||isDestroyed())return;
+                    if(rejected){showWrongDay();return;}
                     if(query.site==CheckerQuery.Site.EDGE && received.posts.isEmpty()){
                         edgeDiagnostic=received.diagnostic;
                         loadEdgeWithWebView("通常通信では抽出できません: "+received.diagnostic);return;
@@ -505,7 +522,15 @@ public final class ResultActivity extends Activity {
                         if(completed[0] || isFinishing() || isDestroyed()) return;
                         try {
                             String html=new JSONArray("["+json+"]").getString(0);
-                            CheckerResult found=EdgeAdapter.parse(html,query);
+                            CheckerResult original=EdgeAdapter.parse(html,query);
+                            CheckerResult found=verifyEdgeSearchDate()
+                                ?EdgeSearchValidation.matchingPosts(original,query.date,query.id):original;
+                            if(verifyEdgeSearchDate() && !original.posts.isEmpty() && found.posts.isEmpty()){
+                                completed[0]=true;
+                                cleanupWebView(view);
+                                showWrongDay();
+                                return;
+                            }
                             if(found.posts.isEmpty()){
                                 String cause=EdgeAdapter.explainEmptyPage(html);
                                 // Keep a real HTTP status if we have one; it is more
