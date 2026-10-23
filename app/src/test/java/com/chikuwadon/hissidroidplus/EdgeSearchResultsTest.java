@@ -17,6 +17,18 @@ public final class EdgeSearchResultsTest {
         assertTrue(result.get(0).checkerUrl.contains("key=1792726415"));
         assertTrue(result.get(1).checkerUrl.contains("key=1792726499"));
     }
+    @Test public void futureThreadIsNeverEvidenceOfPastDate(){
+        String html="<a href='/sdemo/r/e_e_liveedge/1792726415/2'>2026-10-23スレ</a>"+
+            "<a href='/sdemo/r/e_e_liveedge/1792649855/12'>10月22日開始スレ</a>";
+        List<EdgeSearchResults.Item> result=EdgeSearchResults.parse(html,
+            "https://www.kyodemo.net/sdemo/b/e_e_liveedge/","liveedge","20261022","ABC");
+        assertEquals(1,result.size());
+        assertTrue(result.get(0).checkerUrl.contains("key=1792649855"));
+        assertTrue(EdgeSearchResults.threadStartsAfterSelectedDay(
+            "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=ABC&key=1792726415&date=20261022","20261022"));
+        assertFalse(EdgeSearchResults.threadStartsAfterSelectedDay(
+            "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=ABC&key=1792649855&date=20261023","20261023"));
+    }
     @Test public void noSyntheticKeyWhenNoThreadFound(){
         assertTrue(EdgeSearchResults.parse("<p>検索なし</p>",
                 "https://www.kyodemo.net/sdemo/b/e_e_liveedge/",
