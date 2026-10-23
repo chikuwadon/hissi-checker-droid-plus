@@ -30,7 +30,7 @@ public final class EdgeAnalysisActivity extends Activity {
     private String url;
     private LinearLayout entries;
     private TextView notice,runButton;
-    private boolean loaded=false,started=false,refreshNeeded=false;
+    private boolean loaded=false,started=false,refreshNeeded=false,refreshInProgress=false;
     private int cycle=0;
     private int lastHttpError=0;
 
@@ -113,6 +113,7 @@ public final class EdgeAnalysisActivity extends Activity {
         // but render sanitized plain-text results in native widgets.
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
+        web.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_NO_CACHE);
         web.getSettings().setLoadsImagesAutomatically(false);
         web.getSettings().setBlockNetworkImage(true);
         android.webkit.CookieManager.getInstance().setAcceptCookie(true);
@@ -152,13 +153,13 @@ public final class EdgeAnalysisActivity extends Activity {
                 String html=new JSONArray("["+value+"]").getString(0);
                 EdgeAnalysis analysis=EdgeAnalysis.parse(html);
                 if(analysis.hasResult()){
-                    started=false;refreshNeeded=false;cycle++;
+                    started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
                     runButton.setVisibility(View.GONE);
                     notice.setText("サイトの書き込み分析結果");
                     entries.removeAllViews();
                     for(EdgeAnalysis.Section section:analysis.sections)
                         renderSection(section);
-                }else if(!started){
+                }else if(!started&&!refreshInProgress){
                     entries.removeAllViews();
                     if(refreshNeeded){
                         notice.setText("サイトの分析結果をまだ確認できません。再読み込みできます。");
@@ -212,7 +213,7 @@ public final class EdgeAnalysisActivity extends Activity {
             if(name.isEmpty())continue;
             LinearLayout row=new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(0,0,0,dp(9));
+            row.setPadding(0,0,0,dp(11));
             panel.addView(row);
             LinearLayout line=new LinearLayout(this);
             line.setGravity(Gravity.CENTER_VERTICAL);
@@ -240,6 +241,18 @@ public final class EdgeAnalysisActivity extends Activity {
                 track.addView(bar,new LinearLayout.LayoutParams(0,-1,count));
                 if(count<100)track.addView(new View(this),
                         new LinearLayout.LayoutParams(0,-1,100-count));
+            }
+            // Explanation immediately follows its score instead of being
+            // concatenated into a separate unreadable paragraph.
+            String explanation=section.explanations.get(name);
+            if(explanation!=null&&!explanation.isEmpty()){
+                LinearLayout.LayoutParams detailMargin=new LinearLayout.LayoutParams(-1,-2);
+                detailMargin.setMargins(0,dp(5),0,0);
+                TextView description=text(explanation,12,getColor(R.color.text_secondary));
+                description.setTextIsSelectable(true);
+                description.setLineSpacing(dp(2),1f);
+                description.setGravity(Gravity.START);
+                row.addView(description,detailMargin);
             }
             rendered++;
         }
@@ -270,13 +283,13 @@ public final class EdgeAnalysisActivity extends Activity {
         parent.addView(body);
     }
     private void startSiteAnalysis(){
-        if(web==null||!loaded||started)return;
+        if(web==null||!loaded||started||refreshInProgress)return;
         started=true;refreshNeeded=false;
         runButton.setText("分析を実行中…");
         runButton.setVisibility(View.VISIBLE);
         runButton.setEnabled(false);
         notice.setText("サイト側の分析を実行しています…");
-        // Do NOT run this on page load. This is only called from a real user click.
+        // The site operation must only be triggered by a user tap.
         String script="(function(){"+
             "var a=Array.from(document.querySelectorAll('a.button,button')).find(function(e){"+
             "var t=(e.textContent||'').trim();return t==='分析'||t==='分析を開始';});"+
@@ -289,51 +302,69 @@ public final class EdgeAnalysisActivity extends Activity {
             if(value!=null&&value.contains("clicked")){
                 cycle++;
                 int mark=cycle;
-                for(int delay:new int[]{1200,3000,6500,11000,17000})
+                // Read DOM while the site runs its own async analysis. Avoid
+                // prematurely reloading and cancelling its network request.
+                for(int delay:new int[]{1200,3000,5500,9000,13000,18000,23000,30000,37000,45000}){
                     web.postDelayed(()->{
                         if(web!=null&&started&&mark==cycle)inspectPage();
                     },delay);
-                // The remote site may persist the result only on the server.
-                // Refresh the document after the submitted request has had time to finish.
-                for(int delay:new int[]{5500,12000})
-                    web.postDelayed(()->{
-                        if(web!=null&&started&&mark==cycle)web.reload();
-                    },delay);
+                }
+                // After the server has had time to persist the result, force
+                // a fresh response once, then continue checking.
+                web.postDelayed(()->{
+                    if(web!=null&&started&&mark==cycle)loadFreshPage();
+                },27000);
                 web.postDelayed(()->{
                     if(started&&mark==cycle&&!isFinishing()){
-                        started=false;
-                        refreshNeeded=true;
-                        notice.setText("分析結果の反映を確認できませんでした。更新して再取得できます。");
-                        runButton.setText("分析結果を更新");
-                        runButton.setVisibility(View.VISIBLE);
-                        runButton.setEnabled(true);
+                        started=false;refreshNeeded=true;
+                        showRefreshAvailable("分析結果がまだ反映されていません。更新して再確認できます。");
                     }
-                },19000);
+                },48000);
             }else{
                 started=false;refreshNeeded=true;
-                runButton.setText("分析結果を更新");
-                runButton.setVisibility(View.VISIBLE);
-                runButton.setEnabled(true);
-                notice.setText("分析ボタンを実行できませんでした。ページを更新するか、サイトで操作してください。");
+                showRefreshAvailable("サイト側の分析ボタンを実行できません。ページを更新して確認してください。");
             }
         });
     }
+    private void showRefreshAvailable(String message){
+        notice.setText(message);
+        runButton.setText("分析結果を更新");
+        runButton.setVisibility(View.VISIBLE);
+        runButton.setEnabled(true);
+    }
+    private void loadFreshPage(){
+        if(web==null)return;
+        java.util.Map<String,String> headers=new java.util.HashMap<>();
+        headers.put("Cache-Control","no-cache, no-store");
+        headers.put("Pragma","no-cache");
+        web.loadUrl(url,headers);
+    }
     private void refreshSiteAnalysis(){
-        if(web==null||started)return;
-        refreshNeeded=true;
+        if(web==null||started||refreshInProgress)return;
+        refreshNeeded=true;refreshInProgress=true;cycle++;
         runButton.setText("分析結果を更新中…");
+        runButton.setVisibility(View.VISIBLE);
         runButton.setEnabled(false);
-        notice.setText("サイトの分析結果を再取得しています…");
-        cycle++;
-        web.reload();
+        notice.setText("サイトから最新の分析結果を取得しています…");
         int mark=cycle;
+        loadFreshPage();
+        for(int delay:new int[]{800,2400,4800,8000,13000}){
+            web.postDelayed(()->{
+                if(web!=null&&refreshInProgress&&mark==cycle)inspectPage();
+            },delay);
+        }
         web.postDelayed(()->{
-            if(web!=null&&!started&&refreshNeeded&&mark==cycle){
-                inspectPage();
-                runButton.setText("分析結果を更新");
-                runButton.setEnabled(true);
+            if(web!=null&&refreshInProgress&&mark==cycle&&!isFinishing()){
+                refreshInProgress=false;
+                showRefreshAvailable("分析結果をまだ確認できません。再度更新できます。");
             }
-        },6000);
+        },15000);
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        // Returning from another screen often means the server has now
+        // finished its analysis. Always fetch fresh HTML on return.
+        if(loaded&&refreshNeeded&&!started&&!refreshInProgress)refreshSiteAnalysis();
     }
     private void openBrowser(){
         BrowserLauncher.open(this,url+"#wt");
