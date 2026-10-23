@@ -108,7 +108,7 @@ public final class ThreadOpener {
             BrowserLauncher.open(activity,normalized);
             return;
         }
-        normalized=accepted;
+        // normalized already equals the validated canonical form.
         PackageManager pm=activity.getPackageManager();
         if(!isMateInstalled(pm)){
             BrowserLauncher.open(activity,normalized);
