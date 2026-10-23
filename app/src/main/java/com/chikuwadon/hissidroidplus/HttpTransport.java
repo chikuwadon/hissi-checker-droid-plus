@@ -108,7 +108,8 @@ public final class HttpTransport {
         String host=target.getHost(),proto=target.getProtocol();
         if(target.getUserInfo()!=null||target.getPort()!=-1)throw new IOException("不正なURLです");
         if((host.equalsIgnoreCase("kyodemo.net")||host.equalsIgnoreCase("www.kyodemo.net"))&&proto.equals("https"))return;
-        if(host.equalsIgnoreCase("hissi.org")&&(proto.equals("http")||proto.equals("https")))return;
+        if((host.equalsIgnoreCase("hissi.org")||host.equalsIgnoreCase("www.hissi.org")) &&
+                (proto.equals("http")||proto.equals("https")))return;
         if(host.equalsIgnoreCase("menu.5ch.io")&&proto.equals("https"))return;
         throw new IOException("通信先が許可されていません");
     }
