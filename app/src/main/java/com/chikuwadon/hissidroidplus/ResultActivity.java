@@ -97,16 +97,18 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
             boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
             String[] labels=edge
-                    ? new String[]{"検索履歴","書き込み分析","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"}
-                    : new String[]{"検索履歴","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+                    ? new String[]{"検索履歴","ホーム画面に戻る","書き込み分析","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"}
+                    : new String[]{"検索履歴","ホーム画面に戻る","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
+                if(which<0||which>=labels.length)return;
                 if(which==0)startActivity(new Intent(this,HistoryActivity.class));
+                else if(which==1)openHome();
                 else {
                     int action=edge?which-1:which;
-                    if(edge&&which==1)openEdgeAnalysis();
-                    else if(action==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                    else if(action==2)copySearchedId();
-                    else if(action==3)copyAllVisible();
+                    if(edge&&which==2)openEdgeAnalysis();
+                    else if(action==2)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
+                    else if(action==3)copySearchedId();
+                    else if(action==4)copyAllVisible();
                     else exitResults();
                 }
             });
@@ -219,6 +221,14 @@ public final class ResultActivity extends Activity {
     private boolean launchedExternally(){
         String action=getIntent().getAction();
         return Intent.ACTION_SEND.equals(action) || Intent.ACTION_VIEW.equals(action);
+    }
+    /** Open our own home task even when this result was launched from ChMate. */
+    private void openHome(){
+        Intent home=new Intent(this,HomeActivity.class);
+        home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|
+                Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(home);
+        finish();
     }
     private void exitResults(){
         if(launchedExternally() && isTaskRoot() && android.os.Build.VERSION.SDK_INT>=21){finishAndRemoveTask();}
