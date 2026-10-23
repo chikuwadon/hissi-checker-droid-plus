@@ -18,6 +18,7 @@ adb shell am start -W -n "$package/.HomeActivity" > emulator-evidence/baseline-s
 adb shell dumpsys package "$package" > emulator-evidence/baseline-package.txt
 grep -q 'versionCode=22' emulator-evidence/baseline-package.txt
 sleep 2
+adb shell dumpsys meminfo "$package" > emulator-evidence/baseline-memory.txt
 
 dump_ui() {
   for attempt in 1 2 3; do
@@ -92,6 +93,19 @@ dump_ui
 grep -q '検索履歴' emulator-evidence/current-ui.xml
 adb shell input keyevent KEYCODE_BACK
 adb shell dumpsys meminfo "$package" > emulator-evidence/release-memory.txt
+python3 - <<'PY'
+import json,pathlib,re
+root=pathlib.Path('emulator-evidence')
+metric={'description':'emulator-only samples; not a real-device performance benchmark'}
+for label in ('baseline','release'):
+    launch=(root/f'{label}-start.txt').read_text(errors='replace')
+    mem=(root/f'{label}-memory.txt').read_text(errors='replace')
+    m=re.search(r'TotalTime:\s*(\d+)',launch)
+    metric[label+'_startup_ms']=int(m.group(1)) if m else None
+    p=re.search(r'TOTAL\s+([\d,]+)',mem)
+    metric[label+'_total_pss_kb']=int(p.group(1).replace(',','')) if p else None
+(root/'performance-sample.json').write_text(json.dumps(metric,indent=2)+'\n')
+PY
 adb shell getprop ro.build.version.sdk > emulator-evidence/api.txt
 printf "PASS api=%s upgrade=22-to-23 favorite=persisted home=ok history=ok\n" \
   "$(cat emulator-evidence/api.txt)" | tee emulator-evidence/summary.txt

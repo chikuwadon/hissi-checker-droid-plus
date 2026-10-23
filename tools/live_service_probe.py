@@ -24,7 +24,7 @@ for name, url in targets.items():
         # Limit responses; this is an availability-only probe.
         with urllib.request.urlopen(request, timeout=12,
                                     context=ssl.create_default_context()) as res:
-            data = res.read(120_001)
+            data = res.read(3_000_001)
             result["status"] = res.status
             result["redirect_url_protocol"] = res.url.split(":", 1)[0]
             result["bytes_sampled"] = len(data)
