@@ -557,7 +557,7 @@ public final class ResultActivity extends Activity {
     }
     private void copySearchedId(){
         String id=query==null?"":query.id;
-        if(id!=null&&!id.isEmpty())id="ID:"+id.replaceFirst("(?i)^ID\\\\s*[:：]\\\\s*","");
+        if(id!=null&&!id.isEmpty())id="ID:"+id.replaceFirst("(?i)^ID\\s*[:：]\\s*","");
         if((id==null||id.isEmpty())&&!result.posts.isEmpty())id=PostFormatter.id(result.posts.get(0));
         if(id==null||id.isEmpty()){Toast.makeText(this,"IDが見つかりません",Toast.LENGTH_SHORT).show();return;}
         copy(id,false);
@@ -586,7 +586,7 @@ public final class ResultActivity extends Activity {
     private CharSequence displayHeader(CheckerResult.Post post){
         String header=PostFormatter.header(post);
         if(post.referenceCount<=0)return header;
-        java.util.regex.Matcher number=java.util.regex.Pattern.compile("^\\\\d+").matcher(header);
+        java.util.regex.Matcher number=java.util.regex.Pattern.compile("^\\d+").matcher(header);
         if(!number.find())return header;
         int at=number.end();
         String mark="("+post.referenceCount+")";
