@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   signed-release-candidate:
     runs-on: ubuntu-24.04
@@ -83,4 +84,51 @@ jobs:
           name: HissiCheckerDroidPlus-v1.0.0-signed-release-candidate
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          retention-days: 7
+
+  android-emulator-upgrade:
+    needs: signed-release-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [26, 34, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: HissiCheckerDroidPlus-v1.0.0-signed-release-candidate
+          path: candidate
+      - name: Fetch signed v0.1.21 baseline for upgrade verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p baseline
+          gh run download 39964854894 --repo "$GITHUB_REPOSITORY" \
+            --name HissiCheckerDroidPlus-v0.1.21-signed-release-candidate --dir baseline
+          test -s baseline/app-release.apk
+      - name: Enable KVM acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify fresh install and signed upgrade on Android ${{ matrix.api-level }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash tools/emulator_smoke.sh
+      - name: Upload sanitized smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-smoke-api-${{ matrix.api-level }}
+          path: emulator-evidence/
+          if-no-files-found: warn
           retention-days: 7
