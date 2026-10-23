@@ -199,22 +199,22 @@ public final class HomeActivity extends Activity {
     private void showList(String title,List<String> labels,Pick pick,Runnable back){
         if(isFinishing()||isDestroyed())return;
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable bg=new GradientDrawable();bg.setColor(Color.rgb(25,36,40));bg.setCornerRadius(dp(16));
-        bg.setStroke(dp(1),Color.rgb(53,71,76));panel.setBackground(bg);
-        TextView heading=new TextView(this);heading.setText(title);heading.setTextSize(17);heading.setTextColor(0xffEDF5F5);
+        GradientDrawable bg=new GradientDrawable();bg.setColor(getColor(R.color.panel));bg.setCornerRadius(dp(16));
+        bg.setStroke(dp(1),getColor(R.color.border));panel.setBackground(bg);
+        TextView heading=new TextView(this);heading.setText(title);heading.setTextSize(17);heading.setTextColor(getColor(R.color.text_primary));
         heading.setPadding(dp(18),dp(17),dp(18),dp(11));panel.addView(heading);
-        ListView list=new ListView(this);list.setDivider(new android.graphics.drawable.ColorDrawable(0xff2C3C3F));list.setDividerHeight(dp(1));
-        list.setSelector(new android.graphics.drawable.ColorDrawable(0xff164B4E));
+        ListView list=new ListView(this);list.setDivider(new android.graphics.drawable.ColorDrawable(getColor(R.color.divider)));list.setDividerHeight(dp(1));
+        list.setSelector(new android.graphics.drawable.ColorDrawable(getColor(R.color.panel_pressed)));
         ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,labels){
             @Override public View getView(int position,View convert,android.view.ViewGroup parent){
                 TextView row=(TextView)super.getView(position,convert,parent);
-                row.setTextColor(0xffDFE8E9);row.setTextSize(14);row.setMinHeight(dp(49));
+                row.setTextColor(getColor(R.color.text_primary));row.setTextSize(14);row.setMinHeight(dp(49));
                 row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(18),dp(8),dp(14),dp(8));return row;
             }
         };
         list.setAdapter(adapter);panel.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         TextView close=new TextView(this);close.setText(back==null?"閉じる":"カテゴリに戻る");close.setTextSize(14);
-        close.setTextColor(0xff51CCC4);close.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        close.setTextColor(getColor(R.color.accent));close.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         close.setPadding(dp(18),0,dp(18),0);close.setHeight(dp(52));panel.addView(close);
         AlertDialog dialog=new AlertDialog.Builder(this).create();dialog.setView(panel);dialog.show();
         Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);
