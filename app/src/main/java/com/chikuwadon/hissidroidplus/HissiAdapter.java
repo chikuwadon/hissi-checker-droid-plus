@@ -32,12 +32,25 @@ public final class HissiAdapter {
             String value=m.group(1);
             try{url=URI.create(base).resolve(value).toASCIIString();}
             catch(Exception ex){throw new IOException("検索結果URLを解釈できません",ex);}
-            if(!url.startsWith("http://hissi.org/read.php/")&&!url.startsWith("https://hissi.org/read.php/"))
-                throw new IOException("不正な検索結果URLです");
+            try {
+                URI responseUrl=URI.create(url);
+                String host=responseUrl.getHost();
+                if(host==null||!(host.equalsIgnoreCase("hissi.org")||host.equalsIgnoreCase("www.hissi.org")) ||
+                        !responseUrl.getPath().startsWith("/read.php/"))
+                    throw new IOException("不正な検索結果URLです");
+            }catch(IllegalArgumentException ex){throw new IOException("不正な検索結果URLです",ex);}
         }
         String all=url+(url.contains("?")?"&":"?")+"thread=all&name=all";
-        CheckerResult result=parse(HttpTransport.get(all,SJIS),all);
-        result.sourceUrl=all;
+        String html=HttpTransport.get(all,SJIS);
+        CheckerResult result=parse(html,all);
+        // The site's normal HTML is the compatibility baseline. If the optional
+        // all-mode query changes format, retry the unmodified result URL.
+        if(result.posts.isEmpty()) {
+            CheckerResult basic=parse(HttpTransport.get(url,SJIS),url);
+            if(!basic.posts.isEmpty() || !basic.threads.isEmpty())result=basic;
+        }
+        result.sourceUrl=url;
+        result.diagnostic=HttpTransport.lastDiagnostic();
         return result;
     }
 
