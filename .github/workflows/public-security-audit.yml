@@ -1,0 +1,33 @@
+name: Private publication security audit
+on:
+  push:
+    paths:
+      - 'tools/public_security_audit.py'
+      - '.github/workflows/public-security-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  historical-secret-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Examine Git object history, archived workflow logs and artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/public_security_audit.py
+      - name: Upload redacted audit summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-publication-audit-report
+          path: security-audit-report.json
+          if-no-files-found: warn
+          retention-days: 7
