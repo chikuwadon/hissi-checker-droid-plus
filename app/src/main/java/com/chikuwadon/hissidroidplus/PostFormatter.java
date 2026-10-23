@@ -39,18 +39,18 @@ public final class PostFormatter {
         return source.trim().replaceAll("\\s+"," ");
     }
     public static String full(CheckerResult.Post p){
-        return header(p)+"\\n"+(p.body==null?"":p.body.trim());
+        return header(p)+"\n"+(p.body==null?"":p.body.trim());
     }
     public static String withThread(CheckerResult.Post p){
         StringBuilder out=new StringBuilder();
-        if(!p.title.trim().isEmpty())out.append(p.title.trim()).append('\\n');
-        if(!p.link.trim().isEmpty())out.append(p.link.trim()).append('\\n');
+        if(!p.title.trim().isEmpty())out.append(p.title.trim()).append('\n');
+        if(!p.link.trim().isEmpty())out.append(p.link.trim()).append('\n');
         return out.append(full(p)).toString().trim();
     }
     public static String append(String old,String next){
         String a=old==null?"":old.trim(),b=next==null?"":next.trim();
         if(a.isEmpty())return b;
         if(b.isEmpty())return a;
-        return a+"\\n\\n"+b;
+        return a+"\n\n"+b;
     }
 }
