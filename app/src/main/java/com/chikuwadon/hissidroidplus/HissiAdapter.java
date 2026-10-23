@@ -242,5 +242,8 @@ public final class HissiAdapter {
         return (href.startsWith("http://") || href.startsWith("https://"))
                 && (href.contains("/test/read.cgi/") || href.contains("/sdemo/r/e_e_"));
     }
-    private static String enc(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8);}
+    private static String enc(String value){
+        try{return URLEncoder.encode(value,"UTF-8");}
+        catch(java.io.UnsupportedEncodingException impossible){throw new AssertionError(impossible);}
+    }
 }

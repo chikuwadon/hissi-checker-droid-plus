@@ -16,7 +16,8 @@ public final class EdgeSearchLink {
         "^/([A-Za-z0-9_]+)/([0-9]{10,20})(?:/.*)?$");
     private EdgeSearchLink(){}
     private static String enc(String val){
-        return URLEncoder.encode(val,StandardCharsets.UTF_8).replace("+","%20");
+        try{return URLEncoder.encode(val,"UTF-8").replace("+","%20");}
+        catch(java.io.UnsupportedEncodingException impossible){throw new AssertionError(impossible);}
     }
     public static String searchUrl(String board,String date,String id){
         if(!board.matches("[A-Za-z0-9_]{1,60}"))

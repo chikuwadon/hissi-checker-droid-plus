@@ -3,7 +3,6 @@
     <style name="HissiAppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:colorAccent">@color/accent</item>
         <item name="android:colorControlHighlight">#29425A60</item>
-        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@color/surface</item>
         <item name="android:navigationBarColor">@color/surface</item>
         <item name="android:windowLightStatusBar">true</item>

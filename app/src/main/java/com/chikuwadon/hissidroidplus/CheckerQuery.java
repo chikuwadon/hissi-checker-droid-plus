@@ -92,7 +92,10 @@ public final class CheckerQuery {
         }
         return null;
     }
-    private static String enc(String s){return URLEncoder.encode(s,StandardCharsets.UTF_8).replace("+","%20");}
+    private static String enc(String s){
+        try{return URLEncoder.encode(s,"UTF-8").replace("+","%20");}
+        catch(java.io.UnsupportedEncodingException impossible){throw new AssertionError(impossible);}
+    }
     public static void validateDate(String date){checkDate(date);}
     private static void checkDate(String date) {
         if(date==null||!date.matches("\\d{8}"))throw new IllegalArgumentException("日付はYYYYMMDD形式にしてください");

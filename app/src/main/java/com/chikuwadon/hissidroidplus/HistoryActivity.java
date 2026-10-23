@@ -46,6 +46,11 @@ public final class HistoryActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(getColor(R.color.surface));
         setContentView(root);
+        if(android.os.Build.VERSION.SDK_INT>=33){
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    this::navigateBack);
+        }
         if(android.os.Build.VERSION.SDK_INT>=30){
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v,insets)->{
@@ -63,7 +68,7 @@ public final class HistoryActivity extends Activity {
         back.setGravity(Gravity.CENTER);
         back.setContentDescription("戻る");
         toolbar.addView(back,new LinearLayout.LayoutParams(dp(44),dp(48)));
-        back.setOnClickListener(v->{if(selection){selection=false;chosen.clear();refresh();}else finish();});
+        back.setOnClickListener(v->navigateBack());
         toolbarTitle=text("検索履歴",18,getColor(R.color.text_primary));
         toolbar.addView(toolbarTitle,new LinearLayout.LayoutParams(0,-2,1));
         sortLabel=text("新しい順 ▾",13,getColor(R.color.accent));
@@ -175,6 +180,14 @@ public final class HistoryActivity extends Activity {
             });
     }
     @Override protected void onResume(){super.onResume();if(list!=null)refresh();}
+    /** Android 13+ / 16 back gestures no longer reliably call onBackPressed(). */
+    private void navigateBack(){
+        if(selection){
+            selection=false;
+            chosen.clear();
+            refresh();
+        }else finish();
+    }
     private void refresh(){
         if(list==null)return;
         rows.clear();
@@ -193,8 +206,12 @@ public final class HistoryActivity extends Activity {
         deleteSelected.setAlpha(chosen.isEmpty()?0.45f:1f);
         adapter.notifyDataSetChanged();
     }
+    // API 26–32 hardware and gesture back fallback. API 33+ uses the
+    // platform callback registered in onCreate, so this is deliberately kept.
+    @SuppressWarnings("deprecation")
+    @android.annotation.SuppressLint("GestureBackNavigation")
     @Override public void onBackPressed(){
-        if(selection){selection=false;chosen.clear();refresh();}else super.onBackPressed();
+        navigateBack();
     }
     private final class EntriesAdapter extends BaseAdapter {
         @Override public int getCount(){return rows.size();}
