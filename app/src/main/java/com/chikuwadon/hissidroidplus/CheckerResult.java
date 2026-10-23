@@ -9,8 +9,14 @@ import java.util.Map;
 public final class CheckerResult {
     public static final class Post {
         public final String title, author, meta, body, link;
+        /** Reference count is UI-only metadata. Never include it in copied text or names. */
+        public final int referenceCount;
         public Post(String title,String author,String meta,String body,String link){
+            this(title,author,meta,body,link,0);
+        }
+        public Post(String title,String author,String meta,String body,String link,int references){
             this.title=title;this.author=author;this.meta=meta;this.body=body;this.link=link;
+            this.referenceCount=Math.max(0,references);
         }
     }
     public String rank="";
