@@ -85,6 +85,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 - [ライセンス適用範囲](docs/LICENSING_SCOPE.md)
 - [安全なソース公開手順](docs/PUBLIC_EXPORT_PLAN.md)
 - [実機の最終検証手順](docs/REAL_DEVICE_ACCEPTANCE.md)
+- [GitHub公開後のSecurity設定](docs/GITHUB_PUBLIC_SECURITY.md)
 - [v1.0.0 リリースノート案](docs/RELEASE_NOTES_v1.0.0.md)
 - [セキュリティ報告](SECURITY.md)
 - [公開前チェックリスト](docs/PUBLIC_RELEASE_CHECKLIST.md)

@@ -13,12 +13,16 @@ Public公開とAPK配布は別々の手続きです。開発者による素材�
 - [x] 固定署名鍵のGit管理を避け、GitHub Actions Secretsから利用
 - [x] 署名鍵と復旧情報の独立バックアップを開発者が確認
 - [x] 2026-10-23時点のGit履歴・Actionsの既知シークレットパターンを検査（136 runs、442 blobs、149 logs、101 artifacts、検出0件）
-- [ ] **削除前の板データを含む旧コミット・既存Actions成果物の扱いと公開履歴方針を確定**
-- [ ] 監査後に増えたブランチ・タグ・Actionsログ・成果物・Issueを増分確認
+- [x] 旧板データを含む履歴を公開しない方針を確定し、履歴なしクリーンソースZIPの生成を検証（旧Privateは維持）
+- [x] 履歴とActions成果物の再監査：509 blobs / 157 runs / 156 artifacts / 186 logs、既知の秘密情報検出0件
+- [ ] 監査時に取得できなかった5件のログと、最後のコミット以降に増えたActions成果物を再確認
 - [x] 独自コード・自作アイコンにMIT LICENSEと適用範囲を追加（Privateブランチでの準備。公開時点での最終承認は別）
 - [x] Dependabotの週次更新チェック設定を追加（自動マージはしない）
-- [ ] GitHubのSecret scanning・Private vulnerability reportingの有効状態を管理者が確認（API接続からは状態取得不可）
-- [ ] Public化を個別承認
+- [x] GitHub Securityの公開時確認手順を整備（GitHub接続からの設定読み書きは不可）
+- [ ] **新しいPublicリポジトリを開設した後、Secret scanningとPrivate vulnerability reportingを確認・有効化**
+- [ ] 公開後のDependabot alerts、Code scanning、Push protectionを確認
+- [ ] 5ch公式BBSMENUから生成した内蔵TSVの再配布条件を確認（明確な許諾がない場合はデータ非同梱の配布方式へ切り替え）
+- [ ] 新しい公開用リポジトリの作成・Public化を個別承認
 
 > 現在のソースからファイルを削除しても旧コミットや既存Actions成果物には残ります。これは原作コードや画像が流用されているという指摘ではありません。削除した板一覧データと旧履歴の公開範囲を別に確認するための項目です。
 
