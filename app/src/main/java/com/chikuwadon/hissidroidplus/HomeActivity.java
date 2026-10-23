@@ -21,7 +21,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -34,7 +33,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Original APK 1.5 reimplementation: modern search and official two-level board menu. */
+/** Independent search UI with a live and cached official 5ch board menu. */
 public final class HomeActivity extends Activity {
     private EditText board,id,edge,edgeBoard,edgeId;
     private Button edgeDateSummary;
@@ -234,20 +233,13 @@ public final class HomeActivity extends Activity {
                 groups=fetchOfficialMenu();
                 origin="5ch公式メニュー（最新取得）";
             }
-            if(groups==null||groups.isEmpty()){
-                try{
-                    groups=BoardMenu.bundled(BoardCatalog.read(
-                        new InputStreamReader(getAssets().open("original_boards.tsv"),StandardCharsets.UTF_8)));
-                    origin="旧版の保存リスト";
-                }catch(Exception ignored){}
-            }
             final List<BoardMenu.Category> ready=groups;
             final String label=origin;
             runOnUiThread(()->{
                 busy=false;
                 if(isFinishing()||isDestroyed())return;
                 if(ready==null||ready.isEmpty()){
-                    Toast.makeText(this,"板一覧を取得できませんでした",Toast.LENGTH_LONG).show();return;
+                    Toast.makeText(this,"板一覧を取得できませんでした。通信環境をご確認ください。板名は直接入力できます",Toast.LENGTH_LONG).show();return;
                 }
                 boardGroups=ready;boardSource=label;
                 showCategories(ready,label);

@@ -12,7 +12,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
-/** New adapter derived from the HTML markers found in original v1.5's DEX. */
+/** HTML adapter independently implemented for the hissi.org result format. */
 public final class HissiAdapter {
     private static final Charset SJIS=Charset.forName("Shift_JIS");
     private static final Pattern REDIRECT=Pattern.compile("(?i)(?:url\\s*=\\s*['\\\"]?)([^'\\\"\\s>]+)");

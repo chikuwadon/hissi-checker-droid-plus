@@ -101,9 +101,4 @@ public final class BoardMenu {
         List<Category> out=new ArrayList<>();for(Category g:groups.values())if(!g.boards.isEmpty())out.add(g);
         return out;
     }
-    public static List<Category> bundled(List<BoardCatalog.Board> boards){
-        Category legacy=new Category("保存済みの板一覧（旧データ）");
-        legacy.boards.addAll(boards);
-        List<Category> out=new ArrayList<>();out.add(legacy);return out;
-    }
 }
