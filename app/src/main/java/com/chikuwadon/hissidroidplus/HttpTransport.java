@@ -26,15 +26,19 @@ public final class HttpTransport {
     private static volatile CookieJar cookieJar;
     public static void setCookieJar(CookieJar jar){cookieJar=jar;}
     private HttpTransport(){}
-    public static String get(String url, Charset charset)throws IOException{return request(url,null,charset);}
-    public static String post(String url,String data,Charset charset)throws IOException{return request(url,data,charset);}
-    private static String request(String url,String form,Charset charset)throws IOException{
+    public static String get(String url, Charset charset)throws IOException{return request(url,null,charset,10000,15000);}
+    public static String post(String url,String data,Charset charset)throws IOException{return request(url,data,charset,10000,15000);}
+    /** Short, bounded per-connection wait for checking a search candidate. */
+    public static String getForVerification(String url,Charset charset)throws IOException{
+        return request(url,null,charset,3000,4000);
+    }
+    private static String request(String url,String form,Charset charset,int connectMs,int readMs)throws IOException{
         String current=url;
         for(int redirects=0;redirects<4;redirects++){
             URL target=new URL(current);
             validate(target);
             HttpURLConnection c=(HttpURLConnection)target.openConnection();
-            c.setConnectTimeout(10000);c.setReadTimeout(15000);
+            c.setConnectTimeout(connectMs);c.setReadTimeout(readMs);
             c.setInstanceFollowRedirects(false);
             if(!userAgent.isEmpty()) c.setRequestProperty("User-Agent",userAgent);
             c.setRequestProperty("Accept-Language","ja-JP,ja;q=0.9,en-US;q=0.5");

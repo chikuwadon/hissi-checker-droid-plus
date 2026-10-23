@@ -22,7 +22,12 @@ public final class EdgeAdapter {
     public EdgeAdapter() {}
 
     public CheckerResult load(CheckerQuery query)throws IOException {
-        String html=HttpTransport.get(query.url,Charset.forName("Shift_JIS"));
+        return decode(HttpTransport.get(query.url,Charset.forName("Shift_JIS")),query);
+    }
+    public CheckerResult loadForVerification(CheckerQuery query)throws IOException {
+        return decode(HttpTransport.getForVerification(query.url,Charset.forName("Shift_JIS")),query);
+    }
+    private static CheckerResult decode(String html,CheckerQuery query){
         CheckerResult result=parse(html,query);
         result.sourceUrl=query.url;
         result.diagnostic=describePage(html);

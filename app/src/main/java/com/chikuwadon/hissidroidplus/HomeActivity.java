@@ -201,14 +201,19 @@ public final class HomeActivity extends Activity {
                     if(inspected++>=6)break;
                     try{
                         CheckerQuery candidate=CheckerQuery.parseUrl(item.checkerUrl);
-                        CheckerResult check=new EdgeAdapter().load(candidate);
+                        CheckerResult check=new EdgeAdapter().loadForVerification(candidate);
                         if(check.posts.isEmpty()){
-                            if(unverified==null)unverified=item;
+                            // Missing or JavaScript-dependent page: let the result
+                            // Activity verify with WebView rather than probing
+                            // another six candidates on a slow connection.
+                            unverified=item;break;
                         }else if(!EdgeSearchValidation.matchingPosts(check,date,user).posts.isEmpty()){
                             chosen=item;break;
                         }
-                    }catch(Exception inaccessible){
-                        if(unverified==null)unverified=item;
+                    }catch(java.io.IOException inaccessible){
+                        // The native request may be blocked while WebView still
+                        // works. Allow its fallback but keep strict date checks.
+                        unverified=item;break;
                     }
                 }
                 final EdgeSearchResults.Item ready=chosen==null?unverified:chosen;
