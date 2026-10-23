@@ -60,6 +60,8 @@ jobs:
             exit 1
           fi
           unzip -Z1 "$apk" | grep -Fxq 'assets/third_party_licenses.txt'
+          unzip -Z1 "$apk" | grep -Fxq 'assets/offline_boards.tsv'
+          unzip -p "$apk" assets/offline_boards.tsv | sha256sum | grep -Fq 'c28ceeeb53b73808c20adce61ec1db1d51dc6355b3222a5b2e8f252ef5bdb423'
           if unzip -Z1 "$apk" | grep -Fxq 'assets/original_boards.tsv'; then
             echo "::error::Legacy board asset must not be bundled."
             exit 1

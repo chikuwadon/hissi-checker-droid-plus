@@ -5,7 +5,9 @@ import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.util.ArrayList;
@@ -36,6 +38,29 @@ public final class BoardMenu {
             if(!parsed.isEmpty())return parsed;
         } catch(Exception e){error.addSuppressed(e);}
         throw error;
+    }
+    /**
+     * Parse the independent snapshot derived from the public 5ch BBSMENU.
+     * Columns are category, board ID and board name. Invalid/duplicate rows
+     * are ignored; a missing asset does not affect direct board ID entry.
+     */
+    public static List<Category> parseOfflineSnapshot(Reader source) throws IOException {
+        LinkedHashMap<String,Category> groups=new LinkedHashMap<>();
+        LinkedHashSet<String> seen=new LinkedHashSet<>();
+        try(BufferedReader in=new BufferedReader(source)){
+            String line;
+            while((line=in.readLine())!=null){
+                String[] cells=line.split("\\t",-1);
+                if(cells.length!=3)continue;
+                String category=cells[0].trim();
+                String code=cells[1].trim();
+                String name=cells[2].trim();
+                if(category.isEmpty()||category.length()>100||name.isEmpty()||name.length()>100||
+                        !code.matches("[A-Za-z0-9_]{1,60}")||!seen.add(code))continue;
+                groups.computeIfAbsent(category,Category::new).boards.add(new BoardCatalog.Board(code,name));
+            }
+        }
+        return new ArrayList<>(groups.values());
     }
     public static List<Category> parseJson(String raw) throws Exception {
         JSONObject root=new JSONObject(raw);

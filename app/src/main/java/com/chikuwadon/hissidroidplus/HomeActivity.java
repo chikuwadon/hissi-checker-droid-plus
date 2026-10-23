@@ -24,6 +24,7 @@ import android.widget.TextView;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -232,6 +233,14 @@ public final class HomeActivity extends Activity {
             if(groups==null||groups.isEmpty()){
                 groups=fetchOfficialMenu();
                 origin="5ch公式メニュー（最新取得）";
+            }
+            if(groups==null||groups.isEmpty()){
+                // Generated independently from the publicly served 5ch menu.
+                try(InputStreamReader snapshot=new InputStreamReader(
+                        getAssets().open("offline_boards.tsv"),StandardCharsets.UTF_8)){
+                    groups=BoardMenu.parseOfflineSnapshot(snapshot);
+                    origin="内蔵板一覧（5ch公式メニューの保存版）";
+                }catch(Exception ignored){}
             }
             final List<BoardMenu.Category> ready=groups;
             final String label=origin;
