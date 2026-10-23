@@ -94,12 +94,13 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
             boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
             String[] labels=edge
-                ? new String[]{"表示中のレスをすべてコピー","検索結果を外部ブラウザで開く","エッヂ解析情報をコピー","閉じる"}
-                : new String[]{"表示中のレスをすべてコピー","検索結果を外部ブラウザで開く","閉じる"};
+                ? new String[]{"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","エッヂ解析情報をコピー","閉じる"}
+                : new String[]{"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
-                if(which==0)copyAllVisible();
-                else if(which==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                else if(which==2 && edge)copyDiagnostic();
+                if(which==0)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
+                else if(which==1)copySearchedId();
+                else if(which==2)copyAllVisible();
+                else if(which==3 && edge)copyDiagnostic();
                 else exitResults();
             });
         });
@@ -554,11 +555,21 @@ public final class ResultActivity extends Activity {
         if(item.getItemId()==4){copyDiagnostic();return true;}
         return super.onOptionsItemSelected(item);
     }
+    private void copySearchedId(){
+        String id=query==null?"":query.id;
+        if(id!=null&&!id.isEmpty())id="ID:"+id.replaceFirst("(?i)^ID\\\\s*[:：]\\\\s*","");
+        if((id==null||id.isEmpty())&&!result.posts.isEmpty())id=PostFormatter.id(result.posts.get(0));
+        if(id==null||id.isEmpty()){Toast.makeText(this,"IDが見つかりません",Toast.LENGTH_SHORT).show();return;}
+        copy(id,false);
+    }
     private void copyAllVisible(){
         StringBuilder b=new StringBuilder();
+        java.util.HashSet<String> titlesAdded=new java.util.HashSet<>();
         for(CheckerResult.Post p:result.posts){
             if(b.length()>0)b.append("\n\n");
-            b.append(PostFormatter.full(p));
+            String key=PostIndex.threadKey(p.link);
+            boolean first=titlesAdded.add(key);
+            b.append(first?PostFormatter.withThread(p):PostFormatter.full(p));
         }
         copy(b.toString(),false);
     }
@@ -571,6 +582,27 @@ public final class ResultActivity extends Activity {
         copy(diagnosis,false);
     }
     @Override protected void onDestroy(){worker.shutdownNow();if(fallbackView!=null){fallbackView.stopLoading();if(fallbackView.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)fallbackView.getParent()).removeView(fallbackView);fallbackView.destroy();fallbackView=null;}super.onDestroy();}
+    /** Muted reference badge appears only in the UI, never in author aggregation or copied text. */
+    private CharSequence displayHeader(CheckerResult.Post post){
+        String header=PostFormatter.header(post);
+        if(post.referenceCount<=0)return header;
+        java.util.regex.Matcher number=java.util.regex.Pattern.compile("^\\\\d+").matcher(header);
+        if(!number.find())return header;
+        int at=number.end();
+        String mark="("+post.referenceCount+")";
+        android.text.SpannableString span=new android.text.SpannableString(
+                header.substring(0,at)+mark+header.substring(at));
+        int accent=getColor(R.color.accent),secondary=getColor(R.color.text_secondary);
+        int mixed=android.graphics.Color.rgb(
+                (android.graphics.Color.red(accent)*55+android.graphics.Color.red(secondary)*45)/100,
+                (android.graphics.Color.green(accent)*55+android.graphics.Color.green(secondary)*45)/100,
+                (android.graphics.Color.blue(accent)*55+android.graphics.Color.blue(secondary)*45)/100);
+        span.setSpan(new android.text.style.ForegroundColorSpan(mixed),
+                at,at+mark.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        span.setSpan(new android.text.style.RelativeSizeSpan(0.88f),
+                at,at+mark.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return span;
+    }
     private final class RowAdapter extends BaseAdapter {
         @Override public int getCount(){return tab==0?result.posts.size():tab==1?threadRows.size():result.names.size();}
         @Override public Object getItem(int pos){return pos;}
@@ -582,7 +614,7 @@ public final class ResultActivity extends Activity {
                 CheckerResult.Post p=result.posts.get(index);
                 boolean sameThread=index>0 && PostIndex.threadKey(p.link).equals(PostIndex.threadKey(result.posts.get(index-1).link));
                 title.setVisibility(sameThread?View.GONE:View.VISIBLE);
-                title.setText(p.title);subtitle.setText(PostFormatter.normalizedInfo(p.meta+" "+p.author));body.setText(p.body);
+                title.setText(p.title);subtitle.setText(displayHeader(p));body.setText(p.body);
                 body.setVisibility(View.VISIBLE);
             } else if(tab==1){
                 title.setVisibility(View.VISIBLE);
