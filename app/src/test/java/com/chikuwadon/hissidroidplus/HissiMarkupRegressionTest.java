@@ -24,7 +24,7 @@ public final class HissiMarkupRegressionTest {
                 "<dd>二番目の投稿</dd></dl></body></html>";
         CheckerResult data=HissiAdapter.parse(page,"https://hissi.org/read.php/wmotenai/20260424/RXhhalVJaDA.html");
         assertEquals(2,data.posts.size());
-        assertEquals("13位 / 581ID中",data.rank);
+        assertEquals("13位 / 581 ID中",data.rank);
         assertTrue(data.posts.get(0).body.contains("レス本文 & サンプル"));
         assertTrue(PostFormatter.header(data.posts.get(0)).startsWith("46 "));
         assertTrue(PostFormatter.header(data.posts.get(0)).contains("ID:ExajUIh0"));
