@@ -32,4 +32,21 @@ public final class EdgeMhtStructureTest {
         assertEquals(2,data.reportedThreadCount);
         assertEquals(2,data.referencedCount);
     }
+    @Test public void duplicateHeaderAndReferenceBadgeAreNotPartOfAuthor(){
+        CheckerQuery query=CheckerQuery.parseUrl(
+                "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=example123&key=1792674000&date=20261023");
+        String page="<html><body><div class='box content'><h2><a href='"+PREFIX+"1792674000/'>タイトル</a></h2>"
+            +"<div class='post'><div class='r-head'><a href='"+PREFIX+"1792674000/506'>506(1)</a>"
+            +":エッヂの名無し [sage] 2026/10/23(金) 08:38:49.033 ID:example123 "
+            +"506(1):エッヂの名無し</div>本文</div></div></body></html>";
+        CheckerResult result=EdgeAdapter.parse(page,query);
+        assertEquals(1,result.posts.size());
+        assertEquals("エッヂの名無し",result.posts.get(0).author);
+        assertEquals(1,result.posts.get(0).referenceCount);
+        assertEquals("506 エッヂの名無し sage 2026/10/23(金) 08:38:49.033 ID:example123",
+                PostFormatter.header(result.posts.get(0)));
+        assertEquals(1,result.names.size());
+        assertEquals("エッヂの名無し",result.names.get(0));
+    }
+
 }
