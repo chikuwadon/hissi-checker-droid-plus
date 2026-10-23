@@ -36,7 +36,9 @@ import java.util.concurrent.Executors;
 
 /** Original APK 1.5 reimplementation: modern search and official two-level board menu. */
 public final class HomeActivity extends Activity {
-    private EditText board,id,edge;
+    private EditText board,id,edge,edgeBoard,edgeId;
+    private Button edgeDateSummary;
+    private final Calendar edgeSelected=Calendar.getInstance();
     private Button dateSummary;
     private final Calendar selected=Calendar.getInstance();
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -53,6 +55,10 @@ public final class HomeActivity extends Activity {
         findViewById(R.id.home_more).setOnClickListener(this::showSettings);
         applyInsets();
         board=findViewById(R.id.board);id=findViewById(R.id.user_id);edge=findViewById(R.id.edge_url);
+        edgeBoard=findViewById(R.id.edge_board);
+        edgeId=findViewById(R.id.edge_user_id);
+        edgeDateSummary=findViewById(R.id.edge_date_summary);
+        edgeBoard.setText(getPreferences(MODE_PRIVATE).getString("edge_board","liveedge"));
         dateSummary=findViewById(R.id.date_summary);
         prefs=getPreferences(MODE_PRIVATE);
         board.setText(prefs.getString("board",""));
@@ -60,6 +66,40 @@ public final class HomeActivity extends Activity {
         long time=prefs.getLong("last_date",-1L);
         if(time>0)selected.setTimeInMillis(time);
         refreshDate();
+        long savedEdgeDay=prefs.getLong("edge_last_date",-1L);
+        if(savedEdgeDay>0)edgeSelected.setTimeInMillis(savedEdgeDay);
+        refreshEdgeDate();
+        edgeDateSummary.setOnClickListener(v->{
+            DatePickerDialog datePicker=new DatePickerDialog(this,(picker,year,month,day)->{
+                edgeSelected.set(year,month,day);
+                prefs.edit().putLong("edge_last_date",edgeSelected.getTimeInMillis()).apply();
+                refreshEdgeDate();
+            },edgeSelected.get(Calendar.YEAR),edgeSelected.get(Calendar.MONTH),edgeSelected.get(Calendar.DAY_OF_MONTH));
+            datePicker.show();
+        });
+        findViewById(R.id.edge_search).setOnClickListener(v->{
+            try{
+                String code=edgeBoard.getText().toString().trim();
+                String user=edgeId.getText().toString().trim()
+                        .replaceFirst("(?i)^ID\\s*[:：]\\s*","").trim();
+                if(!code.matches("[A-Za-z0-9_]{1,60}"))
+                    throw new IllegalArgumentException("エッヂの板名が不正です");
+                if(user.isEmpty()||user.length()>64||!user.matches("[A-Za-z0-9+./_-]+"))
+                    throw new IllegalArgumentException("エッヂのIDが不正です");
+                String date=String.format(Locale.ROOT,"%04d%02d%02d",
+                        edgeSelected.get(Calendar.YEAR),edgeSelected.get(Calendar.MONTH)+1,
+                        edgeSelected.get(Calendar.DAY_OF_MONTH));
+                CheckerQuery.validateDate(date);
+                prefs.edit().putString("edge_board",code).putString("edge_last_id",user).apply();
+                startActivity(new Intent(this,EdgeSearchActivity.class)
+                        .putExtra(EdgeSearchActivity.BOARD,code)
+                        .putExtra(EdgeSearchActivity.DATE,date)
+                        .putExtra(EdgeSearchActivity.USER_ID,user));
+            }catch(IllegalArgumentException e){
+                Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();
+            }
+        });
+        edgeId.setText(prefs.getString("edge_last_id",""));
         dateSummary.setOnClickListener(v->{
             DatePickerDialog dialog=new DatePickerDialog(this,(picker,year,month,day)->{
                 selected.set(year,month,day);refreshDate();prefs.edit().putLong("last_date",selected.getTimeInMillis()).apply();
@@ -134,6 +174,11 @@ public final class HomeActivity extends Activity {
 
     private void refreshDate(){
         dateSummary.setText(String.format(Locale.JAPAN,"%04d年%02d月%02d日  ▾",selected.get(Calendar.YEAR),selected.get(Calendar.MONTH)+1,selected.get(Calendar.DAY_OF_MONTH)));
+    }
+    private void refreshEdgeDate(){
+        edgeDateSummary.setText(String.format(Locale.JAPAN,"%04d年%02d月%02d日  ▾",
+                edgeSelected.get(Calendar.YEAR),edgeSelected.get(Calendar.MONTH)+1,
+                edgeSelected.get(Calendar.DAY_OF_MONTH)));
     }
     /** Use last successful official menu without network calls on subsequent opens. */
     private void showBoards(){

@@ -57,11 +57,40 @@
         <LinearLayout android:orientation="vertical" android:background="@drawable/section_background"
             android:padding="14dp" android:layout_marginTop="12dp"
             android:layout_width="match_parent" android:layout_height="wrap_content">
-            <TextView android:text="エッヂ  ·  試験対応" android:textSize="16sp"
+            <TextView android:text="エッヂ" android:textSize="16sp"
                 android:fontFamily="sans-serif-medium" android:textColor="@color/accent"
                 android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:text="板" android:textSize="12sp" android:textColor="@color/text_secondary"
+                android:layout_marginTop="13dp" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <EditText android:id="@+id/edge_board" android:hint="例：liveedge"
+                android:singleLine="true" android:inputType="textNoSuggestions"
+                android:background="@drawable/input_background" android:paddingStart="12dp"
+                android:paddingEnd="12dp" android:layout_marginTop="5dp" android:textColor="@color/text_primary"
+                android:layout_width="match_parent" android:layout_height="46dp" />
+            <TextView android:text="検索日" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginTop="14dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <Button android:id="@+id/edge_date_summary" android:text="日付を選ぶ"
+                android:gravity="center_vertical|start" style="@style/HissiSubButton"
+                android:layout_marginTop="5dp" android:paddingStart="12dp"
+                android:layout_width="match_parent" android:layout_height="44dp" />
+            <TextView android:text="ID" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginTop="14dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <EditText android:id="@+id/edge_user_id" android:hint="検索したいID"
+                android:singleLine="true" android:inputType="textNoSuggestions"
+                android:background="@drawable/input_background" android:paddingStart="12dp"
+                android:paddingEnd="12dp" android:layout_marginTop="5dp" android:textColor="@color/text_primary"
+                android:layout_width="match_parent" android:layout_height="46dp" />
+            <Button android:id="@+id/edge_search" android:text="IDを検索"
+                style="@style/HissiPrimaryButton" android:layout_marginTop="16dp"
+                android:layout_width="match_parent" android:layout_height="46dp" />
+            <TextView android:text="※サイトの検索結果から対象スレッドを選択します"
+                android:textSize="11sp" android:layout_marginTop="7dp"
+                android:textColor="@color/text_secondary"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
             <TextView android:text="必死チェッカーのURLを貼り付け" android:textSize="12sp"
-                android:layout_marginTop="8dp" android:textColor="@color/text_secondary"
+                android:layout_marginTop="18dp" android:textColor="@color/text_secondary"
                 android:layout_width="match_parent" android:layout_height="wrap_content" />
             <EditText android:id="@+id/edge_url" android:hint="https://www.kyodemo.net/…"
                 android:inputType="textUri" android:singleLine="false" android:maxLines="2"

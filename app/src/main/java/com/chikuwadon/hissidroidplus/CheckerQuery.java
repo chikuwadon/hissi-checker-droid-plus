@@ -93,6 +93,7 @@ public final class CheckerQuery {
         return null;
     }
     private static String enc(String s){return URLEncoder.encode(s,StandardCharsets.UTF_8).replace("+","%20");}
+    public static void validateDate(String date){checkDate(date);}
     private static void checkDate(String date) {
         if(date==null||!date.matches("\\d{8}"))throw new IllegalArgumentException("日付はYYYYMMDD形式にしてください");
         try {LocalDate.parse(date,DateTimeFormatter.BASIC_ISO_DATE);}catch(DateTimeParseException e){throw new IllegalArgumentException("日付が不正です",e);}
