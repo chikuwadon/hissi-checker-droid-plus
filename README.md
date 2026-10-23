@@ -6,7 +6,7 @@
 
 オリジナルの「必死チェッカーdroid」v1.5 を基準に、Android向けに独立再構築したアプリ。
 
-`v0.1.7`　·　`Android 8.0+`　·　`Java 17`　·　`開発中 / Private`
+`v0.1.8`　·　`Android 8.0+`　·　`Java 17`　·　`開発中 / Private`
 
 </div>
 
@@ -62,7 +62,7 @@
 | :-- | :-- |
 | アプリ名 | 必死チェッカーdroid + |
 | アプリID | `com.chikuwadon.hissidroidplus` |
-| バージョン | **0.1.7**（`versionCode 8`） |
+| バージョン | **0.1.8**（`versionCode 9`） |
 | 最低Androidバージョン | Android 8.0（API 26） |
 | compileSdk / targetSdk | 36 / 36 |
 | 実装言語 | Java 17 |
@@ -80,15 +80,15 @@ gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
 生成されたデバッグAPKは `app/build/outputs/apk/debug/` に保存されます。Gradle Wrapperは現時点で同梱していません。
 
-Privateリポジトリでは、mainのGitHub Actionsでビルド・検証しています。**Release・一般公開は実施していません**。
+Privateリポジトリでは、mainのGitHub Actionsでビルド・検証しています。固定APK署名を使うには、[署名設定手順](docs/SIGNING.md)に従ってリポジトリのActions Secretsを登録してください。未登録の場合、従来どおり一時的なデバッグ署名となり、APKの上書き更新はできません。**Release・一般公開は実施していません**。
 
 ## 検証状況
 
 | 対象 | 現状 |
 | :-- | :-- |
-| v0.1.7 デバッグAPK / 単体テスト | GitHub Actionsで単体テストとデバッグAPK生成を確認済み |
-| 5chの基本表示 | 以前の開発版で実機表示を確認。v0.1.7での全機能回帰テストは未完了 |
-| UI・コピー・スワイプ | v0.1.7へ継承。実機での追加確認が必要 |
+| v0.1.8 デバッグAPK / 単体テスト | GitHub Actionsで単体テストとデバッグAPK生成を確認済み |
+| 5chの基本表示 | 以前の開発版で実機表示を確認。v0.1.8での全機能回帰テストは未完了 |
+| UI・コピー・スワイプ | v0.1.8へ継承。実機での追加確認が必要 |
 | エッヂのレス取得 | **MHTからHTML構造を特定し解析器を修正**。HTTP 403は未解決、実機での再検証が必要 |
 
 > ビルド成功は実機動作や外部サイトへの接続成功を保証しません。特にエッヂの機能は現段階で試験実装です。
