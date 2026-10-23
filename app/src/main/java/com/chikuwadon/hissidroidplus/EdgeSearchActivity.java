@@ -3,29 +3,41 @@ package com.chikuwadon.hissidroidplus;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.WindowInsets;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/**
- * Search the real site's ID/date index without inventing a thread key.
- * Tapping a thread result supplies the real key needed for the checker.
- */
+/** Native results list for Edge ID/date searches; no intermediate WebView. */
 public final class EdgeSearchActivity extends Activity {
     public static final String BOARD="board",DATE="date",USER_ID="user_id";
-    private WebView web;
-    private String board,date,id,url;
-    @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
+    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final List<EdgeSearchResults.Item> items=new ArrayList<>();
+    private String board,date,id,searchUrl;
+    private TextView status;
+    private ListView list;
+    private final ResultAdapter adapter=new ResultAdapter();
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
+    @Override protected void attachBaseContext(Context base){
+        super.attachBaseContext(AppSettings.themeContext(base));
+    }
+    private TextView text(String value,int size,int color){
+        TextView text=new TextView(this);
+        text.setText(value);text.setTextSize(size);text.setTextColor(color);
+        text.setGravity(Gravity.CENTER_VERTICAL);return text;
+    }
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         AppSettings.configureBars(this);
@@ -33,8 +45,17 @@ public final class EdgeSearchActivity extends Activity {
             board=getIntent().getStringExtra(BOARD);
             date=getIntent().getStringExtra(DATE);
             id=getIntent().getStringExtra(USER_ID);
-            url=EdgeSearchLink.searchUrl(board,date,id);
+            searchUrl=EdgeSearchLink.searchUrl(board,date,id);
         }catch(Exception invalid){finish();return;}
+        HttpTransport.setUserAgent(android.webkit.WebSettings.getDefaultUserAgent(this));
+        HttpTransport.setCookieJar(new HttpTransport.CookieJar(){
+            @Override public String read(String url){
+                return android.webkit.CookieManager.getInstance().getCookie(url);
+            }
+            @Override public void save(String url,String value){
+                android.webkit.CookieManager.getInstance().setCookie(url,value);
+            }
+        });
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(getColor(R.color.surface));
@@ -43,88 +64,89 @@ public final class EdgeSearchActivity extends Activity {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v,insets)->{
                 android.graphics.Insets bars=insets.getInsets(
-                    WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars()|WindowInsets.Type.displayCutout());
+                        WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars()
+                        |WindowInsets.Type.displayCutout());
                 v.setPadding(0,bars.top,0,bars.bottom);
                 return WindowInsets.CONSUMED;
             });root.requestApplyInsets();
         }
-        LinearLayout bar=new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(8),0,dp(10),0);
-        root.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));
-        TextView back=new TextView(this);
-        back.setText("‹");back.setTextSize(30);
-        back.setTextColor(getColor(R.color.text_primary));
+        LinearLayout toolbar=new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(9),0,dp(12),0);
+        root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(48)));
+        TextView back=text("‹",30,getColor(R.color.text_primary));
         back.setGravity(Gravity.CENTER);
-        bar.addView(back,new LinearLayout.LayoutParams(dp(42),-1));
+        toolbar.addView(back,new LinearLayout.LayoutParams(dp(40),-1));
         back.setOnClickListener(v->finish());
-        TextView title=new TextView(this);
-        title.setText("エッヂ / ID検索");title.setTextSize(16);
-        title.setTextColor(getColor(R.color.text_primary));
-        bar.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        TextView open=new TextView(this);
-        open.setText("サイトで開く");open.setTextSize(12);
-        open.setTextColor(getColor(R.color.accent));
-        open.setGravity(Gravity.CENTER);
-        bar.addView(open,new LinearLayout.LayoutParams(-2,dp(44)));
-        open.setOnClickListener(v->{
-            try {startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE));}
-            catch(Exception ignored){}
+        TextView title=text("エッヂ / 検索結果",17,getColor(R.color.text_primary));
+        toolbar.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        TextView browser=text("サイトで開く",12,getColor(R.color.accent));
+        toolbar.addView(browser);
+        browser.setOnClickListener(v->BrowserLauncher.open(this,searchUrl));
+        status=text("検索しています…",12,getColor(R.color.text_secondary));
+        status.setPadding(dp(15),dp(8),dp(15),dp(8));
+        root.addView(status);
+        list=new ListView(this);
+        list.setDivider(new ColorDrawable(getColor(R.color.divider)));
+        list.setDividerHeight(dp(1));
+        list.setAdapter(adapter);
+        list.setOnItemClickListener((p,v,index,rowId)->{
+            if(index<0||index>=items.size())return;
+            showChecker(items.get(index).checkerUrl);
         });
-        TextView hint=new TextView(this);
-        hint.setText("一致する投稿のスレッドを選ぶと必死チェッカーを開きます。");
-        hint.setTextSize(12);hint.setTextColor(getColor(R.color.text_secondary));
-        hint.setPadding(dp(12),dp(5),dp(12),dp(6));
-        root.addView(hint,new LinearLayout.LayoutParams(-1,-2));
-        web=new WebView(this);
-        web.getSettings().setJavaScriptEnabled(true);
-        web.getSettings().setDomStorageEnabled(true);
-        web.getSettings().setLoadsImagesAutomatically(false);
-        web.getSettings().setBlockNetworkImage(true);
-        web.setBackgroundColor(getColor(R.color.surface));
-        web.setWebViewClient(new WebViewClient(){
-            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
-                if(!request.isForMainFrame())return false;
-                Uri uri=request.getUrl();
-                String tapped=uri.toString();
-                // Prefer the real checker URL when the site provides it.
-                try{
-                    CheckerQuery parsed=CheckerQuery.parseUrl(tapped);
-                    if(parsed.site==CheckerQuery.Site.EDGE){
-                        startActivity(new Intent(EdgeSearchActivity.this,ResultActivity.class)
-                                .setData(Uri.parse(parsed.url)));
-                        return true;
+        root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+        fetch();
+    }
+    private void fetch(){
+        worker.execute(()->{
+            try{
+                String html=HttpTransport.get(searchUrl,StandardCharsets.UTF_8);
+                List<EdgeSearchResults.Item> result=EdgeSearchResults.parse(html,searchUrl,board,date,id);
+                runOnUiThread(()->{
+                    if(isFinishing()||isDestroyed())return;
+                    items.clear();items.addAll(result);
+                    adapter.notifyDataSetChanged();
+                    if(items.isEmpty()){
+                        status.setText("一致するスレッドを取得できませんでした。サイトで確認してください。");
+                    }else if(items.size()==1){
+                        status.setText("1件の一致スレッドを見つけました。");
+                        showChecker(items.get(0).checkerUrl);
+                        finish();
+                    }else{
+                        status.setText(items.size()+"件のスレッドが見つかりました。選択して必死チェッカーを開きます。");
                     }
-                }catch(Exception ignored){}
-                String exact=EdgeSearchLink.checkerFromThread(board,date,id,tapped);
-                if(!exact.isEmpty()){
-                    startActivity(new Intent(EdgeSearchActivity.this,ResultActivity.class)
-                            .setData(Uri.parse(exact)));
-                    return true;
-                }
-                String host=uri.getHost();
-                if("https".equalsIgnoreCase(uri.getScheme())
-                        && ("www.kyodemo.net".equalsIgnoreCase(host)
-                            ||"kyodemo.net".equalsIgnoreCase(host)))return false;
-                hint.setText("外部リンクは「サイトで開く」から確認してください。");
-                return true;
-            }
-            @Override public void onReceivedHttpError(WebView view,WebResourceRequest req,WebResourceResponse response){
-                if(req.isForMainFrame())hint.setText(
-                    "サイトのHTTP応答: "+response.getStatusCode()+"。ブラウザで確認してください。");
-            }
-            @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError error){
-                if(req.isForMainFrame())hint.setText("サイトに接続できません。ブラウザで確認してください。");
+                });
+            }catch(Exception error){
+                runOnUiThread(()->{
+                    if(!isFinishing()&&!isDestroyed())
+                        status.setText("検索を取得できませんでした。サイトで確認してください。 "+
+                            (error.getMessage()==null?"":error.getMessage()));
+                });
             }
         });
-        root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
-        web.loadUrl(url);
+    }
+    private void showChecker(String link){
+        startActivity(new Intent(this,ResultActivity.class).setData(Uri.parse(link)));
     }
     @Override protected void onDestroy(){
-        if(web!=null){
-            web.stopLoading();web.setWebViewClient(null);
-            web.destroy();web=null;
+        worker.shutdownNow();super.onDestroy();
+    }
+    private final class ResultAdapter extends BaseAdapter {
+        @Override public int getCount(){return items.size();}
+        @Override public Object getItem(int n){return items.get(n);}
+        @Override public long getItemId(int n){return n;}
+        @Override public View getView(int position,View reuse,ViewGroup parent){
+            EdgeSearchResults.Item item=items.get(position);
+            LinearLayout box=new LinearLayout(EdgeSearchActivity.this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(dp(16),dp(12),dp(16),dp(12));
+            TextView title=text(item.title,14,getColor(R.color.text_primary));
+            title.setMaxLines(3);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            box.addView(title);
+            TextView extra=text("必死チェッカーを開く  ›",12,getColor(R.color.accent));
+            extra.setPadding(0,dp(5),0,0);
+            box.addView(extra);
+            return box;
         }
-        super.onDestroy();
     }
 }
