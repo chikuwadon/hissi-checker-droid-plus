@@ -96,7 +96,7 @@ public final class ResultActivity extends Activity {
             String[] labels=edge
                 ? new String[]{"表示中のレスをすべてコピー","検索結果を外部ブラウザで開く","エッヂ解析情報をコピー","閉じる"}
                 : new String[]{"表示中のレスをすべてコピー","検索結果を外部ブラウザで開く","閉じる"};
-            showMenu("メニュー",labels,which -> {
+            ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which==0)copyAllVisible();
                 else if(which==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
                 else if(which==2 && edge)copyDiagnostic();
