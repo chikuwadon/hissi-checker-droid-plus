@@ -9,21 +9,21 @@ function RunAdb([string[]]$ArgumentList) {
   if ($LASTEXITCODE -ne 0) { throw "ADB failed: $($ArgumentList -join ' ')" }
   return ($result -join [Environment]::NewLine)
 }
-$state=RunAdb @("get-state")
+$state=RunAdb -ArgumentList @("get-state")
 if ($state.Trim() -ne "device") { throw "Specify an authorized device using -Serial if needed" }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $pkg="com.chikuwadon.hissidroidplus"
 if ($InstallCandidate) {
   if (-not $ApkPath -or -not (Test-Path -LiteralPath $ApkPath)) { throw "Use -ApkPath with -InstallCandidate" }
-  $installed=RunAdb @("install","-r",$ApkPath)
+  $installed=RunAdb -ArgumentList @("install","-r",$ApkPath)
   if ($installed -notmatch "Success") { throw "Installation did not complete" }
 }
-$api=(RunAdb @("shell","getprop","ro.build.version.sdk")).Trim()
-$details=RunAdb @("shell","dumpsys","package",$pkg)
+$api=(RunAdb -ArgumentList @("shell","getprop","ro.build.version.sdk")).Trim()
+$details=RunAdb -ArgumentList @("shell","dumpsys","package",$pkg)
 if ($details -notmatch "versionCode=") { throw "App not installed" }
 $version=($details -split "\r?\n" | Where-Object { $_ -match "versionCode=" } | Select-Object -First 1).Trim()
-$launch=RunAdb @("shell","am","start","-W","-n","$pkg/.HomeActivity")
-$mem=RunAdb @("shell","dumpsys","meminfo",$pkg)
+$launch=RunAdb -ArgumentList @("shell","am","start","-W","-n","$pkg/.HomeActivity")
+$mem=RunAdb -ArgumentList @("shell","dumpsys","meminfo",$pkg)
 $time=($launch -split "\r?\n" | Where-Object { $_ -match "TotalTime:" } | Select-Object -First 1)
 $total=($mem -split "\r?\n" | Where-Object { $_ -match "^\s*TOTAL\s+\d+" } | Select-Object -First 1)
 $data=[ordered]@{checked=(Get-Date).ToString("o");api=$api;package=$pkg;version=$version;startup=$time;memory=$total;scope="local metrics only"}
