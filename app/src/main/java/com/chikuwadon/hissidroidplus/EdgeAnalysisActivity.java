@@ -105,7 +105,7 @@ public final class EdgeAnalysisActivity extends Activity {
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         entries=new LinearLayout(this);
         entries.setOrientation(LinearLayout.VERTICAL);
-        entries.setPadding(dp(16),dp(5),dp(16),dp(20));
+        entries.setPadding(dp(16),0,dp(16),dp(20));
         scroll.addView(entries);
 
         web=new WebView(this);
@@ -128,12 +128,12 @@ public final class EdgeAnalysisActivity extends Activity {
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response){
                 if(request.isForMainFrame()){
                     lastHttpError=response.getStatusCode();
-                    notice.setText("サイトのHTTP応答: "+lastHttpError+
+                    showNotice("サイトのHTTP応答: "+lastHttpError+
                             "。アクセス制限がある場合はブラウザで操作してください。");
                 }
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){
-                if(request.isForMainFrame())notice.setText(
+                if(request.isForMainFrame())showNotice(
                         "サイトに接続できません。外部ブラウザで確認してください。");
             }
             @Override public void onPageFinished(WebView view,String at){
@@ -145,6 +145,11 @@ public final class EdgeAnalysisActivity extends Activity {
         web.setAlpha(0.01f);
         web.loadUrl(url);
     }
+    /** Status is visible only while checking, waiting or reporting errors. */
+    private void showNotice(String value){
+        notice.setVisibility(View.VISIBLE);
+        notice.setText(value);
+    }
     private void inspectPage(){
         if(web==null || isFinishing()||isDestroyed())return;
         web.evaluateJavascript("(function(){return document.documentElement.outerHTML})()",value->{
@@ -155,31 +160,33 @@ public final class EdgeAnalysisActivity extends Activity {
                 if(analysis.hasResult()){
                     started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
                     runButton.setVisibility(View.GONE);
-                    notice.setText("サイトの書き込み分析結果");
+                    // Hide the redundant success notice so the analysis cards
+                    // start immediately below the toolbar.
+                    notice.setVisibility(View.GONE);
                     entries.removeAllViews();
                     for(EdgeAnalysis.Section section:analysis.sections)
                         renderSection(section);
                 }else if(!started&&!refreshInProgress){
                     entries.removeAllViews();
                     if(refreshNeeded){
-                        notice.setText("サイトの分析結果をまだ確認できません。再読み込みできます。");
+                        showNotice("サイトの分析結果をまだ確認できません。再読み込みできます。");
                         runButton.setText("分析結果を更新");
                         runButton.setVisibility(View.VISIBLE);
                         runButton.setEnabled(true);
                     }else if(analysis.startAvailable){
-                        notice.setText("まだ分析されていません。実行するとサイト側で分析が開始されます。");
+                        showNotice("まだ分析されていません。実行するとサイト側で分析が開始されます。");
                         runButton.setText("分析を開始");
                         runButton.setVisibility(View.VISIBLE);
                         runButton.setEnabled(true);
                     }else{
                         runButton.setVisibility(View.GONE);
-                        if(lastHttpError==0)notice.setText(analysis.hasStartButton?
+                        if(lastHttpError==0)showNotice(analysis.hasStartButton?
                                 "サイト側の分析ボタンが利用できません。サイトで確認してください。":
                                 "分析結果または分析ボタンを確認できませんでした。サイトで確認してください。");
                     }
                 }
             }catch(Exception failed){
-                if(!started)notice.setText("分析情報を読み取れません。サイトで確認してください。");
+                if(!started)showNotice("分析情報を読み取れません。サイトで確認してください。");
             }
         });
     }
@@ -288,7 +295,7 @@ public final class EdgeAnalysisActivity extends Activity {
         runButton.setText("分析を実行中…");
         runButton.setVisibility(View.VISIBLE);
         runButton.setEnabled(false);
-        notice.setText("サイト側の分析を実行しています…");
+        showNotice("サイト側の分析を実行しています…");
         // The site operation must only be triggered by a user tap.
         String script="(function(){"+
             "var a=Array.from(document.querySelectorAll('a.button,button')).find(function(e){"+
@@ -327,7 +334,7 @@ public final class EdgeAnalysisActivity extends Activity {
         });
     }
     private void showRefreshAvailable(String message){
-        notice.setText(message);
+        showNotice(message);
         runButton.setText("分析結果を更新");
         runButton.setVisibility(View.VISIBLE);
         runButton.setEnabled(true);
@@ -345,7 +352,7 @@ public final class EdgeAnalysisActivity extends Activity {
         runButton.setText("分析結果を更新中…");
         runButton.setVisibility(View.VISIBLE);
         runButton.setEnabled(false);
-        notice.setText("サイトから最新の分析結果を取得しています…");
+        showNotice("サイトから最新の分析結果を取得しています…");
         int mark=cycle;
         loadFreshPage();
         for(int delay:new int[]{800,2400,4800,8000,13000}){
