@@ -5,5 +5,7 @@
     <issue id="GradleDependency"><ignore path="build.gradle"/></issue>
     <!-- Preserve the user-approved launcher art and its existing round icon. -->
     <issue id="IconLauncherShape"><ignore path="src/main/res/mipmap-hdpi/ic_launcher.png"/></issue>
+    <!-- Adaptive icon plus legacy bitmap intentionally share a resource name. -->
+    <issue id="IconXmlAndPng"><ignore path="src/main/res/mipmap-hdpi/ic_launcher.png"/></issue>
     <issue id="MonochromeLauncherIcon"><ignore path="src/main/res/mipmap-anydpi/ic_launcher.xml"/></issue>
 </lint>
