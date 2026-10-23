@@ -28,13 +28,31 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - name: Check local Java
         run: if [ -f tools/check_local.sh ]; then bash tools/check_local.sh; fi
+      - name: Restore persistent signing key from repository secrets
+        env:
+          KEY_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
+          KEY_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEY_B64" && -n "$KEY_PASSWORD" ]]; then
+            keyfile="$RUNNER_TEMP/hissi-checker-droid-signing.jks"
+            printf '%s' "$KEY_B64" | base64 --decode > "$keyfile"
+            chmod 600 "$keyfile"
+            keytool -list -keystore "$keyfile" -storepass "$KEY_PASSWORD" -alias hissi-checker-droid > /dev/null
+            echo "HISSI_KEYSTORE_PATH=$keyfile" >> "$GITHUB_ENV"
+            echo "Persistent signing keystore restored."
+          else
+            echo "::warning::Stable APK signing is NOT enabled. Configure HISSI_KEYSTORE_B64 and HISSI_KEYSTORE_PASSWORD in Actions Secrets."
+          fi
       - name: Unit tests and debug APK
+        env:
+          HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
       - name: Save private debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: HissiCheckerDroidPlus-v0.1.7-debug
+          name: HissiCheckerDroidPlus-v0.1.8-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
