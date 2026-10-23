@@ -42,6 +42,7 @@ android {
     targetCompatibility = JavaVersion.VERSION_17
   }
   testOptions { unitTests.returnDefaultValues = true }
+  lint { lintConfig = file('lint.xml') }
 }
 dependencies {
   implementation 'org.jsoup:jsoup:1.23.2'

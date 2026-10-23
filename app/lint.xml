@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Android 36 is the intentionally tested release SDK. Do not bump solely to silence Lint. -->
+    <issue id="OldTargetApi"><ignore path="build.gradle"/></issue>
+    <issue id="GradleDependency"><ignore path="build.gradle"/></issue>
+    <!-- Preserve the user-approved launcher art and its existing round icon. -->
+    <issue id="IconLauncherShape"><ignore path="src/main/res/mipmap-hdpi/ic_launcher.png"/></issue>
+    <issue id="MonochromeLauncherIcon"><ignore path="src/main/res/mipmap-anydpi/ic_launcher.xml"/></issue>
+</lint>
