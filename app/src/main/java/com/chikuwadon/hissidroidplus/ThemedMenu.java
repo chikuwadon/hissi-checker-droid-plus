@@ -72,7 +72,7 @@ public final class ThemedMenu {
         for(int i=0;i<items.length;i++){
             final int index=i;
             TextView row=text(a,items[i],14,a.getColor(R.color.text_primary));
-            row.setMinHeight(dp(a,48));
+            row.setMinimumHeight(dp(a,48));
             row.setPadding(dp(a,15),dp(a,10),dp(a,12),dp(a,10));
             row.setSingleLine(false);
             applyTouch(a,row);
@@ -103,7 +103,7 @@ public final class ThemedMenu {
         TextView close=text(a,"閉じる",14,a.getColor(R.color.accent));
         close.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         close.setPadding(dp(a,10),dp(a,3),dp(a,12),dp(a,3));
-        close.setMinHeight(dp(a,46));
+        close.setMinimumHeight(dp(a,46));
         applyTouch(a,close);
         panel.addView(close);
         close.setOnClickListener(v->{if(holder[0]!=null)holder[0].dismiss();});
@@ -117,7 +117,7 @@ public final class ThemedMenu {
             final int index=i;
             LinearLayout row=new LinearLayout(a);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setMinHeight(dp(a,48));
+            row.setMinimumHeight(dp(a,48));
             applyTouch(a,row);
             TextView option=text(a,labels[i],14,a.getColor(R.color.text_primary));
             option.setPadding(dp(a,10),dp(a,8),0,dp(a,8));
@@ -146,7 +146,7 @@ public final class ThemedMenu {
         panel.addView(versionLine);
         TextView github=text(a,"GitHub  ↗",14,a.getColor(R.color.accent));
         github.setPadding(dp(a,8),dp(a,8),dp(a,8),dp(a,8));
-        github.setMinHeight(dp(a,46));applyTouch(a,github);
+        github.setMinimumHeight(dp(a,46));applyTouch(a,github);
         panel.addView(github);
         final AlertDialog[] holder={null};
         github.setOnClickListener(v->{
