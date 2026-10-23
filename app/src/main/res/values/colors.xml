@@ -6,6 +6,7 @@
     <color name="text_primary">#172327</color>
     <color name="text_secondary">#526A70</color>
     <color name="icon_background">#2A2B2D</color>
+    <color name="button_surface">#ECF3F2</color>
     <color name="input_surface">#FFFFFF</color>
     <color name="border">#C5D4D7</color>
     <color name="panel_pressed">#DBF0EE</color>

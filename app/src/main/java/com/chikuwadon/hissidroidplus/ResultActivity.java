@@ -86,6 +86,7 @@ public final class ResultActivity extends Activity {
             @Override public void save(String url,String value){android.webkit.CookieManager.getInstance().setCookie(url,value);}
         });
         applySystemInsets();
+        findViewById(R.id.edge_analysis_link).setOnClickListener(v->openEdgeAnalysis());
         status=findViewById(R.id.status);
         list=findViewById(R.id.items);
         adapter=new RowAdapter();list.setAdapter(adapter);
@@ -94,13 +95,20 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.tab_names).setOnClickListener(v->selectTab(2));
         findViewById(R.id.toolbar_back).setOnClickListener(v->exitResults());
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
-            String[] labels={"検索履歴","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+            boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
+            String[] labels=edge
+                    ? new String[]{"検索履歴","書き込み分析","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"}
+                    : new String[]{"検索履歴","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which==0)startActivity(new Intent(this,HistoryActivity.class));
-                else if(which==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                else if(which==2)copySearchedId();
-                else if(which==3)copyAllVisible();
-                else exitResults();
+                else {
+                    int action=edge?which-1:which;
+                    if(edge&&which==1)openEdgeAnalysis();
+                    else if(action==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
+                    else if(action==2)copySearchedId();
+                    else if(action==3)copyAllVisible();
+                    else exitResults();
+                }
             });
         });
         selectTab(0);
@@ -234,12 +242,21 @@ public final class ResultActivity extends Activity {
         ((TextView)findViewById(R.id.tab_names)).setText("名前 ("+result.names.size()+")");
         updateStats();
     }
+    private void openEdgeAnalysis(){
+        if(query==null||query.site!=CheckerQuery.Site.EDGE)return;
+        String url=result.sourceUrl.isEmpty()?query.url:result.sourceUrl;
+        if(url==null||url.isEmpty())return;
+        startActivity(new Intent(this,EdgeAnalysisActivity.class)
+                .putExtra(EdgeAnalysisActivity.EXTRA_URL,url));
+    }
     private void updateStats(){
         View block=findViewById(R.id.stat_block);
         TextView summary=findViewById(R.id.stat_summary);
         HourlyChartView chart=findViewById(R.id.hourly_chart);
         if(result.posts.isEmpty()){block.setVisibility(View.GONE);return;}
         block.setVisibility(View.VISIBLE);
+        findViewById(R.id.edge_analysis_link).setVisibility(
+                query!=null&&query.site==CheckerQuery.Site.EDGE?View.VISIBLE:View.GONE);
         int dated=chart.setPosts(result.posts);
         if(result.hourlyCounts!=null){chart.setCounts(result.hourlyCounts);dated=1;}
         StringBuilder label=new StringBuilder();

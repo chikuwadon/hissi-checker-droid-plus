@@ -114,7 +114,10 @@ public final class HistoryActivity extends Activity {
             LinearLayout row=new LinearLayout(HistoryActivity.this);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(14),dp(6),dp(9),dp(6));
-            LinearLayout labels=new LinearLayout(HistoryActivity.this);labels.setOrientation(LinearLayout.VERTICAL);
+            row.setMinimumHeight(dp(64));
+            LinearLayout labels=new LinearLayout(HistoryActivity.this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            labels.setGravity(Gravity.CENTER_VERTICAL);
             TextView title=text(entry.title(),14,getColor(R.color.text_primary));
             title.setSingleLine(true);
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);

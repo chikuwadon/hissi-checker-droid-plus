@@ -27,9 +27,17 @@ public final class SearchHistory {
             this.viewedAt=viewedAt;this.posts=posts;
         }
         public String title(){return ("edge".equals(site)?"エッヂ":"5ch")+" / "+(board.isEmpty()?"不明な板":board);}
+        public String effectiveDate(){
+            if(date!=null && date.matches("\\d{8}"))return date;
+            // Older recorded 5ch URL entries had no date in CheckerQuery.
+            java.util.regex.Matcher m=java.util.regex.Pattern
+                    .compile("/read\\.php/[A-Za-z0-9_]+/(\\d{8})/").matcher(url);
+            return m.find()?m.group(1):(date==null?"":date);
+        }
         public String detail(){
-            String dateLabel=date.matches("\\d{8}")?
-                    date.substring(0,4)+"/"+date.substring(4,6)+"/"+date.substring(6):date;
+            String day=effectiveDate();
+            String dateLabel=day.matches("\\d{8}")?
+                    day.substring(0,4)+"/"+day.substring(4,6)+"/"+day.substring(6):day;
             String idLabel=id.isEmpty()?"":("  ID:"+id.replaceFirst("(?i)^ID\\s*[:：]\\s*",""));
             return (dateLabel.isEmpty()?"":dateLabel)+idLabel+"  レス:"+posts;
         }
@@ -77,7 +85,8 @@ public final class SearchHistory {
             if(extracted.startsWith("ID:"))id=extracted.substring(3);
         }
         Entry entry=new Entry(url,q.site==CheckerQuery.Site.EDGE?"edge":"5ch",
-                q.board,q.date,id==null?"":id,System.currentTimeMillis(),
+                q.board,(q.date.isEmpty()?dateFromUrl(url):q.date),
+                id==null?"":id,System.currentTimeMillis(),
                 result.reportedPostCount>=0?result.reportedPostCount:result.posts.size());
         List<Entry> recent=load(c,RECENT);
         recent.removeIf(e->e.url.equals(entry.url));
@@ -90,6 +99,11 @@ public final class SearchHistory {
             save(c,FAVORITES,saved);
             break;
         }
+    }
+    private static String dateFromUrl(String url){
+        java.util.regex.Matcher m=java.util.regex.Pattern.compile(
+                "/read\\.php/[A-Za-z0-9_]+/(\\d{8})/").matcher(url);
+        return m.find()?m.group(1):"";
     }
     public static synchronized List<Entry> recents(Context c){return load(c,RECENT);}
     public static synchronized List<Entry> favorites(Context c){return load(c,FAVORITES);}
@@ -107,7 +121,7 @@ public final class SearchHistory {
         List<Entry> copy=new ArrayList<>(source);
         if(mode==1)copy.sort(Comparator.comparingLong(e->e.viewedAt));
         else if(mode==2)copy.sort(Comparator.comparing((Entry e)->e.board.toLowerCase(Locale.ROOT)).thenComparing((Entry e)->-e.viewedAt));
-        else if(mode==3)copy.sort(Comparator.comparing((Entry e)->e.date).reversed().thenComparing((Entry e)->-e.viewedAt));
+        else if(mode==3)copy.sort(Comparator.comparing((Entry e)->e.effectiveDate()).reversed().thenComparing((Entry e)->-e.viewedAt));
         else copy.sort(Comparator.comparingLong((Entry e)->e.viewedAt).reversed());
         return copy;
     }

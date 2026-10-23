@@ -74,7 +74,7 @@ public final class HissiAdapter {
         // Never synthesize an official rank if the site did not provide one.
         String flat=doc.text().replaceAll("\\s+"," ");
         Matcher placement=Pattern.compile("(\\d[\\d,]*)\\s*位\\s*/\\s*(\\d[\\d,]*)\\s*ID中").matcher(flat);
-        if(placement.find()) result.rank=placement.group(1)+"位 / "+placement.group(2)+"ID中";
+        if(placement.find()) result.rank=placement.group(1)+"位 / "+placement.group(2)+" ID中";
         Matcher hourly=Pattern.compile("書き込み数\\s+((?:\\d+\\s+){24})\\d+").matcher(flat);
         if(hourly.find()){
             String[] values=hourly.group(1).trim().split("\\s+");
@@ -87,6 +87,7 @@ public final class HissiAdapter {
         Matcher count=NUMBER.matcher(html);
         if(count.find()){
             if(result.rank.isEmpty())result.rank=Jsoup.parseBodyFragment(count.group(1)).text();
+            result.rank=result.rank.replaceAll("(\\d)\\s*ID中","$1 ID中");
             try{result.reportedPostCount=Integer.parseInt(count.group(2));}
             catch(NumberFormatException ignored){}
         }

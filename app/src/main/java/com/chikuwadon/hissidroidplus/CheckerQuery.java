@@ -58,6 +58,9 @@ public final class CheckerQuery {
             if(id==null||!id.matches("[A-Za-z0-9+./_-]{1,64}")||key==null||!key.matches("\\d{10,20}"))throw new IllegalArgumentException("hiまたはkeyが不正です");
             checkDate(date);
             String canonical="https://www.kyodemo.net/sdemo/b/e_e_"+match.group(1)+"/?hi="+enc(id)+"&key="+key+"&date="+date;
+            String token=arg(uri.getRawQuery(),"c");
+            if(token!=null && token.matches("[A-Za-z0-9_-]{1,48}"))
+                canonical+="&c="+enc(token);
             return new CheckerQuery(Site.EDGE,match.group(1),id,date,key,canonical);
         }
         throw new IllegalArgumentException("未対応のURLです");
