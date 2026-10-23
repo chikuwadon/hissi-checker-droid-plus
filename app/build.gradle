@@ -6,8 +6,27 @@ android {
     applicationId = 'com.chikuwadon.hissidroidplus'
     minSdk = 26
     targetSdk = 36
-    versionCode = 8
-    versionName = '0.1.7'
+    versionCode = 9
+    versionName = '0.1.8'
+  }
+  // CI loads a persistent keystore from GitHub Actions Secrets, never from Git.
+  signingConfigs {
+    if (System.getenv('HISSI_KEYSTORE_PATH') && System.getenv('HISSI_KEYSTORE_PASSWORD')) {
+      stableDebug {
+        storeFile = file(System.getenv('HISSI_KEYSTORE_PATH'))
+        storePassword = System.getenv('HISSI_KEYSTORE_PASSWORD')
+        keyAlias = 'hissi-checker-droid'
+        keyPassword = System.getenv('HISSI_KEYSTORE_PASSWORD')
+        storeType = 'pkcs12'
+      }
+    }
+  }
+  buildTypes {
+    debug {
+      if (signingConfigs.findByName('stableDebug') != null) {
+        signingConfig = signingConfigs.stableDebug
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
