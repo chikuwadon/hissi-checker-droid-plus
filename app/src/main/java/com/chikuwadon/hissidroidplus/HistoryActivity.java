@@ -23,6 +23,8 @@ import java.util.Set;
 public final class HistoryActivity extends Activity {
     private int tab=0,sort=0;
     private boolean selection=false;
+    // Highlight the long-pressed row only while its confirmation dialog is visible.
+    private String pendingConfirmationUrl=null;
     private final Set<String> chosen=new HashSet<>();
     private final String[] sorts={"新しい順","古い順","板名順","検索日順"};
     private TextView recentTab,favoriteTab,sortLabel,toolbarTitle,menuButton,selectedActions;
@@ -134,15 +136,22 @@ public final class HistoryActivity extends Activity {
             if(position<0||position>=rows.size())return true;
             SearchHistory.Entry entry=rows.get(position);
             if(selection){toggleSelection(entry.url);return true;}
+            pendingConfirmationUrl=entry.url;
+            adapter.notifyDataSetChanged();
+            Runnable clearPending=()->{
+                pendingConfirmationUrl=null;
+                if(!isFinishing()&&!isDestroyed())adapter.notifyDataSetChanged();
+            };
             if(tab==0)ThemedMenu.confirm(this,"履歴の削除",
                 "この履歴を削除しますか？\nお気に入り登録は維持されます。","削除",
-                ()->{SearchHistory.deleteRecent(this,entry.url);refresh();});
+                ()->{SearchHistory.deleteRecent(this,entry.url);refresh();},
+                clearPending);
             else ThemedMenu.confirm(this,"お気に入りの解除",
                 "お気に入り登録を解除しますか？","解除",()->{
                     if(SearchHistory.isFavorite(this,entry.url))
                         SearchHistory.toggleFavorite(this,entry);
                     refresh();
-                });
+                },clearPending);
             return true;
         });
         refresh();
@@ -197,7 +206,8 @@ public final class HistoryActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(10),dp(6),dp(6),dp(6));
             row.setMinimumHeight(dp(64));
-            if(selection && chosen.contains(entry.url))
+            if((selection && chosen.contains(entry.url)) ||
+                    entry.url.equals(pendingConfirmationUrl))
                 row.setBackgroundColor(getColor(R.color.panel_pressed));
             else
                 row.setBackground(new android.graphics.drawable.RippleDrawable(

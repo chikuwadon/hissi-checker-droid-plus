@@ -142,6 +142,9 @@ public final class ThemedMenu {
     }
     /** One shared, centered, theme-aware confirmation UI across all screens. */
     public static void confirm(Activity a,String heading,String message,String affirmative,Runnable onConfirm){
+        confirm(a,heading,message,affirmative,onConfirm,null);
+    }
+    public static void confirm(Activity a,String heading,String message,String affirmative,Runnable onConfirm,Runnable onDismiss){
         if(a.isFinishing()||a.isDestroyed())return;
         LinearLayout panel=column(a,14);
         panel.addView(title(a,heading));
@@ -165,6 +168,7 @@ public final class ThemedMenu {
         applyTouch(a,apply);buttons.addView(apply);
         apply.setOnClickListener(v->{holder[0].dismiss();onConfirm.run();});
         holder[0]=dialog(a,panel);
+        if(onDismiss!=null)holder[0].setOnDismissListener(dialog->onDismiss.run());
     }
     private static void aboutLine(Activity a,LinearLayout panel,String line,int color){
         TextView row=text(a,line,13,color);

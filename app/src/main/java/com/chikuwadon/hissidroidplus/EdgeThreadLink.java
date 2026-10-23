@@ -4,10 +4,14 @@ import java.net.URI;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Maps only validated kyodemo Edge archive links to the originating board. */
+/** Normalize known Edge URLs to the ChMate-compatible /test/read.cgi/ form. */
 public final class EdgeThreadLink {
     private static final Pattern ARCHIVE=Pattern.compile(
         "^/sdemo/r/e_e_([A-Za-z0-9_]{1,60})/(\\d{10,20})(?:/(\\d{1,6}))?/?$");
+    private static final Pattern SHORT=Pattern.compile(
+        "^/([A-Za-z0-9_]{1,60})/(\\d{10,20})(?:/(\\d{1,6}))?/?$");
+    private static final Pattern READ_CGI=Pattern.compile(
+        "^/test/read\\.cgi/([A-Za-z0-9_]{1,60})/(\\d{10,20})(?:/(\\d{1,6}))?/?$");
     private EdgeThreadLink(){}
     public static String original(String input){
         if(input==null)return "";
@@ -15,16 +19,23 @@ public final class EdgeThreadLink {
             URI uri=URI.create(input);
             if(!"http".equalsIgnoreCase(uri.getScheme())&&
                     !"https".equalsIgnoreCase(uri.getScheme()))return input;
+            if(uri.getRawUserInfo()!=null||uri.getPort()!=-1)return input;
             String host=uri.getHost();
-            if(!"www.kyodemo.net".equalsIgnoreCase(host)&&
-                    !"kyodemo.net".equalsIgnoreCase(host))return input;
-            if(uri.getUserInfo()!=null||uri.getPort()!=-1)return input;
-            Matcher match=ARCHIVE.matcher(uri.getPath());
-            if(!match.matches())return input;
-            String target="https://bbs.eddibb.cc/test/read.cgi/"+
-                    match.group(1)+"/"+match.group(2)+"/";
-            if(match.group(3)!=null)target+=match.group(3);
-            return target;
+            String path=uri.getPath();
+            if(host==null||path==null)return input;
+            Matcher matched;
+            if("kyodemo.net".equalsIgnoreCase(host)||
+                    "www.kyodemo.net".equalsIgnoreCase(host)){
+                matched=ARCHIVE.matcher(path);
+            }else if("bbs.eddibb.cc".equalsIgnoreCase(host)){
+                matched=SHORT.matcher(path);
+                if(!matched.matches())matched=READ_CGI.matcher(path);
+            }else return input;
+            if(!matched.matches())return input;
+            StringBuilder output=new StringBuilder("https://bbs.eddibb.cc/test/read.cgi/")
+                .append(matched.group(1)).append('/').append(matched.group(2)).append('/');
+            if(matched.group(3)!=null)output.append(matched.group(3));
+            return output.toString();
         }catch(Exception ignored){return input;}
     }
 }
