@@ -48,7 +48,7 @@ public final class HomeActivity extends Activity {
         setContentView(R.layout.activity_home);
         AppTitle.apply(findViewById(R.id.app_title));
         AppSettings.configureBars(this);
-        findViewById(R.id.home_more).setOnClickListener(v->showSettings());
+        findViewById(R.id.home_more).setOnClickListener(this::showSettings);
         applyInsets();
         board=findViewById(R.id.board);id=findViewById(R.id.user_id);edge=findViewById(R.id.edge_url);
         dateSummary=findViewById(R.id.date_summary);
@@ -94,47 +94,39 @@ public final class HomeActivity extends Activity {
             Collections.sort(favorites);
             if(favorites.isEmpty()){Toast.makeText(this,"お気に入りがありません",Toast.LENGTH_SHORT).show();return;}
             showList("お気に入り",favorites,position->board.setText(favorites.get(position)),()->{
-                new AlertDialog.Builder(this).setTitle("お気に入りの削除")
-                    .setMessage("登録済みの板をすべて削除しますか？")
-                    .setNegativeButton("キャンセル",null)
-                    .setPositiveButton("削除",(d,w)->prefs.edit().remove("favorite_boards").apply()).show();
+                ThemedMenu.choose(this,"お気に入りをすべて削除しますか？",
+                    new String[]{"戻る","すべて削除"},-1,choice->{
+                        if(choice==1)prefs.edit().remove("favorite_boards").apply();
+                    });
             });
         });
     }
-    private String installedVersion(){
-        try { return getPackageManager().getPackageInfo(getPackageName(),0).versionName; }
-        catch(Exception ignored){ return "不明"; }
-    }
-    private void showSettings(){
-        String[] options={"テーマ", "リンクの開き方", "このアプリについて"};
-        new AlertDialog.Builder(this).setTitle("設定").setItems(options,(d,i)->{
-            if(i==0)showThemePicker();
-            else if(i==1)showLinkModePicker();
-            else new AlertDialog.Builder(this).setTitle("必死チェッカーdroid +")
-                    .setMessage("Hissi Checker Droid Plus / v"+installedVersion()+"\nオリジナルAPKを基準に再構築。\nエッヂは実験的対応です。")
-                    .setPositiveButton("閉じる",null).show();
-        }).setNegativeButton("閉じる",null).show();
+    /** Toolbar overflow stays attached to ⋮ instead of opening a full modal list. */
+    private void showSettings(View anchor){
+        ThemedMenu.showOverflow(this,anchor,new String[]{
+            "テーマ", "リンクの開き方", "このアプリについて"
+        },index->{
+            if(index==0)showThemePicker();
+            else if(index==1)showLinkModePicker();
+            else ThemedMenu.showAbout(this);
+        });
     }
     private void showThemePicker(){
         String[] values={AppSettings.THEME_DARK,AppSettings.THEME_LIGHT,AppSettings.THEME_SYSTEM};
         String[] labels={"ダーク", "ライト", "端末の設定に合わせる"};
-        String selectedTheme=AppSettings.prefs(this).getString(AppSettings.THEME,AppSettings.THEME_DARK);
-        int checked=java.util.Arrays.asList(values).indexOf(selectedTheme);
-        new AlertDialog.Builder(this).setTitle("テーマ").setSingleChoiceItems(labels,checked,(d,i)->{
-            AppSettings.prefs(this).edit().putString(AppSettings.THEME,values[i]).apply();
-            d.dismiss();recreate();
-        }).setNegativeButton("キャンセル",null).show();
+        String current=AppSettings.prefs(this).getString(AppSettings.THEME,AppSettings.THEME_DARK);
+        int checked=java.util.Arrays.asList(values).indexOf(current);
+        ThemedMenu.choose(this,"テーマ",labels,checked,index->{
+            AppSettings.prefs(this).edit().putString(AppSettings.THEME,values[index]).apply();
+            recreate();
+        });
     }
     private void showLinkModePicker(){
-        String[] labels={"ChMate連携（戻ると元の画面へ）", "単独アプリ（別タスクで開く）"};
-        int selectedMode=AppSettings.standalone(this)?1:0;
-        new AlertDialog.Builder(this).setTitle("外部リンクの開き方")
-            .setSingleChoiceItems(labels,selectedMode,(d,i)->{
-                AppSettings.prefs(this).edit().putString(AppSettings.LINK_MODE,
-                    i==1?AppSettings.MODE_STANDALONE:AppSettings.MODE_CONNECTED).apply();
-                d.dismiss();
-            })
-            .setNegativeButton("キャンセル",null).show();
+        String[] labels={"ChMate連携（元の画面へ戻る）","単独アプリ（別タスクで開く）"};
+        ThemedMenu.choose(this,"リンクの開き方",labels,AppSettings.standalone(this)?1:0,index->{
+            AppSettings.prefs(this).edit().putString(AppSettings.LINK_MODE,
+                    index==1?AppSettings.MODE_STANDALONE:AppSettings.MODE_CONNECTED).apply();
+        });
     }
 
     private void refreshDate(){
