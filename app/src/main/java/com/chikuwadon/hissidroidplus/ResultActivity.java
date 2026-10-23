@@ -395,7 +395,12 @@ public final class ResultActivity extends Activity {
     }
     private void showEmpty(){
         String page=result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl;
-        showMessage("レスを確認できませんでした","ページが存在しないか、HTML形式が想定と違う可能性があります。",
+        boolean hissi=query!=null && query.site==CheckerQuery.Site.HISSI;
+        String message="ページが存在しないか、HTML形式が想定と違う可能性があります。";
+        if(hissi && result.reportedPostCount>0)
+            message="5chのサイトでは"+result.reportedPostCount+"件の投稿が確認できますが、レス本文を解析できませんでした。"+
+                    "\n診断: "+result.diagnostic;
+        showMessage("レスを確認できませんでした",message,
             page.isEmpty()?null:"外部ブラウザで開く",()->openExternalBrowser(page),"閉じる",this::exitResults);
     }
     private void copy(String value,boolean append){
