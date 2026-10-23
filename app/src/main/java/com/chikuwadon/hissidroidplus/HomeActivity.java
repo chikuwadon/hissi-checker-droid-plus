@@ -15,6 +15,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Toast;
 import android.widget.LinearLayout;
@@ -38,6 +39,7 @@ import java.util.concurrent.Executors;
 public final class HomeActivity extends Activity {
     private EditText board,id,edge,edgeBoard,edgeId;
     private Button edgeDateSummary;
+    private CheckBox hissiAnyDate,edgeAnyDate;
     private final Calendar edgeSelected=Calendar.getInstance();
     private Button dateSummary;
     private final Calendar selected=Calendar.getInstance();
@@ -61,6 +63,20 @@ public final class HomeActivity extends Activity {
         edgeBoard.setText(getPreferences(MODE_PRIVATE).getString("edge_board","liveedge"));
         dateSummary=findViewById(R.id.date_summary);
         prefs=getPreferences(MODE_PRIVATE);
+        hissiAnyDate=findViewById(R.id.hissi_any_date);
+        edgeAnyDate=findViewById(R.id.edge_any_date);
+        hissiAnyDate.setChecked(prefs.getBoolean("hissi_recent_search",false));
+        edgeAnyDate.setChecked(prefs.getBoolean("edge_any_date",false));
+        dateSummary.setVisibility(hissiAnyDate.isChecked()?View.GONE:View.VISIBLE);
+        edgeDateSummary.setVisibility(edgeAnyDate.isChecked()?View.GONE:View.VISIBLE);
+        hissiAnyDate.setOnCheckedChangeListener((button,checked)->{
+            prefs.edit().putBoolean("hissi_recent_search",checked).apply();
+            dateSummary.setVisibility(checked?View.GONE:View.VISIBLE);
+        });
+        edgeAnyDate.setOnCheckedChangeListener((button,checked)->{
+            prefs.edit().putBoolean("edge_any_date",checked).apply();
+            edgeDateSummary.setVisibility(checked?View.GONE:View.VISIBLE);
+        });
         board.setText(prefs.getString("board",""));
         id.setText(prefs.getString("last_id",""));
         long time=prefs.getLong("last_date",-1L);
@@ -93,7 +109,7 @@ public final class HomeActivity extends Activity {
                 prefs.edit().putString("edge_board",code).putString("edge_last_id",user).apply();
                 // Resolve the site's real thread key in the background.
                 // Do not launch an intermediate browser or search Activity.
-                openEdgeDirect(code,date,user);
+                openEdgeDirect(code,date,user,edgeAnyDate.isChecked());
             }catch(IllegalArgumentException e){
                 Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();
             }
@@ -110,9 +126,13 @@ public final class HomeActivity extends Activity {
                 String d=String.format(Locale.ROOT,"%04d%02d%02d",selected.get(Calendar.YEAR),selected.get(Calendar.MONTH)+1,selected.get(Calendar.DAY_OF_MONTH));
                 CheckerQuery query=CheckerQuery.hissi(board.getText().toString().trim(),d,id.getText().toString().trim());
                 prefs.edit().putString("board",query.board).putString("last_id",query.id).apply();
-                Intent next=new Intent(this,ResultActivity.class);
-                next.putExtra("board",query.board);next.putExtra("date",query.date);next.putExtra("id",query.id);
-                startActivity(next);
+                if(hissiAnyDate.isChecked()){
+                    searchHissiRecent(query.board,query.id);
+                }else{
+                    Intent next=new Intent(this,ResultActivity.class);
+                    next.putExtra("board",query.board);next.putExtra("date",query.date);next.putExtra("id",query.id);
+                    startActivity(next);
+                }
             }catch(IllegalArgumentException e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}
         });
         findViewById(R.id.open_edge).setOnClickListener(v->{
@@ -180,15 +200,17 @@ public final class HomeActivity extends Activity {
                 edgeSelected.get(Calendar.DAY_OF_MONTH)));
     }
     /** Use last successful official menu without network calls on subsequent opens. */
-    private void openEdgeDirect(String code,String date,String user){
+    private void openEdgeDirect(String code,String date,String user,boolean anyDate){
         if(busy)return;
         busy=true;
         Toast.makeText(this,"エッヂのIDを検索中…",Toast.LENGTH_SHORT).show();
         worker.execute(()->{
             try{
-                String url=EdgeSearchLink.searchUrl(code,date,user);
+                String url=anyDate?EdgeSearchLink.searchUrlAnyDate(code,user):
+                        EdgeSearchLink.searchUrl(code,date,user);
                 String html=HttpTransport.get(url,StandardCharsets.UTF_8);
-                List<EdgeSearchResults.Item> matches=EdgeSearchResults.parse(html,url,code,date,user);
+                List<EdgeSearchResults.Item> matches=EdgeSearchResults.parse(
+                        html,url,code,anyDate?null:date,user);
                 // Site search date parameters alone cannot prove that a linked
                 // thread contains a post by this ID on the selected day.
                 // Examine a bounded number of checker pages, stopping at the
@@ -198,6 +220,7 @@ public final class HomeActivity extends Activity {
                 EdgeSearchResults.Item unverified=null;
                 int inspected=0;
                 for(EdgeSearchResults.Item item:matches){
+                    if(anyDate){chosen=item;break;}
                     if(inspected++>=6)break;
                     try{
                         CheckerQuery candidate=CheckerQuery.parseUrl(item.checkerUrl);
@@ -224,11 +247,12 @@ public final class HomeActivity extends Activity {
                     if(ready!=null){
                         startActivity(new Intent(this,ResultActivity.class)
                             .setData(android.net.Uri.parse(ready.checkerUrl))
-                            .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE,true));
+                            .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE,!anyDate));
                     }else{
                         Toast.makeText(this,noMatches
-                            ?"指定した日付・IDに一致する投稿が見つかりませんでした"
-                            :"検索結果がありません。サイトで検索を確認してください",
+                            ?"指定した日付・IDに一致する投稿はありません"
+                            :(anyDate?"該当するIDの投稿が見つかりませんでした":
+                                "指定した日付・IDの投稿が見つかりませんでした"),
                             Toast.LENGTH_LONG).show();
                     }
                 });

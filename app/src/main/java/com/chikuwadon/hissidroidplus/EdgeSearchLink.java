@@ -19,16 +19,18 @@ public final class EdgeSearchLink {
         try{return URLEncoder.encode(val,"UTF-8").replace("+","%20");}
         catch(java.io.UnsupportedEncodingException impossible){throw new AssertionError(impossible);}
     }
-    public static String searchUrl(String board,String date,String id){
-        if(!board.matches("[A-Za-z0-9_]{1,60}"))
+    public static String searchUrlAnyDate(String board,String id){
+        if(board==null||!board.matches("[A-Za-z0-9_]{1,60}"))
             throw new IllegalArgumentException("Invalid board");
-        CheckerQuery.validateDate(date);
-        if(!id.matches("[A-Za-z0-9+./_-]{1,64}"))
+        if(id==null||!id.matches("[A-Za-z0-9+./_-]{1,64}"))
             throw new IllegalArgumentException("Invalid ID");
-        String day=date.substring(0,4)+"-"+date.substring(4,6)+"-"+date.substring(6);
-        // Parameters confirmed from the site's native GET search form.
         return "https://www.kyodemo.net/sdemo/b/e_e_"+board+
-                "/?bs=hi&kt=k_&k="+enc(id)+"&fr="+day+"&to="+day;
+                "/?bs=hi&kt=k_&k="+enc(id);
+    }
+    public static String searchUrl(String board,String date,String id){
+        CheckerQuery.validateDate(date);
+        String day=date.substring(0,4)+"-"+date.substring(4,6)+"-"+date.substring(6);
+        return searchUrlAnyDate(board,id)+"&fr="+day+"&to="+day;
     }
     public static String checkerFromThread(String board,String date,String id,String clicked){
         try{

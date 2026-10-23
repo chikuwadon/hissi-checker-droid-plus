@@ -12,6 +12,8 @@
     <string name="favorites_description">お気に入り</string>
     <string name="search_date_label">検索日</string>
     <string name="choose_date">日付を選ぶ</string>
+    <string name="hissi_recent_search">指定なし（直近7日）</string>
+    <string name="edge_any_date_search">日付指定なし</string>
     <string name="id_label">ID</string>
     <string name="id_search_hint">検索したいID</string>
     <string name="search_id_button">IDを検索</string>
