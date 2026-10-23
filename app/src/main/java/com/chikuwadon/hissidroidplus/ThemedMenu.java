@@ -225,10 +225,10 @@ public final class ThemedMenu {
         aboutHeading(a,content,"データと通信");
         aboutLine(a,content,"検索時は指定先サイトへアクセスします。板や検索条件の一部は端末内に保存されます。各サイトとの通信や取得結果は、接続先の仕様に依存します。",secondary);
         aboutHeading(a,content,"原作・オープンソース");
-        aboutLine(a,content,"原作：必死チェッカーdroid v1.5\nHTML解析：jsoup（Apache License 2.0）\n原作および各サービス・素材の権利は、それぞれの権利者に帰属します。本アプリは非公式の独立開発版です。",secondary);
+        aboutLine(a,content,"原作：必死チェッカーdroid v1.5\nHTML解析：jsoup（MIT License）\n原作および各サービス・素材の権利は、それぞれの権利者に帰属します。本アプリは非公式の独立開発版です。",secondary);
         aboutHeading(a,content,"プロジェクト");
         aboutLink(a,content,"GitHub リポジトリ","https://github.com/chikuwadon/hissi-checker-droid-plus");
-        aboutLink(a,content,"変更履歴・ライセンス情報","https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/README.md");
+        aboutLink(a,content,"第三者ライセンス情報","https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/THIRD_PARTY_NOTICES.md");
         final AlertDialog[] holder={null};
         addClose(a,panel,holder);
         holder[0]=dialog(a,panel);

@@ -17,6 +17,9 @@ Thumbs.db
 # Sensitive local files
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.key
 google-services.json
 .env
 .env.*

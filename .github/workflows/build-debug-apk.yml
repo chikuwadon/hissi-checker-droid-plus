@@ -1,4 +1,4 @@
-name: Build Hissi Checker Droid Plus (Private)
+name: Build Hissi Checker Droid Plus (QA)
 
 on:
   push:
@@ -58,11 +58,11 @@ jobs:
             app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
           if-no-files-found: warn
           retention-days: 7
-      - name: Save private debug APK
-        if: always()
+      - name: Save QA debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: HissiCheckerDroidPlus-v0.1.21-qa-home-debug
+          name: HissiCheckerDroidPlus-v0.1.21-qa-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
