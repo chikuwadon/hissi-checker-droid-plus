@@ -29,6 +29,23 @@ public final class EdgeSearchResultsTest {
         assertFalse(EdgeSearchResults.threadStartsAfterSelectedDay(
             "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=ABC&key=1792649855&date=20261023","20261023"));
     }
+    @Test public void idSearchWithoutDateGetsDayFromThreadStart(){
+        String html="<a href='/sdemo/r/e_e_liveedge/1792726415/5'>投稿あり</a>";
+        List<EdgeSearchResults.Item> hits=EdgeSearchResults.parse(html,
+            "https://www.kyodemo.net/sdemo/b/e_e_liveedge/",
+            "liveedge",null,"abc123");
+        assertEquals(1,hits.size());
+        assertTrue(hits.get(0).checkerUrl.contains("date=20261023"));
+    }
+    @Test public void searchResultRowDateOverridesThreadCreatedDay(){
+        String html="<li><time>2026/10/24 11:00</time>"+
+            "<a href='/sdemo/r/e_e_liveedge/1792726415/3'>投稿あり</a></li>";
+        List<EdgeSearchResults.Item> hits=EdgeSearchResults.parse(html,
+            "https://www.kyodemo.net/sdemo/b/e_e_liveedge/",
+            "liveedge",null,"abc123");
+        assertEquals(1,hits.size());
+        assertTrue(hits.get(0).checkerUrl.contains("date=20261024"));
+    }
     @Test public void noSyntheticKeyWhenNoThreadFound(){
         assertTrue(EdgeSearchResults.parse("<p>検索なし</p>",
                 "https://www.kyodemo.net/sdemo/b/e_e_liveedge/",

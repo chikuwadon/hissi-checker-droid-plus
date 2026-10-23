@@ -32,6 +32,10 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -198,6 +202,38 @@ public final class HomeActivity extends Activity {
         edgeDateSummary.setText(String.format(Locale.JAPAN,"%04d年%02d月%02d日  ▾",
                 edgeSelected.get(Calendar.YEAR),edgeSelected.get(Calendar.MONTH)+1,
                 edgeSelected.get(Calendar.DAY_OF_MONTH)));
+    }
+    /** Seven one-day lookups at most. No loop over the whole archive. */
+    private void searchHissiRecent(String code,String user){
+        if(busy)return;
+        busy=true;
+        Toast.makeText(this,"5chの直近7日を検索中…",Toast.LENGTH_SHORT).show();
+        worker.execute(()->{
+            HissiRecentSearch.Result found=HissiRecentSearch.find(code,user,
+                LocalDate.now(ZoneId.of("Asia/Tokyo")), (boardName,day,idValue)->{
+                    String url=HissiAdapter.resultUrl(boardName,day,idValue);
+                    String html=HttpTransport.getForVerification(url,Charset.forName("Shift_JIS"));
+                    CheckerResult check=HissiAdapter.parse(html,url);
+                    if(check.posts.isEmpty() && check.reportedPostCount<0)
+                        throw new java.io.IOException("取得ページの形式を確認できませんでした");
+                    return !check.posts.isEmpty()||check.reportedPostCount>0;
+                });
+            runOnUiThread(()->{
+                busy=false;
+                if(isFinishing()||isDestroyed())return;
+                if(found.day!=null){
+                    Intent next=new Intent(this,ResultActivity.class);
+                    next.putExtra("board",code);next.putExtra("date",found.day);next.putExtra("id",user);
+                    startActivity(next);
+                }else if(found.error!=null){
+                    Toast.makeText(this,"検索を完了できませんでした（"+
+                        found.checkedDays+"日目）: "+found.error,Toast.LENGTH_LONG).show();
+                }else{
+                    Toast.makeText(this,"直近7日間に該当する投稿は見つかりませんでした",
+                        Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
     /** Use last successful official menu without network calls on subsequent opens. */
     private void openEdgeDirect(String code,String date,String user,boolean anyDate){

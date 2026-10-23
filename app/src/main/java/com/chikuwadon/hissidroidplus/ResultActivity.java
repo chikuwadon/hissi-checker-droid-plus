@@ -576,10 +576,17 @@ public final class ResultActivity extends Activity {
         loading=false;
         status.setText("取得に失敗しました");
         String text=message==null?"通信・解析エラーが発生しました":message;
+        boolean missing=HissiSearchFeedback.missingSearchResult(query,text);
+        if(missing){
+            text="指定した板・日付・IDに該当するページが見つかりませんでした。"+
+                "投稿がない場合や、サイト側で結果が公開されていない場合などに表示されます。";
+            status.setText("該当する投稿が見つかりませんでした");
+        }
         if(query!=null && query.site==CheckerQuery.Site.EDGE)
             edgeDiagnostic=text;
         String url=query==null?"":query.url;
-        showMessage("レスを取得できませんでした",text,
+        showMessage(missing?"該当する投稿が見つかりませんでした":
+            "レスを取得できませんでした",text,
             url.isEmpty()?null:"外部ブラウザで開く",()->openExternalBrowser(url),"閉じる",this::exitResults);
     }
     private void openThread(String url){

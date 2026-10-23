@@ -7,6 +7,12 @@ public final class EdgeSearchLinkTest {
         assertTrue(url.contains("bs=hi&kt=k_&k=AOvteDVlE"));
         assertTrue(url.contains("fr=2026-10-23&to=2026-10-23"));
     }
+    @Test public void optionalDateSearchOmitsRange(){
+        String url=EdgeSearchLink.searchUrlAnyDate("liveedge","AbC123");
+        assertTrue(url.contains("bs=hi&kt=k_&k=AbC123"));
+        assertFalse(url.contains("fr="));
+        assertFalse(url.contains("to="));
+    }
     @Test public void realThreadKeyFromClickedUrl(){
         String result=EdgeSearchLink.checkerFromThread("liveedge","20261023","ABC12",
             "https://www.kyodemo.net/sdemo/r/e_e_liveedge/1792726415/425");
