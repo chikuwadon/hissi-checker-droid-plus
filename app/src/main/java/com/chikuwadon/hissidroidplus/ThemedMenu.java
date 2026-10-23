@@ -64,7 +64,13 @@ public final class ThemedMenu {
     public static void showOverflow(Activity a,View anchor,String[] items,Selection selected){
         if(a.isFinishing()||a.isDestroyed())return;
         LinearLayout panel=column(a,5);
-        final PopupWindow popup=new PopupWindow(panel,panelWidth(a,304),
+        // Fit the panel to the labels instead of reserving a wide fixed 304dp box.
+        TextView measure=text(a,"",14,a.getColor(R.color.text_primary));
+        float labelWidth=0;
+        for(String item:items)labelWidth=Math.max(labelWidth,measure.getPaint().measureText(item));
+        int desired=(int)Math.ceil(labelWidth)+dp(a,48);
+        int popupWidth=Math.min(panelWidth(a,304),Math.max(dp(a,156),desired));
+        final PopupWindow popup=new PopupWindow(panel,popupWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT,true);
         popup.setOutsideTouchable(true);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
