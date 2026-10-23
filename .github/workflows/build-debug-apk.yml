@@ -34,7 +34,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: HissiCheckerDroidPlus-v0.1.6-debug
+          name: HissiCheckerDroidPlus-v0.1.7-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
