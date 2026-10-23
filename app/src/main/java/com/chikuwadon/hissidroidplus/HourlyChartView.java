@@ -2,6 +2,7 @@ package com.chikuwadon.hissidroidplus;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.util.AttributeSet;
 import android.view.View;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -12,7 +13,10 @@ public final class HourlyChartView extends View {
     private final Paint paint=new Paint(3);
     private final int[] hours=new int[24];
     private static final Pattern TIME=Pattern.compile("(?:\\d{4}/\\d{1,2}/\\d{1,2}\\([^)]*\\)\\s+)?([01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?");
-    public HourlyChartView(Context c){super(c);setMinimumHeight(dp(55));}
+    public HourlyChartView(Context c){this(c,null);}
+    /** Required by Android LayoutInflater when this view is referenced in XML. */
+    public HourlyChartView(Context c, AttributeSet attrs){super(c,attrs);setMinimumHeight(dp(55));}
+    public HourlyChartView(Context c, AttributeSet attrs, int defStyleAttr){super(c,attrs,defStyleAttr);setMinimumHeight(dp(55));}
     private int dp(int x){return Math.round(x*getResources().getDisplayMetrics().density);}
     public int setPosts(List<CheckerResult.Post> posts){
         java.util.Arrays.fill(hours,0);int total=0;
