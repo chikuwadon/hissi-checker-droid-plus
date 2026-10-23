@@ -78,6 +78,27 @@ public final class PostIndex {
         idx=value.indexOf("[");if(idx>0)value=value.substring(0,idx);
         return value.trim().length()>100?"":value.trim();
     }
+
+    /** Per-thread response count from parsed posts; summary-only rows are not counted. */
+    public static LinkedHashMap<String,Integer> threadPostCounts(CheckerResult result){
+        LinkedHashMap<String,Integer> counts=new LinkedHashMap<>();
+        for(CheckerResult.Post post:result.posts){
+            if(post.link==null||post.link.isEmpty())continue;
+            String key=threadKey(post.link);
+            counts.put(key,counts.getOrDefault(key,0)+1);
+        }
+        return counts;
+    }
+    /** Names and copied text stay unchanged; counts are display-only. */
+    public static LinkedHashMap<String,Integer> namePostCounts(CheckerResult result){
+        LinkedHashMap<String,Integer> counts=new LinkedHashMap<>();
+        for(CheckerResult.Post post:result.posts){
+            String name=cleanAuthor(post.author);
+            if(name.isEmpty())continue;
+            counts.put(name,counts.getOrDefault(name,0)+1);
+        }
+        return counts;
+    }
     public static void collectNames(CheckerResult result){
         LinkedHashSet<String> seen=new LinkedHashSet<>();
         for(String name:result.names){String clean=cleanAuthor(name);if(!clean.isEmpty())seen.add(clean);}

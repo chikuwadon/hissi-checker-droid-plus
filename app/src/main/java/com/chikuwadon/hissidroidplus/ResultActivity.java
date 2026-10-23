@@ -50,6 +50,8 @@ public final class ResultActivity extends Activity {
     private CheckerQuery query;
     private CheckerResult result=new CheckerResult();
     private List<Map.Entry<String,String>> threadRows=new ArrayList<>();
+    private Map<String,Integer> threadCounts=new java.util.LinkedHashMap<>();
+    private Map<String,Integer> nameCounts=new java.util.LinkedHashMap<>();
     private int tab=0;
     private final int[] positions=new int[3];
     private final int[] offsets=new int[3];
@@ -92,15 +94,11 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.tab_names).setOnClickListener(v->selectTab(2));
         findViewById(R.id.toolbar_back).setOnClickListener(v->exitResults());
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
-            boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
-            String[] labels=edge
-                ? new String[]{"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","エッヂ解析情報をコピー","閉じる"}
-                : new String[]{"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+            String[] labels={"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which==0)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
                 else if(which==1)copySearchedId();
                 else if(which==2)copyAllVisible();
-                else if(which==3 && edge)copyDiagnostic();
                 else exitResults();
             });
         });
@@ -354,6 +352,7 @@ public final class ResultActivity extends Activity {
     private void showMessage(String title,String body,String left,Runnable onLeft,String right,Runnable onRight){
         LinearLayout panel=dialogPanel(title);
         TextView message=dialogText(body,14,getColor(R.color.text_secondary));
+        message.setTextIsSelectable(true);
         message.setPadding(0,0,0,dp(15));panel.addView(message);
         AlertDialog dialog=new AlertDialog.Builder(this).create();
         LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
@@ -380,6 +379,8 @@ public final class ResultActivity extends Activity {
     private void rebuildIndexes(){
         PostIndex.collectNames(result);
         threadRows=new ArrayList<>(PostIndex.uniqueThreads(result).entrySet());
+        threadCounts=PostIndex.threadPostCounts(result);
+        nameCounts=PostIndex.namePostCounts(result);
     }
     private void applySystemInsets(){
         View root=findViewById(android.R.id.content);
@@ -551,14 +552,11 @@ public final class ResultActivity extends Activity {
     @Override public boolean onCreateOptionsMenu(Menu menu){
         menu.add(0,1,0,"表示中のレスをすべてコピー");
         menu.add(0,2,1,"検索結果URLを開く");
-        if(query!=null && query.site==CheckerQuery.Site.EDGE)
-            menu.add(0,4,2,"エッヂ解析情報をコピー");
         return true;
     }
     @Override public boolean onOptionsItemSelected(MenuItem item){
         if(item.getItemId()==1){copyAllVisible();return true;}
         if(item.getItemId()==2){openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);return true;}
-        if(item.getItemId()==4){copyDiagnostic();return true;}
         return super.onOptionsItemSelected(item);
     }
     private void copySearchedId(){
@@ -578,18 +576,6 @@ public final class ResultActivity extends Activity {
             b.append(first?PostFormatter.withThread(p):PostFormatter.full(p));
         }
         copy(b.toString(),false);
-    }
-    private String getVersionName(){
-        try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}
-        catch(Exception ignored){return "不明";}
-    }
-    private void copyDiagnostic(){
-        String diagnosis="必死チェッカーdroid + v"+getVersionName()+" / エッヂ\n"
-                +"HTTP: "+HttpTransport.lastDiagnostic()+"\n"
-                +"分類: "+edgeDiagnostic+"\n"
-                +"端末API: "+android.os.Build.VERSION.SDK_INT+"\n"
-                +"URL・ID・レス本文は含みません";
-        copy(diagnosis,false);
     }
     @Override protected void onDestroy(){worker.shutdownNow();if(fallbackView!=null){fallbackView.stopLoading();if(fallbackView.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)fallbackView.getParent()).removeView(fallbackView);fallbackView.destroy();fallbackView=null;}super.onDestroy();}
     /** Muted reference badge appears only in the UI, never in author aggregation or copied text. */
@@ -629,10 +615,15 @@ public final class ResultActivity extends Activity {
             } else if(tab==1){
                 title.setVisibility(View.VISIBLE);
                 Map.Entry<String,String> e=threadRows.get(index);
-                title.setText(e.getValue());subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
+                int count=threadCounts.getOrDefault(PostIndex.threadKey(e.getKey()),0);
+                title.setText(e.getValue()+(count>0?" ("+count+")":""));
+                subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }else{
                 title.setVisibility(View.VISIBLE);
-                title.setText(result.names.get(index));subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
+                String name=result.names.get(index);
+                int count=nameCounts.getOrDefault(name,0);
+                title.setText(name+(count>0?" ("+count+")":""));
+                subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }
             return view;
         }

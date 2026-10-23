@@ -54,7 +54,8 @@ public final class HissiAdapter {
             throw canonicalError;
         result.sourceUrl=url;
         result.diagnostic=HttpTransport.lastDiagnostic()
-                +" / 解析="+result.posts.size()+"件 / 表示集計="+result.reportedPostCount+"件";
+                +" / 解析="+result.posts.size()+"件 / 表示集計="+result.reportedPostCount+"件"
+                +(result.diagnostic.isEmpty()?"":" / "+result.diagnostic);
         return result;
     }
 
@@ -110,11 +111,11 @@ public final class HissiAdapter {
                 result.names.addAll(names);
             }
         }
-        if(postsStart<0)return result;
-        String section=html.substring(postsStart);
+        String section=postsStart<0?html:html.substring(postsStart);
         Matcher posts=POST.matcher(section);
         java.util.HashSet<String> seen=new java.util.HashSet<>();
-        while(posts.find()){
+        parseDomPosts(section,base,result,seen);
+        if(result.posts.isEmpty())while(posts.find()){
             Element anchor=Jsoup.parseBodyFragment(
                     "<a href=\""+posts.group(1)+"\">open</a>",base).selectFirst("a");
             if(anchor==null)continue;
@@ -127,7 +128,7 @@ public final class HissiAdapter {
             String meta=PostFormatter.normalizedInfo(number+" "+name+" "+extras);
             String body=Jsoup.parseBodyFragment(posts.group(6)).wholeText().trim();
             // The site can list duplicate blocks if all-mode is enabled.
-            if(seen.add(link+"|"+meta)){
+            if(seen.add(link+"|"+number)){
                 result.posts.add(new CheckerResult.Post(thread,name,meta,body,link));
                 result.threads.putIfAbsent(PostIndex.openableThreadUrl(link),thread);
             }
@@ -135,38 +136,71 @@ public final class HissiAdapter {
         // Some layouts put attributes or extra elements around the header,
         // making direct HTML regex matching impossible. Parse <dl>/<dd> DOM
         // containers rather than returning a misleading "0 posts" result.
-        if(result.posts.isEmpty())parseDomPosts(section,base,result,seen);
         PostIndex.collectNames(result);
+        if(result.posts.isEmpty()) {
+            Document structure=Jsoup.parseBodyFragment(section,base);
+            result.diagnostic="HTML構造: 見出し="+(postsStart>=0)
+                    +", dl="+structure.select("dl").size()
+                    +", dt="+structure.select("dt").size()
+                    +", dd="+structure.select("dd").size()
+                    +", スレURL="+structure.select("a[href*=read.cgi]").size();
+        }
         return result;
     }
-    private static final Pattern HEADER=Pattern.compile(
-            "(\\d{1,6})\\s*[:：]\\s*(.*?)\\s*(20\\d{2}[/.-]\\d{1,2}[/.-]\\d{1,2}.*?)$",
-            Pattern.DOTALL);
+    /**
+     * Read every HTML definition-list post independently. Some Hissi pages put
+     * multiple dt/dd pairs inside a single dl; other layouts omit the dl tag.
+     * Collect only the preceding sibling header for a given body.
+     */
+    private static final Pattern RES_NUMBER=Pattern.compile("(?:^|\\s|◎)\\s*(\\d{1,6})\\s*[:：]");
+    private static final Pattern DATE_IN_HEADER=Pattern.compile("20\\d{2}[/.-]\\d{1,2}[/.-]\\d{1,2}");
     private static void parseDomPosts(String html,String base,CheckerResult result,java.util.Set<String> seen){
         Document doc=Jsoup.parseBodyFragment(html,base);
-        for(Element dl:doc.select("dl")){
-            Element dd=dl.selectFirst("dd");
-            if(dd==null)continue;
-            Element link=dl.selectFirst("a[href]");
+        for(Element dd:doc.select("dd")){
+            Element parent=dd.parent();
+            if(parent==null)continue;
+            StringBuilder prefixHtml=new StringBuilder();
+            for(org.jsoup.nodes.Node sibling=dd.previousSibling();sibling!=null;sibling=sibling.previousSibling()){
+                if(sibling instanceof Element && ((Element)sibling).normalName().equals("dd"))break;
+                prefixHtml.insert(0,sibling.outerHtml());
+            }
+            Document headerDoc=Jsoup.parseBodyFragment(prefixHtml.toString(),base);
+            Element link=null;
+            for(Element a:headerDoc.select("a[href]"))
+                if(isThreadLink(a.absUrl("href")))link=a;
             if(link==null)continue;
             String href=link.absUrl("href");
-            if(!(href.startsWith("http://")||href.startsWith("https://")))continue;
-            StringBuilder before=new StringBuilder();
-            for(org.jsoup.nodes.Node child:dl.childNodes()){
-                if(child==dd)break;
-                before.append(child.outerHtml());
+            Element metadata=(Element)headerDoc.body().clone();
+            metadata.select("a[href]").remove();
+            String raw=PostFormatter.normalizedInfo(metadata.text());
+            Matcher number=RES_NUMBER.matcher(raw);
+            if(!number.find())continue;
+            String responseNumber=number.group(1);
+            String meta=PostFormatter.normalizedInfo(raw.substring(number.start(1)));
+            if(meta.isEmpty() || !DATE_IN_HEADER.matcher(meta).find())continue;
+            String author="";
+            for(Element b:headerDoc.select("b")){
+                if(b.closest("a")!=null)continue;
+                author=PostIndex.cleanAuthor(b.text());
+                if(!author.isEmpty())break;
             }
-            String prefix=Jsoup.parseBodyFragment(before.toString()).text();
-            Matcher header=HEADER.matcher(prefix);
-            if(!header.find())continue;
-            String meta=PostFormatter.normalizedInfo(header.group(1)+" "+header.group(2)+" "+header.group(3));
-            String author=header.group(2).trim().replaceAll("\\s*\\[[^]]*\\]\\s*$","");
+            if(author.isEmpty()){
+                String afterNumber=raw.substring(number.end()).trim();
+                Matcher date=DATE_IN_HEADER.matcher(afterNumber);
+                if(date.find())afterNumber=afterNumber.substring(0,date.start());
+                author=PostIndex.cleanAuthor(afterNumber.replaceFirst("\\[[^]]*\\].*$",""));
+            }
+            String title=link.text().trim();
             String body=dd.wholeText().trim();
-            if(seen.add(href+"|"+meta)){
-                result.posts.add(new CheckerResult.Post(link.text().trim(),author,meta,body,href));
-                result.threads.putIfAbsent(PostIndex.openableThreadUrl(href),link.text().trim());
+            if(seen.add(href+"|"+responseNumber)){
+                result.posts.add(new CheckerResult.Post(title,author,meta,body,href));
+                result.threads.putIfAbsent(PostIndex.openableThreadUrl(href),title);
             }
         }
+    }
+    private static boolean isThreadLink(String href){
+        return (href.startsWith("http://") || href.startsWith("https://"))
+                && (href.contains("/test/read.cgi/") || href.contains("/sdemo/r/e_e_"));
     }
     private static String enc(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8);}
 }
