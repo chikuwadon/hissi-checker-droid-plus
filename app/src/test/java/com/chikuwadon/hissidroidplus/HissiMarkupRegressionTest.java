@@ -14,11 +14,11 @@ public final class HissiMarkupRegressionTest {
         String page="<html><body><h3>書き込み順位＆時間帯一覧</h3>"+
                 "<div>13 位/581 ID中</div>"+
                 "<h3>書き込みレス一覧</h3>"+
-                "<dl><a class='thread' target='_blank' href='https://egg.5ch.net/test/read.cgi/wmotenai/200/46'>"+
+                "<dl><a class='thread' target='_blank' href='https://egg.5ch.net/test/read.cgi/wmotenai/1792649855/46'>"+
                 "お気に入りスレ</a><br/>"+
                 "46 ：<b class='name'>彼氏いない歴774年</b>[sage]：2026/04/24(金) 02:36:44.94 ID:ExajUIh0"+
                 "<dd>レス本文 &amp; サンプル<br/>次の行</dd></dl>"+
-                "<dl><a href='https://egg.5ch.net/test/read.cgi/wmotenai/200/47' target='_blank'>"+
+                "<dl><a href='https://egg.5ch.net/test/read.cgi/wmotenai/1792649855/47' target='_blank'>"+
                 "お気に入りスレ</a><br>"+
                 "47 : <b>彼氏いない歴774年</b>[]：2026/04/24(金) 02:38:53.15 ID:ExajUIh0"+
                 "<dd>二番目の投稿</dd></dl></body></html>";
