@@ -538,14 +538,7 @@ public final class ResultActivity extends Activity {
             url.isEmpty()?null:"外部ブラウザで開く",()->openExternalBrowser(url),"閉じる",this::exitResults);
     }
     private void openThread(String url){
-        String target=EdgeThreadLink.original(url);
-        if(target==null||target.isEmpty())return;
-        Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(target));
-        view.addCategory(Intent.CATEGORY_BROWSABLE);
-        // Allow the user's configured thread reader (e.g., ChMate) to handle
-        // the original bbs.eddibb.cc thread directly.
-        try{startActivity(view);}
-        catch(Exception ex){BrowserLauncher.open(this,target);}
+        ThreadOpener.open(this,url,query!=null&&query.site==CheckerQuery.Site.EDGE);
     }
     /** Browser-only actions must never bounce back through our deep links. */
     private void openExternalBrowser(String url){
