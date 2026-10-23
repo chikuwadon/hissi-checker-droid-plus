@@ -27,7 +27,7 @@ public final class EdgeSearchLink {
         String day=date.substring(0,4)+"-"+date.substring(4,6)+"-"+date.substring(6);
         // Parameters confirmed from the site's native GET search form.
         return "https://www.kyodemo.net/sdemo/b/e_e_"+board+
-                "/?bs=hi&kt=b&k="+enc(id)+"&fr="+day+"&to="+day;
+                "/?bs=hi&kt=k_&k="+enc(id)+"&fr="+day+"&to="+day;
     }
     public static String checkerFromThread(String board,String date,String id,String clicked){
         try{

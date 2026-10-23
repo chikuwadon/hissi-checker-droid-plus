@@ -232,6 +232,7 @@ public final class HomeActivity extends Activity {
                 try(FileOutputStream out=openFileOutput("bbsmenu_5ch.json",MODE_PRIVATE)){
                     out.write(json.getBytes(StandardCharsets.UTF_8));
                 }
+                deleteFile("bbsmenu_5ch.html");
                 return groups;
             }
         }catch(Exception ignored){}
@@ -242,6 +243,7 @@ public final class HomeActivity extends Activity {
                 try(FileOutputStream out=openFileOutput("bbsmenu_5ch.html",MODE_PRIVATE)){
                     out.write(html.getBytes(StandardCharsets.UTF_8));
                 }
+                deleteFile("bbsmenu_5ch.json");
                 return groups;
             }
         }catch(Exception ignored){}
