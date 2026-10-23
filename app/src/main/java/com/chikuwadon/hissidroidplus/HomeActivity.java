@@ -42,6 +42,8 @@ public final class HomeActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private boolean busy;
+    private List<BoardMenu.Category> boardGroups;
+    private String boardSource="";
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -133,43 +135,90 @@ public final class HomeActivity extends Activity {
     private void refreshDate(){
         dateSummary.setText(String.format(Locale.JAPAN,"%04d年%02d月%02d日  ▾",selected.get(Calendar.YEAR),selected.get(Calendar.MONTH)+1,selected.get(Calendar.DAY_OF_MONTH)));
     }
+    /** Use last successful official menu without network calls on subsequent opens. */
     private void showBoards(){
         if(busy)return;
+        if(boardGroups!=null&&!boardGroups.isEmpty()){
+            showCategories(boardGroups,boardSource);return;
+        }
         busy=true;
-        Toast.makeText(this,"5chの板一覧を更新中…",Toast.LENGTH_SHORT).show();
         worker.execute(()->{
-            List<BoardMenu.Category> groups=null;String info="5ch公式メニュー（最新取得）";
+            List<BoardMenu.Category> groups=null;
+            String origin="保存済みの5ch公式メニュー";
             try{
-                String json=HttpTransport.get(BoardMenu.JSON_URL,StandardCharsets.UTF_8);
-                groups=BoardMenu.parseJson(json);
-                try(FileOutputStream file=openFileOutput("bbsmenu_5ch.json",MODE_PRIVATE)){file.write(json.getBytes(StandardCharsets.UTF_8));}
-            }catch(Exception first){
-                try{
-                    String html=HttpTransport.get(BoardMenu.HTML_URL,StandardCharsets.UTF_8);
-                    groups=BoardMenu.parseHtml(html);
-                    if(groups.isEmpty())throw new IllegalStateException("HTMLを解析できません");
-                    info="5ch公式メニュー（HTML取得）";
-                }catch(Exception second){
-                    try{
-                        String cached;
-                        try(FileInputStream in=openFileInput("bbsmenu_5ch.json")){cached=readCached(in);}
-                        groups=BoardMenu.parseJson(cached);
-                        info="前回取得した5ch公式メニュー（オフライン）";
-                    }catch(Exception third){
-                        try{
-                            groups=BoardMenu.bundled(BoardCatalog.read(new InputStreamReader(getAssets().open("original_boards.tsv"),StandardCharsets.UTF_8)));
-                            info="旧版の保存リスト（最新ではありません）";
-                        }catch(Exception ignored){}
-                    }
+                try(FileInputStream in=openFileInput("bbsmenu_5ch.json")){
+                    groups=BoardMenu.parseJson(readCached(in));
                 }
+            }catch(Exception ignored){}
+            if(groups==null||groups.isEmpty()){
+                try(FileInputStream in=openFileInput("bbsmenu_5ch.html")){
+                    groups=BoardMenu.parseHtml(readCached(in));
+                }catch(Exception ignored){}
             }
-            final List<BoardMenu.Category> menu=groups;
-            final String label=info;
+            if(groups==null||groups.isEmpty()){
+                groups=fetchOfficialMenu();
+                origin="5ch公式メニュー（最新取得）";
+            }
+            if(groups==null||groups.isEmpty()){
+                try{
+                    groups=BoardMenu.bundled(BoardCatalog.read(
+                        new InputStreamReader(getAssets().open("original_boards.tsv"),StandardCharsets.UTF_8)));
+                    origin="旧版の保存リスト";
+                }catch(Exception ignored){}
+            }
+            final List<BoardMenu.Category> ready=groups;
+            final String label=origin;
             runOnUiThread(()->{
                 busy=false;
                 if(isFinishing()||isDestroyed())return;
-                if(menu==null||menu.isEmpty()){Toast.makeText(this,"板一覧を取得できませんでした",Toast.LENGTH_LONG).show();return;}
-                showCategories(menu,label);
+                if(ready==null||ready.isEmpty()){
+                    Toast.makeText(this,"板一覧を取得できませんでした",Toast.LENGTH_LONG).show();return;
+                }
+                boardGroups=ready;boardSource=label;
+                showCategories(ready,label);
+            });
+        });
+    }
+    private List<BoardMenu.Category> fetchOfficialMenu(){
+        try{
+            String json=HttpTransport.get(BoardMenu.JSON_URL,StandardCharsets.UTF_8);
+            List<BoardMenu.Category> groups=BoardMenu.parseJson(json);
+            if(!groups.isEmpty()){
+                try(FileOutputStream out=openFileOutput("bbsmenu_5ch.json",MODE_PRIVATE)){
+                    out.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                return groups;
+            }
+        }catch(Exception ignored){}
+        try{
+            String html=HttpTransport.get(BoardMenu.HTML_URL,StandardCharsets.UTF_8);
+            List<BoardMenu.Category> groups=BoardMenu.parseHtml(html);
+            if(!groups.isEmpty()){
+                try(FileOutputStream out=openFileOutput("bbsmenu_5ch.html",MODE_PRIVATE)){
+                    out.write(html.getBytes(StandardCharsets.UTF_8));
+                }
+                return groups;
+            }
+        }catch(Exception ignored){}
+        return null;
+    }
+    private void refreshBoards(){
+        if(busy)return;
+        busy=true;
+        Toast.makeText(this,"5ch公式メニューを更新中…",Toast.LENGTH_SHORT).show();
+        worker.execute(()->{
+            List<BoardMenu.Category> latest=fetchOfficialMenu();
+            runOnUiThread(()->{
+                busy=false;
+                if(isFinishing()||isDestroyed())return;
+                if(latest!=null&&!latest.isEmpty()){
+                    boardGroups=latest;
+                    boardSource="5ch公式メニュー（更新済み）";
+                    showCategories(boardGroups,boardSource);
+                }else{
+                    Toast.makeText(this,"更新できませんでした。保存済み一覧を表示します",Toast.LENGTH_LONG).show();
+                    if(boardGroups!=null)showCategories(boardGroups,boardSource);
+                }
             });
         });
     }
@@ -186,7 +235,7 @@ public final class HomeActivity extends Activity {
     private void showCategories(List<BoardMenu.Category> groups,String source){
         List<String> labels=new ArrayList<>();
         for(BoardMenu.Category g:groups)labels.add(g.name+"  （"+g.boards.size()+"）");
-        showList("カテゴリを選択\n"+source,labels,index->showCategory(groups,source,index),null);
+        showList("カテゴリを選択\n"+source,labels,index->showCategory(groups,source,index),null,true);
     }
     private void showCategory(List<BoardMenu.Category> groups,String source,int index){
         BoardMenu.Category category=groups.get(index);
@@ -198,12 +247,27 @@ public final class HomeActivity extends Activity {
     private interface Pick { void selected(int position); }
     /** Scrollable centered dialog with predictable cyan touch feedback; never a bottom sheet. */
     private void showList(String title,List<String> labels,Pick pick,Runnable back){
+        showList(title,labels,pick,back,false);
+    }
+    private void showList(String title,List<String> labels,Pick pick,Runnable back,boolean refresh){
         if(isFinishing()||isDestroyed())return;
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable bg=new GradientDrawable();bg.setColor(getColor(R.color.panel));bg.setCornerRadius(dp(16));
         bg.setStroke(dp(1),getColor(R.color.border));panel.setBackground(bg);
-        TextView heading=new TextView(this);heading.setText(title);heading.setTextSize(17);heading.setTextColor(getColor(R.color.text_primary));
-        heading.setPadding(dp(18),dp(17),dp(18),dp(11));panel.addView(heading);
+        LinearLayout titleRow=new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(titleRow);
+        TextView heading=new TextView(this);
+        heading.setText(title);heading.setTextSize(17);
+        heading.setTextColor(getColor(R.color.text_primary));
+        heading.setPadding(dp(18),dp(17),0,dp(11));
+        titleRow.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        TextView update=new TextView(this);
+        update.setText("⟳");update.setContentDescription("5ch公式メニューを手動更新");
+        update.setTextSize(26);update.setTextColor(getColor(R.color.accent));
+        update.setGravity(Gravity.CENTER);
+        update.setVisibility(refresh?View.VISIBLE:View.GONE);
+        titleRow.addView(update,new LinearLayout.LayoutParams(dp(54),dp(54)));
         ListView list=new ListView(this);list.setDivider(new android.graphics.drawable.ColorDrawable(getColor(R.color.divider)));list.setDividerHeight(dp(1));
         list.setSelector(new android.graphics.drawable.ColorDrawable(getColor(R.color.panel_pressed)));
         ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,labels){
@@ -221,6 +285,7 @@ public final class HomeActivity extends Activity {
         Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);
             w.setGravity(Gravity.CENTER);w.setLayout(getResources().getDisplayMetrics().widthPixels-dp(34),
                 Math.min((int)(getResources().getDisplayMetrics().heightPixels*0.77),dp(700)));}
+        update.setOnClickListener(v->{dialog.dismiss();refreshBoards();});
         list.setOnItemClickListener((p,v,i,key)->{dialog.dismiss();pick.selected(i);});
         close.setOnClickListener(v->{dialog.dismiss();if(back!=null)back.run();});
     }

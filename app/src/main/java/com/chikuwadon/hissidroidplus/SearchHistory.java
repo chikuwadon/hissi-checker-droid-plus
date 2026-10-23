@@ -105,6 +105,20 @@ public final class SearchHistory {
                 "/read\\.php/[A-Za-z0-9_]+/(\\d{8})/").matcher(url);
         return m.find()?m.group(1):"";
     }
+    /** Normal history deletion must never modify favorites. */
+    public static synchronized void deleteRecent(Context c,String url){
+        List<Entry> history=load(c,RECENT);
+        history.removeIf(e->e.url.equals(url));
+        save(c,RECENT,history);
+    }
+    public static synchronized void deleteRecents(Context c,java.util.Set<String> urls){
+        List<Entry> history=load(c,RECENT);
+        history.removeIf(e->urls.contains(e.url));
+        save(c,RECENT,history);
+    }
+    public static synchronized void clearRecents(Context c){
+        save(c,RECENT,new ArrayList<Entry>());
+    }
     public static synchronized List<Entry> recents(Context c){return load(c,RECENT);}
     public static synchronized List<Entry> favorites(Context c){return load(c,FAVORITES);}
     public static synchronized boolean isFavorite(Context c,String url){

@@ -1,9 +1,9 @@
 package com.chikuwadon.hissidroidplus;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -11,19 +11,22 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
-import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-/** Compact, scrollable history/favorites UI; favorites are independent of the 100 recent entries. */
+/** Latest 100 visits and independent starred entries, with explicit destructive actions. */
 public final class HistoryActivity extends Activity {
     private int tab=0,sort=0;
+    private boolean selection=false;
+    private final Set<String> chosen=new HashSet<>();
     private final String[] sorts={"新しい順","古い順","板名順","検索日順"};
-    private TextView recentTab,favoriteTab,sortLabel;
+    private TextView recentTab,favoriteTab,sortLabel,toolbarTitle,menuButton,selectedActions;
     private ListView list;
     private final List<SearchHistory.Entry> rows=new ArrayList<>();
     private final EntriesAdapter adapter=new EntriesAdapter();
@@ -42,31 +45,39 @@ public final class HistoryActivity extends Activity {
         setContentView(root);
         if(android.os.Build.VERSION.SDK_INT>=30){
             getWindow().setDecorFitsSystemWindows(false);
-            final int top=root.getPaddingTop(),bottom=root.getPaddingBottom();
             root.setOnApplyWindowInsetsListener((v,insets)->{
                 android.graphics.Insets bars=insets.getInsets(
                     WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars()|WindowInsets.Type.displayCutout());
-                v.setPadding(v.getPaddingLeft(),top+bars.top,v.getPaddingRight(),bottom+bars.bottom);
+                v.setPadding(v.getPaddingLeft(),bars.top,v.getPaddingRight(),bars.bottom);
                 return WindowInsets.CONSUMED;
-            });
-            root.requestApplyInsets();
+            });root.requestApplyInsets();
         }
-        LinearLayout toolbar=new LinearLayout(this);toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout toolbar=new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(8),0,dp(8),0);
         root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(52)));
-        TextView back=text("‹",32,getColor(R.color.text_primary));back.setGravity(Gravity.CENTER);
+        TextView back=text("‹",32,getColor(R.color.text_primary));
+        back.setGravity(Gravity.CENTER);
         back.setContentDescription("戻る");
         toolbar.addView(back,new LinearLayout.LayoutParams(dp(44),dp(48)));
-        back.setOnClickListener(v->finish());
-        TextView title=text("検索履歴",18,getColor(R.color.text_primary));
-        toolbar.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        back.setOnClickListener(v->{if(selection){selection=false;chosen.clear();refresh();}else finish();});
+        toolbarTitle=text("検索履歴",18,getColor(R.color.text_primary));
+        toolbar.addView(toolbarTitle,new LinearLayout.LayoutParams(0,-2,1));
         sortLabel=text("新しい順 ▾",13,getColor(R.color.accent));
         sortLabel.setGravity(Gravity.CENTER);
         sortLabel.setPadding(dp(8),0,dp(8),0);
         toolbar.addView(sortLabel,new LinearLayout.LayoutParams(-2,dp(48)));
-        sortLabel.setOnClickListener(v->ThemedMenu.showOverflow(this,sortLabel,sorts,i->{
-            sort=i;refresh();
-        }));
+        sortLabel.setOnClickListener(v->ThemedMenu.showOverflow(this,sortLabel,sorts,i->{sort=i;refresh();}));
+        menuButton=text("⋮",25,getColor(R.color.text_primary));
+        menuButton.setGravity(Gravity.CENTER);
+        menuButton.setContentDescription("履歴の操作");
+        toolbar.addView(menuButton,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        menuButton.setOnClickListener(v->ThemedMenu.showOverflow(this,menuButton,
+            new String[]{"複数選択","履歴を全削除"},i->{
+                if(i==0){tab=0;selection=true;chosen.clear();refresh();}
+                else confirmClear();
+            }));
+
         LinearLayout tabs=new LinearLayout(this);tabs.setPadding(dp(4),0,dp(4),0);
         root.addView(tabs,new LinearLayout.LayoutParams(-1,dp(44)));
         recentTab=text("履歴",14,getColor(R.color.accent));
@@ -75,7 +86,18 @@ public final class HistoryActivity extends Activity {
         tabs.addView(recentTab,new LinearLayout.LayoutParams(0,-1,1));
         tabs.addView(favoriteTab,new LinearLayout.LayoutParams(0,-1,1));
         recentTab.setOnClickListener(v->{tab=0;refresh();});
-        favoriteTab.setOnClickListener(v->{tab=1;refresh();});
+        favoriteTab.setOnClickListener(v->{
+            if(selection){selection=false;chosen.clear();}
+            tab=1;refresh();
+        });
+        selectedActions=text("",14,getColor(R.color.accent));
+        selectedActions.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+        selectedActions.setPadding(dp(12),0,dp(16),0);
+        selectedActions.setMinHeight(dp(48));
+        selectedActions.setVisibility(View.GONE);
+        root.addView(selectedActions,new LinearLayout.LayoutParams(-1,dp(48)));
+        selectedActions.setOnClickListener(v->confirmSelected());
+
         list=new ListView(this);
         list.setDivider(new ColorDrawable(getColor(R.color.divider)));
         list.setDividerHeight(dp(1));
@@ -85,36 +107,101 @@ public final class HistoryActivity extends Activity {
         root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         list.setOnItemClickListener((parent,view,position,id)->{
             if(position<0||position>=rows.size())return;
-            String url=rows.get(position).url;
-            try {CheckerQuery.parseUrl(url);} catch(Exception invalid){
-                android.widget.Toast.makeText(this,"履歴のURLが無効です",android.widget.Toast.LENGTH_SHORT).show();return;
+            SearchHistory.Entry entry=rows.get(position);
+            if(selection){toggleSelection(entry.url);return;}
+            String url=entry.url;
+            try{CheckerQuery.parseUrl(url);}
+            catch(Exception invalid){
+                android.widget.Toast.makeText(this,"履歴のURLが無効です",android.widget.Toast.LENGTH_SHORT).show();
+                return;
             }
             startActivity(new Intent(this,ResultActivity.class).setData(Uri.parse(url)));
         });
+        list.setOnItemLongClickListener((parent,view,position,id)->{
+            if(position<0||position>=rows.size())return true;
+            SearchHistory.Entry entry=rows.get(position);
+            if(selection){toggleSelection(entry.url);return true;}
+            if(tab==0)new AlertDialog.Builder(this)
+                .setMessage("この履歴を削除しますか？\nお気に入り登録は維持されます。")
+                .setNegativeButton("キャンセル",null)
+                .setPositiveButton("削除",(dialog,which)->{
+                    SearchHistory.deleteRecent(this,entry.url);refresh();
+                }).show();
+            else new AlertDialog.Builder(this)
+                .setMessage("お気に入り登録を解除しますか？")
+                .setNegativeButton("キャンセル",null)
+                .setPositiveButton("解除",(dialog,which)->{
+                    if(SearchHistory.isFavorite(this,entry.url))
+                        SearchHistory.toggleFavorite(this,entry);
+                    refresh();
+                }).show();
+            return true;
+        });
         refresh();
+    }
+    private void toggleSelection(String url){
+        if(!chosen.add(url))chosen.remove(url);
+        refresh();
+    }
+    private void confirmSelected(){
+        if(chosen.isEmpty())return;
+        new AlertDialog.Builder(this)
+            .setMessage("選択した"+chosen.size()+"件の履歴を削除しますか？\nお気に入りは削除されません。")
+            .setNegativeButton("キャンセル",null)
+            .setPositiveButton("削除",(d,w)->{
+                SearchHistory.deleteRecents(this,new HashSet<>(chosen));
+                chosen.clear();selection=false;refresh();
+            }).show();
+    }
+    private void confirmClear(){
+        new AlertDialog.Builder(this)
+            .setMessage("通常履歴をすべて削除しますか？\nお気に入りは残ります。")
+            .setNegativeButton("キャンセル",null)
+            .setPositiveButton("全削除",(d,w)->{
+                SearchHistory.clearRecents(this);chosen.clear();selection=false;refresh();
+            }).show();
     }
     @Override protected void onResume(){super.onResume();if(list!=null)refresh();}
     private void refresh(){
         if(list==null)return;
-        List<SearchHistory.Entry> data=tab==0?SearchHistory.recents(this):SearchHistory.favorites(this);
-        rows.clear();rows.addAll(SearchHistory.sorted(data,sort));
+        rows.clear();
+        rows.addAll(SearchHistory.sorted(tab==0?SearchHistory.recents(this):SearchHistory.favorites(this),sort));
         recentTab.setText("履歴 ("+SearchHistory.recents(this).size()+")");
         favoriteTab.setText("お気に入り ("+SearchHistory.favorites(this).size()+")");
         recentTab.setTextColor(getColor(tab==0?R.color.accent:R.color.text_secondary));
         favoriteTab.setTextColor(getColor(tab==1?R.color.accent:R.color.text_secondary));
         sortLabel.setText(sorts[sort]+" ▾");
+        sortLabel.setVisibility(selection?View.GONE:View.VISIBLE);
+        menuButton.setVisibility(selection?View.GONE:View.VISIBLE);
+        toolbarTitle.setText(selection?"履歴を選択":"検索履歴");
+        selectedActions.setVisibility(selection?View.VISIBLE:View.GONE);
+        selectedActions.setText("選択 "+chosen.size()+"件   /   削除");
+        selectedActions.setEnabled(!chosen.isEmpty());
         adapter.notifyDataSetChanged();
+    }
+    @Override public void onBackPressed(){
+        if(selection){selection=false;chosen.clear();refresh();}else super.onBackPressed();
     }
     private final class EntriesAdapter extends BaseAdapter {
         @Override public int getCount(){return rows.size();}
-        @Override public Object getItem(int position){return rows.get(position);}
-        @Override public long getItemId(int position){return position;}
+        @Override public Object getItem(int i){return rows.get(i);}
+        @Override public long getItemId(int i){return i;}
         @Override public View getView(int position,View convert,ViewGroup parent){
             SearchHistory.Entry entry=rows.get(position);
             LinearLayout row=new LinearLayout(HistoryActivity.this);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(14),dp(6),dp(9),dp(6));
+            row.setPadding(dp(10),dp(6),dp(6),dp(6));
             row.setMinimumHeight(dp(64));
+            if(selection){
+                TextView check=text(chosen.contains(entry.url)?"☑":"☐",21,
+                    getColor(chosen.contains(entry.url)?R.color.accent:R.color.text_secondary));
+                check.setGravity(Gravity.CENTER);
+                row.addView(check,new LinearLayout.LayoutParams(dp(34),dp(48)));
+            }else{
+                TextView index=text(Integer.toString(position+1),12,getColor(R.color.text_secondary));
+                index.setGravity(Gravity.CENTER);
+                row.addView(index,new LinearLayout.LayoutParams(dp(30),dp(48)));
+            }
             LinearLayout labels=new LinearLayout(HistoryActivity.this);
             labels.setOrientation(LinearLayout.VERTICAL);
             labels.setGravity(Gravity.CENTER_VERTICAL);
@@ -122,20 +209,20 @@ public final class HistoryActivity extends Activity {
             title.setSingleLine(true);
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             labels.addView(title);
-            TextView desc=text(entry.detail(),11,getColor(R.color.text_secondary));
-            desc.setSingleLine(true);desc.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            labels.addView(desc);
+            TextView detail=text(entry.detail(),11,getColor(R.color.text_secondary));
+            detail.setSingleLine(true);
+            detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            labels.addView(detail);
             row.addView(labels,new LinearLayout.LayoutParams(0,dp(52),1));
-            boolean saved=SearchHistory.isFavorite(HistoryActivity.this,entry.url);
-            TextView star=text(saved?"★":"☆",23,saved?getColor(R.color.accent):getColor(R.color.text_secondary));
-            star.setGravity(Gravity.CENTER);
-            star.setContentDescription(saved?"お気に入りを解除":"お気に入りに保存");
-            star.setFocusable(false);
-            row.addView(star,new LinearLayout.LayoutParams(dp(48),dp(48)));
-            star.setOnClickListener(v->{
-                SearchHistory.toggleFavorite(HistoryActivity.this,entry);
-                refresh();
-            });
+            if(!selection){
+                boolean starred=SearchHistory.isFavorite(HistoryActivity.this,entry.url);
+                TextView star=text(starred?"★":"☆",23,
+                        getColor(starred?R.color.accent:R.color.text_secondary));
+                star.setGravity(Gravity.CENTER);
+                star.setContentDescription(starred?"お気に入りを解除":"お気に入りに登録");
+                row.addView(star,new LinearLayout.LayoutParams(dp(48),dp(48)));
+                star.setOnClickListener(v->{SearchHistory.toggleFavorite(HistoryActivity.this,entry);refresh();});
+            }
             return row;
         }
     }
