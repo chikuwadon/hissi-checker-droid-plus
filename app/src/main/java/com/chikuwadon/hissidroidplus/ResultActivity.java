@@ -275,8 +275,8 @@ public final class ResultActivity extends Activity {
         if(tab==0){
             if(i>=result.posts.size())return;
             CheckerResult.Post post=result.posts.get(i);
-            showMenu(post.title,new String[]{"スレを開く","スレタイ+全体コピー","全体コピー",
-                "追加スレタイ+全体コピー","追加全体コピー","IDコピー","リンクコピー"},which->{
+            showMenu(post.title,new String[]{"スレを開く","スレタイと全体をコピー","全体をコピー",
+                "スレタイと全体を追加コピー","全体を追加コピー","IDをコピー","リンクをコピー"},which->{
                 switch(which){
                     case 0:openExternalBrowser(post.link);break;
                     case 1:copy(PostFormatter.withThread(post),false);break;
@@ -290,15 +290,16 @@ public final class ResultActivity extends Activity {
         } else if(tab==1){
             if(i>=threadRows.size())return;
             Map.Entry<String,String> entry=threadRows.get(i);
-            showMenu(entry.getValue(),new String[]{"スレを開く","スレッド名コピー","リンクコピー","追加コピー"},which->{
+            showMenu(entry.getValue(),new String[]{"スレを開く","スレタイをコピー","リンクをコピー","スレタイとリンクをコピー","スレタイとリンクを追加コピー"},which->{
                 if(which==0)openExternalBrowser(entry.getKey());
                 else if(which==1)copy(entry.getValue(),false);
                 else if(which==2)copy(entry.getKey(),false);
-                else if(which==3)copy(entry.getValue()+"\n"+entry.getKey(),true);
+                else if(which==3)copy(entry.getValue()+"\n"+entry.getKey(),false);
+                else if(which==4)copy(entry.getValue()+"\n"+entry.getKey(),true);
             });
         }else if(i<result.names.size()){
             String name=result.names.get(i);
-            showMenu(name,new String[]{"コピー","追加コピー"},which->copy(name,which==1));
+            showMenu(name,new String[]{"名前をコピー","名前を追加コピー"},which->copy(name,which==1));
         }
     }
     private interface MenuSelected{void invoke(int which);}
@@ -573,8 +574,12 @@ public final class ResultActivity extends Activity {
         }
         copy(b.toString(),false);
     }
+    private String getVersionName(){
+        try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}
+        catch(Exception ignored){return "不明";}
+    }
     private void copyDiagnostic(){
-        String diagnosis="必死チェッカーdroid + v0.1.4 / エッヂ\n"
+        String diagnosis="必死チェッカーdroid + v"+getVersionName()+" / エッヂ\n"
                 +"HTTP: "+HttpTransport.lastDiagnostic()+"\n"
                 +"分類: "+edgeDiagnostic+"\n"
                 +"端末API: "+android.os.Build.VERSION.SDK_INT+"\n"
@@ -614,15 +619,15 @@ public final class ResultActivity extends Activity {
                 CheckerResult.Post p=result.posts.get(index);
                 boolean sameThread=index>0 && PostIndex.threadKey(p.link).equals(PostIndex.threadKey(result.posts.get(index-1).link));
                 title.setVisibility(sameThread?View.GONE:View.VISIBLE);
-                title.setText(p.title);subtitle.setText(displayHeader(p));body.setText(p.body);
+                title.setText(p.title);subtitle.setVisibility(View.VISIBLE);subtitle.setText(displayHeader(p));body.setText(p.body);
                 body.setVisibility(View.VISIBLE);
             } else if(tab==1){
                 title.setVisibility(View.VISIBLE);
                 Map.Entry<String,String> e=threadRows.get(index);
-                title.setText(e.getValue());subtitle.setText("スレッドを開く");body.setVisibility(View.GONE);
+                title.setText(e.getValue());subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }else{
                 title.setVisibility(View.VISIBLE);
-                title.setText(result.names.get(index));subtitle.setText("");body.setVisibility(View.GONE);
+                title.setText(result.names.get(index));subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }
             return view;
         }
