@@ -16,6 +16,11 @@ public final class HourlyChartView extends View {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int[] hours=new int[24];
     private int selected=-1;
+    /** Exact center coordinate shared by the 24 bars, the guide lines and their labels. */
+    static float hourX(int hour,float width,float margin) {
+        int safeHour=Math.max(0,Math.min(23,hour));
+        return margin+(width-2*margin)*safeHour/23f;
+    }
     private static final Pattern TIME=Pattern.compile("(?:\\d{4}/\\d{1,2}/\\d{1,2}\\([^)]*\\)\\s+)?([01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?");
 
     public HourlyChartView(Context c){this(c,null);}
@@ -42,7 +47,8 @@ public final class HourlyChartView extends View {
     @Override public boolean onTouchEvent(MotionEvent event){
         if(event.getActionMasked()==MotionEvent.ACTION_DOWN)return true;
         if(event.getActionMasked()==MotionEvent.ACTION_UP){
-            selected=Math.min(23,Math.max(0,(int)(24*event.getX()/Math.max(1,getWidth()))));
+            float margin=dp(12),width=Math.max(1,getWidth()-2*margin);
+            selected=Math.max(0,Math.min(23,Math.round((event.getX()-margin)*23f/width)));
             setContentDescription(String.format(java.util.Locale.JAPAN,"%d時台: %d件",selected,hours[selected]));
             invalidate();performClick();return true;
         }
@@ -55,37 +61,38 @@ public final class HourlyChartView extends View {
         if(width<=0)return;
         int top=dp(17),bottom=height-dp(18),max=1;
         for(int count:hours)max=Math.max(max,count);
-        float unit=width/24f;
+        float margin=dp(12);
+        float interval=(width-2*margin)/23f;
         int guide=getResources().getColor(R.color.text_secondary,null);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(Math.max(1f,getResources().getDisplayMetrics().density*0.7f));
         paint.setColor(Color.argb(60,Color.red(guide),Color.green(guide),Color.blue(guide)));
-        for(int hour=0;hour<=24;hour+=6) {
-            float x=Math.min(width-1,hour*unit);
+        // Both vertical guides and their hour labels use exactly the same x coordinates.
+        final int[] ticks={0,6,12,18,23};
+        for(int hour:ticks){
+            float x=hourX(hour,width,margin);
             canvas.drawLine(x,top,x,bottom,paint);
         }
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(getResources().getColor(R.color.accent,null));
+        float halfBar=Math.max(1f,Math.min(dp(4),interval*0.38f));
         for(int hour=0;hour<24;hour++){
             float bar=(bottom-top)*hours[hour]/(float)max;
             if(hours[hour]>0){
-                float left=hour*unit+dp(1);
-                float right=Math.max(left+1, (hour+1)*unit-dp(1));
-                canvas.drawRoundRect(left,bottom-bar,right,bottom,dp(1),dp(1),paint);
+                float x=hourX(hour,width,margin);
+                canvas.drawRoundRect(x-halfBar,bottom-bar,x+halfBar,bottom,dp(1),dp(1),paint);
             }
         }
         paint.setColor(guide);
         paint.setTextSize(dp(10));
-        canvas.drawText("0",dp(2),height-dp(3),paint);
-        canvas.drawText("6",6*unit,height-dp(3),paint);
-        canvas.drawText("12",12*unit,height-dp(3),paint);
-        canvas.drawText("18",18*unit,height-dp(3),paint);
-        canvas.drawText("23",width-dp(16),height-dp(3),paint);
+        paint.setTextAlign(Paint.Align.CENTER);
+        for(int hour:ticks)canvas.drawText(Integer.toString(hour),hourX(hour,width,margin),height-dp(3),paint);
+        paint.setTextAlign(Paint.Align.LEFT);
         if(selected>=0){
             paint.setColor(getResources().getColor(R.color.text_primary,null));
             paint.setTextSize(dp(12));
             String info=selected+"時台: "+hours[selected]+"件";
-            float x=selected*unit;
+            float x=hourX(selected,width,margin);
             canvas.drawText(info,Math.max(dp(2),Math.min(x,width-paint.measureText(info)-dp(2))),dp(12),paint);
         }
     }
