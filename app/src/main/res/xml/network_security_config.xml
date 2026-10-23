@@ -3,7 +3,7 @@
     <!-- Only hissi.org requires compatibility with plain HTTP. -->
     <base-config cleartextTrafficPermitted="false"/>
     <domain-config cleartextTrafficPermitted="true">
-        <domain>hissi.org</domain>
-        <domain>www.hissi.org</domain>
+        <domain includeSubdomains="false">hissi.org</domain>
+        <domain includeSubdomains="false">www.hissi.org</domain>
     </domain-config>
 </network-security-config>
