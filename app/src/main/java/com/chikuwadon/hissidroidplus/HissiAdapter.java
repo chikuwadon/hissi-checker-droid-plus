@@ -16,56 +16,51 @@ import org.jsoup.nodes.Element;
 public final class HissiAdapter {
     private static final Charset SJIS=Charset.forName("Shift_JIS");
     private static final Pattern REDIRECT=Pattern.compile("(?i)(?:url\\s*=\\s*['\\\"]?)([^'\\\"\\s>]+)");
+    // The actual page may reorder anchor attributes or omit target="_blank".
+    // Keep all text between </b> and <dd> so date / ID / mail are not lost.
     private static final Pattern POST=Pattern.compile(
-        "(?is)<a\\s+href\\s*=\\s*['\\\"]?(https?://[^\\s>]+?)\\s+target\\s*=\\s*['\\\"]?_blank['\\\"]?\\s*>"+
-        "(.*?)</a>\\s*<br\\s*/?>\\s*(\\d{1,6})\\s*：\\s*<b>(.*?)<dd>(.*?)(?=<br\\s*/?>\\s*</dl>|</tr>|$)");
+        "(?is)<a\\b[^>]*?\\bhref\\s*=\\s*['\\\"]?(https?://[^\\s'\\\"<>]+)['\\\"]?[^>]*>(.*?)</a>\\s*<br\\s*/?>\\s*"+
+        "(\\d{1,6})\\s*[:：]\\s*<b\\b[^>]*>(.*?)</b>\\s*(.*?)<dd\\b[^>]*>(.*?)(?=</dl>|$)");
     private static final Pattern NUMBER=Pattern.compile("(?i)<font\\s+size\\s*=\\s*5\\s+color\\s*=\\s*#FF6347[^>]*>(.*?)</td>.*?<td\\s+width\\s*=\\s*40[^>]*>(\\d+)</td>",Pattern.DOTALL);
 
+    /** Hissi encodes the original ID using standard Base64 without trailing padding. */
+    static String resultUrl(String board,String date,String id) {
+        String encoded=java.util.Base64.getEncoder().withoutPadding()
+                .encodeToString(id.getBytes(StandardCharsets.UTF_8));
+        return "https://hissi.org/read.php/"+board+"/"+date+"/"+encoded+".html";
+    }
+
     public CheckerResult load(CheckerQuery query)throws IOException {
-        String url=query.url;
-        if(url.isEmpty()){
-            String base="http://hissi.org/read.php/"+query.board+"/";
-            String form="date="+enc(query.date)+"&ID="+enc(query.id);
-            String response=HttpTransport.post(base+"search/",form,SJIS);
-            Matcher m=REDIRECT.matcher(response);
-            if(!m.find())throw new IOException("検索結果のリンクが見つかりません");
-            String value=m.group(1);
-            try{url=URI.create(base).resolve(value).toASCIIString();}
-            catch(Exception ex){throw new IOException("検索結果URLを解釈できません",ex);}
-            try {
-                URI responseUrl=URI.create(url);
-                String host=responseUrl.getHost();
-                if(host==null||!(host.equalsIgnoreCase("hissi.org")||host.equalsIgnoreCase("www.hissi.org")) ||
-                        !responseUrl.getPath().startsWith("/read.php/"))
-                    throw new IOException("不正な検索結果URLです");
-            }catch(IllegalArgumentException ex){throw new IOException("不正な検索結果URLです",ex);}
-        }
-        String all=url+(url.contains("?")?"&":"?")+"thread=all&name=all";
+        // Form POST + a meta redirect is fragile on newer servers. Use Hissi's
+        // canonical /read.php/<board>/<date>/<base64-id>.html address directly.
+        String url=query.url.isEmpty()?resultUrl(query.board,query.date,query.id):query.url;
         CheckerResult result=new CheckerResult();
-        IOException optionalError=null;
+        IOException canonicalError=null;
         try {
-            result=parse(HttpTransport.get(all,SJIS),all);
-        }catch(IOException ex){ optionalError=ex; }
-        // Some server builds reject optional query parameters or change the
-        // HTML for all-mode. Retry the canonical, original result URL.
+            result=parse(HttpTransport.get(url,SJIS),url);
+        } catch(IOException ex) {canonicalError=ex;}
         if(result.posts.isEmpty()) {
+            // The older site also accepts all-mode parameters. Keep as fallback.
+            String all=url+(url.contains("?")?"&":"?")+"thread=all&name=all";
             try {
-                CheckerResult basic=parse(HttpTransport.get(url,SJIS),url);
-                if(!basic.posts.isEmpty() || !basic.threads.isEmpty())result=basic;
-                else if(optionalError!=null)throw optionalError;
-            }catch(IOException standardError){
-                if(optionalError!=null)standardError.addSuppressed(optionalError);
-                throw standardError;
+                CheckerResult secondary=parse(HttpTransport.get(all,SJIS),all);
+                if(!secondary.posts.isEmpty() || result.reportedPostCount<0)result=secondary;
+            } catch(IOException ex) {
+                if(canonicalError!=null)ex.addSuppressed(canonicalError);
+                if(result.reportedPostCount<0)throw ex;
             }
         }
+        if(canonicalError!=null && result.posts.isEmpty()&&result.reportedPostCount<0)
+            throw canonicalError;
         result.sourceUrl=url;
-        result.diagnostic=HttpTransport.lastDiagnostic();
+        result.diagnostic=HttpTransport.lastDiagnostic()
+                +" / 解析="+result.posts.size()+"件 / 表示集計="+result.reportedPostCount+"件";
         return result;
     }
 
     public CheckerResult nextPage(String url, int page) throws IOException {
         if(page<1 || page>20)throw new IOException("ページ番号が不正です");
-        CheckerResult result=parse(HttpTransport.get(url+"&p="+page,SJIS),url);
+        CheckerResult result=parse(HttpTransport.get(url+(url.contains("?")?"&":"?")+"p="+page,SJIS),url);
         result.sourceUrl=url;
         return result;
     }
@@ -118,20 +113,60 @@ public final class HissiAdapter {
         if(postsStart<0)return result;
         String section=html.substring(postsStart);
         Matcher posts=POST.matcher(section);
+        java.util.HashSet<String> seen=new java.util.HashSet<>();
         while(posts.find()){
-            String link=Jsoup.parseBodyFragment("<a href=\""+posts.group(1)+"\">open</a>",base).selectFirst("a").absUrl("href");
+            Element anchor=Jsoup.parseBodyFragment(
+                    "<a href=\""+posts.group(1)+"\">open</a>",base).selectFirst("a");
+            if(anchor==null)continue;
+            String link=anchor.absUrl("href");
             if(!(link.startsWith("http://")||link.startsWith("https://")))continue;
-            String thread=Jsoup.parseBodyFragment(posts.group(2)).text();
+            String thread=Jsoup.parseBodyFragment(posts.group(2)).text().trim();
             String number=posts.group(3);
             String name=PostFormatter.normalizedInfo(Jsoup.parseBodyFragment(posts.group(4)).text());
-            String body=Jsoup.parseBodyFragment(posts.group(5)).wholeText().trim();
-            // The original site embeds HTML entities inside response bodies.
-            // jsoup has already decoded entities. Avoid parsing text as markup twice.
-            result.posts.add(new CheckerResult.Post(thread,name,number,body,link));
-            result.threads.putIfAbsent(PostIndex.openableThreadUrl(link),thread);
+            String extras=PostFormatter.normalizedInfo(Jsoup.parseBodyFragment(posts.group(5)).text());
+            String meta=PostFormatter.normalizedInfo(number+" "+name+" "+extras);
+            String body=Jsoup.parseBodyFragment(posts.group(6)).wholeText().trim();
+            // The site can list duplicate blocks if all-mode is enabled.
+            if(seen.add(link+"|"+meta)){
+                result.posts.add(new CheckerResult.Post(thread,name,meta,body,link));
+                result.threads.putIfAbsent(PostIndex.openableThreadUrl(link),thread);
+            }
         }
+        // Some layouts put attributes or extra elements around the header,
+        // making direct HTML regex matching impossible. Parse <dl>/<dd> DOM
+        // containers rather than returning a misleading "0 posts" result.
+        if(result.posts.isEmpty())parseDomPosts(section,base,result,seen);
         PostIndex.collectNames(result);
         return result;
+    }
+    private static final Pattern HEADER=Pattern.compile(
+            "(\\d{1,6})\\s*[:：]\\s*(.*?)\\s*(20\\d{2}[/.-]\\d{1,2}[/.-]\\d{1,2}.*?)$",
+            Pattern.DOTALL);
+    private static void parseDomPosts(String html,String base,CheckerResult result,java.util.Set<String> seen){
+        Document doc=Jsoup.parseBodyFragment(html,base);
+        for(Element dl:doc.select("dl")){
+            Element dd=dl.selectFirst("dd");
+            if(dd==null)continue;
+            Element link=dl.selectFirst("a[href]");
+            if(link==null)continue;
+            String href=link.absUrl("href");
+            if(!(href.startsWith("http://")||href.startsWith("https://")))continue;
+            StringBuilder before=new StringBuilder();
+            for(org.jsoup.nodes.Node child:dl.childNodes()){
+                if(child==dd)break;
+                before.append(child.outerHtml());
+            }
+            String prefix=Jsoup.parseBodyFragment(before.toString()).text();
+            Matcher header=HEADER.matcher(prefix);
+            if(!header.find())continue;
+            String meta=PostFormatter.normalizedInfo(header.group(1)+" "+header.group(2)+" "+header.group(3));
+            String author=header.group(2).trim().replaceAll("\\s*\\[[^]]*\\]\\s*$","");
+            String body=dd.wholeText().trim();
+            if(seen.add(href+"|"+meta)){
+                result.posts.add(new CheckerResult.Post(link.text().trim(),author,meta,body,href));
+                result.threads.putIfAbsent(PostIndex.openableThreadUrl(href),link.text().trim());
+            }
+        }
     }
     private static String enc(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8);}
 }
