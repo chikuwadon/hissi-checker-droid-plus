@@ -113,14 +113,14 @@ public final class EdgeSearchActivity extends Activity {
                         showChecker(items.get(0).checkerUrl);
                         finish();
                     }else{
-                        status.setText(items.size()+"件のスレッドが見つかりました。選択して必死チェッカーを開きます。");
+                        status.setText(getString(R.string.edge_search_found,items.size()));
                     }
                 });
             }catch(Exception error){
                 runOnUiThread(()->{
                     if(!isFinishing()&&!isDestroyed())
-                        status.setText("検索を取得できませんでした。サイトで確認してください。 "+
-                            (error.getMessage()==null?"":error.getMessage()));
+                        status.setText(getString(R.string.edge_search_error,
+                            error.getMessage()==null?"":error.getMessage()));
                 });
             }
         });

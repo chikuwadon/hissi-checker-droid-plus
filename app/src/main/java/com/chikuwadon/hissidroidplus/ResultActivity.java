@@ -67,6 +67,8 @@ public final class ResultActivity extends Activity {
     private WebView fallbackView;
 
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
+    // ListView handles accessibility clicks; this separate listener detects swipes.
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         if (routeStandaloneLinkToOwnTask()) return;
@@ -231,7 +233,7 @@ public final class ResultActivity extends Activity {
         finish();
     }
     private void exitResults(){
-        if(launchedExternally() && isTaskRoot() && android.os.Build.VERSION.SDK_INT>=21){finishAndRemoveTask();}
+        if(launchedExternally() && isTaskRoot()){finishAndRemoveTask();}
         else finish();
     }
     private CheckerQuery extract(Intent incoming){
@@ -245,11 +247,12 @@ public final class ResultActivity extends Activity {
     }
     private void updateHeader(){
         String source=query.site==CheckerQuery.Site.EDGE?"エッヂ":"5ch";
-        status.setText(source+" / "+(query.id.isEmpty()?query.board:query.id)+"  レス:"+result.posts.size()
-                +(result.reportedPostCount<0?"":" / "+result.reportedPostCount));
-        ((TextView)findViewById(R.id.tab_posts)).setText("レス ("+result.posts.size()+")");
-        ((TextView)findViewById(R.id.tab_threads)).setText("スレ ("+threadRows.size()+")");
-        ((TextView)findViewById(R.id.tab_names)).setText("名前 ("+result.names.size()+")");
+        String reported=result.reportedPostCount<0?"":getString(R.string.result_reported_count,result.reportedPostCount);
+        status.setText(getString(R.string.result_summary_status,source,
+                query.id.isEmpty()?query.board:query.id,result.posts.size(),reported));
+        ((TextView)findViewById(R.id.tab_posts)).setText(getString(R.string.result_post_tab,result.posts.size()));
+        ((TextView)findViewById(R.id.tab_threads)).setText(getString(R.string.result_thread_tab,threadRows.size()));
+        ((TextView)findViewById(R.id.tab_names)).setText(getString(R.string.result_name_tab,result.names.size()));
         updateStats();
     }
     private void openEdgeAnalysis(){
@@ -447,6 +450,8 @@ public final class ResultActivity extends Activity {
             Toast.makeText(this,"コピーしました",Toast.LENGTH_SHORT).show();
     }
     /** WebView fallback for anti-bot/javascript pages. Never silently treat an access-denied page as no posts. */
+    // Required site JavaScript; the URL is validated and local file access is disabled.
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private void loadEdgeWithWebView(String firstError){
         if(fallbackAttempted){showError(firstError==null?"エッヂのページ構造を解析できませんでした":firstError);return;}
         fallbackAttempted=true;

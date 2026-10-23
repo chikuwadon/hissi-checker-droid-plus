@@ -41,6 +41,8 @@ public final class EdgeAnalysisActivity extends Activity {
         t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);
         return t;
     }
+    // Required by the site's analysis flow; same-origin HTTPS navigation is enforced.
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         AppSettings.configureBars(this);
