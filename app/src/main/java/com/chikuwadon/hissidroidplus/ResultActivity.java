@@ -599,6 +599,16 @@ public final class ResultActivity extends Activity {
                 at,at+mark.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return span;
     }
+
+    /** Count suffix uses the ordinary text color; it is not part of copied data. */
+    private CharSequence labelWithCount(String label,int count){
+        if(count<=0)return label;
+        String suffix=" ("+count+")";
+        android.text.SpannableString span=new android.text.SpannableString(label+suffix);
+        span.setSpan(new android.text.style.ForegroundColorSpan(getColor(R.color.text_primary)),
+                label.length(),span.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return span;
+    }
     private final class RowAdapter extends BaseAdapter {
         @Override public int getCount(){return tab==0?result.posts.size():tab==1?threadRows.size():result.names.size();}
         @Override public Object getItem(int pos){return pos;}
@@ -616,13 +626,13 @@ public final class ResultActivity extends Activity {
                 title.setVisibility(View.VISIBLE);
                 Map.Entry<String,String> e=threadRows.get(index);
                 int count=threadCounts.getOrDefault(PostIndex.threadKey(e.getKey()),0);
-                title.setText(e.getValue()+(count>0?" ("+count+")":""));
+                title.setText(labelWithCount(e.getValue(),count));
                 subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }else{
                 title.setVisibility(View.VISIBLE);
                 String name=result.names.get(index);
                 int count=nameCounts.getOrDefault(name,0);
-                title.setText(name+(count>0?" ("+count+")":""));
+                title.setText(labelWithCount(name,count));
                 subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }
             return view;

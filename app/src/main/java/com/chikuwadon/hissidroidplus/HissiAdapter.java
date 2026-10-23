@@ -148,51 +148,53 @@ public final class HissiAdapter {
         return result;
     }
     /**
-     * Read every HTML definition-list post independently. Some Hissi pages put
-     * multiple dt/dd pairs inside a single dl; other layouts omit the dl tag.
-     * Collect only the preceding sibling header for a given body.
+     * Hissi outputs one dt/dd pair per post. The post number lives in both
+     * the URL and dt text, and is reliable even if the legacy Shift-JIS
+     * separator was already replaced with U+FFFD by the server or browser.
      */
-    private static final Pattern RES_NUMBER=Pattern.compile("(?:^|\\s|◎)\\s*(\\d{1,6})\\s*[:：]");
+    private static final Pattern RESPONSE_URL=Pattern.compile("/(\\d{1,6})/?(?:[?#].*)?$");
+    private static final Pattern LEADING_NUMBER=Pattern.compile("^\\s*(\\d{1,6})\\b");
     private static final Pattern DATE_IN_HEADER=Pattern.compile("20\\d{2}[/.-]\\d{1,2}[/.-]\\d{1,2}");
+    private static final Pattern MAIL_IN_HEADER=Pattern.compile("\\[[^]]*\\]");
     private static void parseDomPosts(String html,String base,CheckerResult result,java.util.Set<String> seen){
         Document doc=Jsoup.parseBodyFragment(html,base);
         for(Element dd:doc.select("dd")){
-            Element parent=dd.parent();
-            if(parent==null)continue;
-            StringBuilder prefixHtml=new StringBuilder();
-            for(org.jsoup.nodes.Node sibling=dd.previousSibling();sibling!=null;sibling=sibling.previousSibling()){
-                if(sibling instanceof Element && ((Element)sibling).normalName().equals("dd"))break;
-                prefixHtml.insert(0,sibling.outerHtml());
-            }
-            Document headerDoc=Jsoup.parseBodyFragment(prefixHtml.toString(),base);
+            // The actual site places dt and dd next to one another inside dl.
+            // Ignore unrelated <dd> descriptions without a matching header.
+            Element dt=dd.previousElementSibling();
+            if(dt==null || !dt.normalName().equals("dt"))continue;
             Element link=null;
-            for(Element a:headerDoc.select("a[href]"))
-                if(isThreadLink(a.absUrl("href")))link=a;
+            for(Element a:dt.select("a[href]")){
+                if(isThreadLink(a.absUrl("href"))){link=a;break;}
+            }
             if(link==null)continue;
             String href=link.absUrl("href");
-            Element metadata=(Element)headerDoc.body().clone();
-            metadata.select("a[href]").remove();
-            String raw=PostFormatter.normalizedInfo(metadata.text());
-            Matcher number=RES_NUMBER.matcher(raw);
-            if(!number.find())continue;
-            String responseNumber=number.group(1);
-            String meta=PostFormatter.normalizedInfo(raw.substring(number.start(1)));
-            if(meta.isEmpty() || !DATE_IN_HEADER.matcher(meta).find())continue;
-            String author="";
-            for(Element b:headerDoc.select("b")){
-                if(b.closest("a")!=null)continue;
-                author=PostIndex.cleanAuthor(b.text());
-                if(!author.isEmpty())break;
-            }
-            if(author.isEmpty()){
-                String afterNumber=raw.substring(number.end()).trim();
-                Matcher date=DATE_IN_HEADER.matcher(afterNumber);
-                if(date.find())afterNumber=afterNumber.substring(0,date.start());
-                author=PostIndex.cleanAuthor(afterNumber.replaceFirst("\\[[^]]*\\].*$",""));
-            }
+            Matcher urlNumber=RESPONSE_URL.matcher(href);
+            if(!urlNumber.find())continue;
+            String number=urlNumber.group(1);
+            Element withoutLink=dt.clone();
+            withoutLink.select("a[href]").remove();
+            String raw=PostFormatter.normalizedInfo(withoutLink.text());
+            Matcher displayedNumber=LEADING_NUMBER.matcher(raw);
+            if(!displayedNumber.find() || !number.equals(displayedNumber.group(1)))continue;
+            String tail=raw.substring(displayedNumber.end()).trim();
+            // A broken UTF-8 interpretation of fullwidth ':' appears as "�F".
+            tail=tail.replaceFirst("^(?:[:：]|\\uFFFD[Ff])\\s*","");
+            if(!DATE_IN_HEADER.matcher(tail).find())continue;
+            String author=tail;
+            Matcher date=DATE_IN_HEADER.matcher(author);
+            if(date.find())author=author.substring(0,date.start());
+            Matcher mail=MAIL_IN_HEADER.matcher(author);
+            if(mail.find())author=author.substring(0,mail.start());
+            // Parenthesized 5ch connection metadata follows the author, not
+            // the name. Never incorporate it into name-tab grouping.
+            author=author.replaceFirst("\\s+[（(][^）)]*[）)]\\s*$","").trim();
+            author=PostIndex.cleanAuthor(author);
+            String meta=PostFormatter.normalizedInfo(number+" "+tail)
+                    .replaceAll("\\uFFFD[Ff](?=20\\d{2}[/.-])"," ");
             String title=link.text().trim();
             String body=dd.wholeText().trim();
-            if(seen.add(href+"|"+responseNumber)){
+            if(seen.add(href+"|"+number)){
                 result.posts.add(new CheckerResult.Post(title,author,meta,body,href));
                 result.threads.putIfAbsent(PostIndex.openableThreadUrl(href),title);
             }

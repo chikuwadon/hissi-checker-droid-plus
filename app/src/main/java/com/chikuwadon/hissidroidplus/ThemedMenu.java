@@ -140,27 +140,66 @@ public final class ThemedMenu {
         addClose(a,panel,holder);
         holder[0]=dialog(a,panel);
     }
+    private static void aboutLine(Activity a,LinearLayout panel,String line,int color){
+        TextView row=text(a,line,13,color);
+        row.setPadding(dp(a,8),dp(a,2),dp(a,8),dp(a,5));
+        panel.addView(row);
+    }
+    private static void aboutHeading(Activity a,LinearLayout panel,String heading){
+        TextView row=text(a,heading,13,a.getColor(R.color.text_primary));
+        row.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        row.setPadding(dp(a,8),dp(a,10),dp(a,8),dp(a,4));
+        panel.addView(row);
+    }
+    private static void aboutLink(Activity a,LinearLayout panel,String label,String uri){
+        TextView link=text(a,label+"  ↗",13,a.getColor(R.color.accent));
+        link.setPadding(dp(a,8),dp(a,7),dp(a,8),dp(a,7));
+        link.setMinimumHeight(dp(a,42));
+        applyTouch(a,link);
+        panel.addView(link);
+        link.setOnClickListener(v->{
+            try {
+                Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(uri));
+                view.addCategory(Intent.CATEGORY_BROWSABLE);
+                a.startActivity(view);
+            } catch(Exception ignored){}
+        });
+    }
     public static void showAbout(Activity a){
         if(a.isFinishing()||a.isDestroyed())return;
         String version="不明";
         try {version=a.getPackageManager().getPackageInfo(a.getPackageName(),0).versionName;}
         catch(Exception ignored){}
-        final LinearLayout panel=column(a,12);
+        LinearLayout panel=column(a,12);
         panel.addView(title(a,"必死チェッカーdroid +"));
-        TextView versionLine=text(a,"バージョン  "+version,14,a.getColor(R.color.text_secondary));
-        versionLine.setPadding(dp(a,8),dp(a,6),dp(a,8),dp(a,12));
-        panel.addView(versionLine);
-        TextView github=text(a,"GitHub  ↗",14,a.getColor(R.color.accent));
-        github.setPadding(dp(a,8),dp(a,8),dp(a,8),dp(a,8));
-        github.setMinimumHeight(dp(a,46));applyTouch(a,github);
-        panel.addView(github);
+        TextView caption=text(a,"Hissi Checker Droid Plus  /  v"+version,13,a.getColor(R.color.text_secondary));
+        caption.setPadding(dp(a,8),0,dp(a,8),dp(a,9));
+        panel.addView(caption);
+
+        android.widget.ScrollView scroll=new android.widget.ScrollView(a);
+        scroll.setFillViewport(false);
+        scroll.setVerticalScrollBarEnabled(true);
+        int maxBodyHeight=Math.min(dp(a,420),
+                (int)(a.getResources().getDisplayMetrics().heightPixels*0.57f));
+        panel.addView(scroll,new LinearLayout.LayoutParams(-1,maxBodyHeight));
+        LinearLayout content=new LinearLayout(a);
+        content.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(content);
+        int secondary=a.getColor(R.color.text_secondary);
+        aboutHeading(a,content,"アプリについて");
+        aboutLine(a,content,"5chのID別投稿を、レス・スレ・名前ごとに確認できるAndroidアプリです。オリジナルの必死チェッカーdroid v1.5を参考に独立再構築しています。",secondary);
+        aboutHeading(a,content,"主な機能");
+        aboutLine(a,content,"ID検索、板選択、レス・スレ・名前の一覧、投稿のコピー、ChMate連携、時間帯別の投稿グラフ。エッヂの検索は試験対応です。",secondary);
+        aboutHeading(a,content,"アプリ情報");
+        aboutLine(a,content,"バージョン："+version+"\n対応OS：Android 8.0以降\nアプリID："+a.getPackageName()+"\n開発：chikuwadon\n状態：開発・検証中",secondary);
+        aboutHeading(a,content,"データと通信");
+        aboutLine(a,content,"検索時は指定先サイトへアクセスします。板や検索条件の一部は端末内に保存されます。各サイトとの通信や取得結果は、接続先の仕様に依存します。",secondary);
+        aboutHeading(a,content,"原作・オープンソース");
+        aboutLine(a,content,"原作：必死チェッカーdroid v1.5\nHTML解析：jsoup（Apache License 2.0）\n原作および各サービス・素材の権利は、それぞれの権利者に帰属します。本アプリは非公式の独立開発版です。",secondary);
+        aboutHeading(a,content,"プロジェクト");
+        aboutLink(a,content,"GitHub リポジトリ","https://github.com/chikuwadon/hissi-checker-droid-plus");
+        aboutLink(a,content,"変更履歴・ライセンス情報","https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/README.md");
         final AlertDialog[] holder={null};
-        github.setOnClickListener(v->{
-            Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(
-                    "https://github.com/chikuwadon/hissi-checker-droid-plus"));
-            view.addCategory(Intent.CATEGORY_BROWSABLE);
-            try { a.startActivity(view); }catch(Exception ignored){}
-        });
         addClose(a,panel,holder);
         holder[0]=dialog(a,panel);
     }
