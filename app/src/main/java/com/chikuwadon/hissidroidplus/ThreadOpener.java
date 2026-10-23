@@ -2,9 +2,14 @@ package com.chikuwadon.hissidroidplus;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.widget.Toast;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -12,30 +17,12 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Android doesn't automatically associate ChMate with custom Edge domains.
- * Try validated alternate thread URLs explicitly, and do not confuse a
- * chooser launching Chrome with successful ChMate integration.
- */
+/** Strict ChMate handoff: supported VIEW handler or an explicit, honest fallback. */
 public final class ThreadOpener {
     private static final String MATE="jp.co.airfront.android.a2chMate";
     private static final Pattern THREAD=Pattern.compile(
         "^/test/read\\.cgi/([A-Za-z0-9_]{1,60})/(\\d{10,20})/(\\d{1,6})?$");
     private ThreadOpener(){}
-
-    static boolean isMateInstalled(PackageManager pm){
-        try{
-            pm.getPackageInfo(MATE,0);
-            return true;
-        }catch(PackageManager.NameNotFoundException notInstalled){
-            return false;
-        }catch(RuntimeException failure){
-            // PackageManager can refuse visibility on some OEM systems.
-            // The AndroidManifest package query is declared; if in doubt,
-            // let the caller test targeted intents rather than assume absent.
-            return true;
-        }
-    }
 
     static List<String> chMateUrls(String source){
         LinkedHashSet<String> urls=new LinkedHashSet<>();
@@ -44,48 +31,78 @@ public final class ThreadOpener {
             if(!"https".equalsIgnoreCase(uri.getScheme())||
                     !"bbs.eddibb.cc".equalsIgnoreCase(uri.getHost())||
                     uri.getRawUserInfo()!=null||uri.getPort()!=-1)return new ArrayList<>();
-            Matcher match=THREAD.matcher(uri.getRawPath());
-            if(!match.matches())return new ArrayList<>();
-            String suffix=match.group(3)==null?"":"/"+match.group(3);
-            String shortPath="/"+match.group(1)+"/"+match.group(2)+suffix;
-            String canonical="/test/read.cgi/"+match.group(1)+"/"+match.group(2)+"/"+(match.group(3)==null?"":match.group(3));
-            // ChMate users normally register the external board at
-            // http://bbs.eddibb.cc/liveedge/; try that host/path first.
+            Matcher m=THREAD.matcher(uri.getRawPath());
+            if(!m.matches())return new ArrayList<>();
+            String suffix=m.group(3)==null?"":"/"+m.group(3);
+            String shortPath="/"+m.group(1)+"/"+m.group(2)+suffix;
+            String canonical="/test/read.cgi/"+m.group(1)+"/"+m.group(2)+"/"+
+                    (m.group(3)==null?"":m.group(3));
             urls.add("http://bbs.eddibb.cc"+shortPath);
             urls.add("https://bbs.eddibb.cc"+shortPath);
             urls.add("http://bbs.eddibb.cc"+canonical);
             urls.add("https://bbs.eddibb.cc"+canonical);
-        }catch(Exception invalid){}
+        }catch(Exception ignored){}
         return new ArrayList<>(urls);
     }
 
-    private static boolean launch(Activity activity,Intent intent){
+    static boolean isMateInstalled(PackageManager pm){
         try{
-            activity.startActivity(intent);
+            pm.getPackageInfo(MATE,0);
             return true;
-        }catch(ActivityNotFoundException|SecurityException error){
-            return false;
-        }
+        }catch(PackageManager.NameNotFoundException noApp){return false;}
+        catch(RuntimeException notVisible){return true;}
     }
 
-    static Intent view(String url,String packageName){
+    static Intent viewIntent(String url,String pkg){
         Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse(url));
-        if(packageName==null){
-            intent.addCategory(Intent.CATEGORY_BROWSABLE);
-        }else{
-            // A package-scoped intent doesn't need CATEGORY_BROWSABLE.
-            // Requiring that category excludes ChMate activities whose
-            // filters handle VIEW but are not marked as browser handlers.
-            intent.setPackage(packageName);
-        }
+        if(pkg!=null)intent.setPackage(pkg);
+        else intent.addCategory(Intent.CATEGORY_BROWSABLE);
         return intent;
+    }
+
+    /**
+     * A package name does not grant permission to launch arbitrary activities.
+     * Query the actual exported ACTION_VIEW handler before attempting a launch;
+     * never equate an Android chooser/browser launch with success in ChMate.
+     */
+    static boolean mateHandles(PackageManager pm,Intent intent){
+        try{
+            List<ResolveInfo> handlers=pm.queryIntentActivities(intent,PackageManager.MATCH_DEFAULT_ONLY);
+            for(ResolveInfo handler:handlers){
+                if(handler.activityInfo!=null&&
+                        MATE.equals(handler.activityInfo.packageName)&&
+                        handler.activityInfo.exported)return true;
+            }
+        }catch(RuntimeException ignored){}
+        return false;
+    }
+
+    private static boolean launch(Activity activity,Intent intent){
+        try{activity.startActivity(intent);return true;}
+        catch(ActivityNotFoundException|SecurityException error){return false;}
+    }
+
+    private static boolean copyAndLaunchMate(Activity activity,String url){
+        try{
+            ClipboardManager clipboard=(ClipboardManager)
+                    activity.getSystemService(Context.CLIPBOARD_SERVICE);
+            if(clipboard==null)return false;
+            clipboard.setPrimaryClip(ClipData.newPlainText("スレッドURL",url));
+            Intent mate=activity.getPackageManager().getLaunchIntentForPackage(MATE);
+            if(mate==null)return false;
+            activity.startActivity(mate);
+            Toast.makeText(activity,
+                    "URLをコピーしました。ChMateの「URLを指定して開く」に貼り付けてください",
+                    Toast.LENGTH_LONG).show();
+            return true;
+        }catch(RuntimeException error){return false;}
     }
 
     public static void open(Activity activity,String raw,boolean edge){
         if(raw==null||raw.isEmpty())return;
         String normalized=edge?EdgeThreadLink.original(raw):raw;
         if(!edge){
-            if(!launch(activity,view(normalized,null)))
+            if(!launch(activity,viewIntent(normalized,null)))
                 BrowserLauncher.open(activity,normalized);
             return;
         }
@@ -94,21 +111,24 @@ public final class ThreadOpener {
             BrowserLauncher.open(activity,normalized);
             return;
         }
-        // If ChMate is absent, open the user's browser DIRECTLY: never
-        // present an intermediate "choose a thread reader" dialog.
-        if(!isMateInstalled(activity.getPackageManager())){
+        PackageManager pm=activity.getPackageManager();
+        if(!isMateInstalled(pm)){
             BrowserLauncher.open(activity,normalized);
             return;
         }
+        // Check which exported intents ChMate really declares. It is normal
+        // that no handler matches custom boards on Android 12+.
         for(String url:candidates){
-            if(launch(activity,view(url,MATE)))return;
+            Intent intent=viewIntent(url,MATE);
+            if(mateHandles(pm,intent)&&launch(activity,intent))return;
         }
-        // All package-scoped intents were rejected. Do not silently launch
-        // Chrome and report it as though the ChMate request succeeded.
-        ThemedMenu.confirm(activity,"ChMateで開けませんでした",
-            "ChMateがエッヂのURLを外部から受け付けませんでした。"+
-            "ChMateの「URLを指定して開く」でエッヂ板を登録すると利用できる場合があります。"+
-            "\n\n代わりにブラウザで開きますか？",
-            "ブラウザで開く",()->BrowserLauncher.open(activity,normalized));
+        ThemedMenu.choose(activity,"スレッドを開く",
+            new String[]{"URLをコピーしてChMateを開く","外部ブラウザで開く"},-1,which->{
+                if(which==0&&!copyAndLaunchMate(activity,normalized)){
+                    Toast.makeText(activity,"ChMateを起動できませんでした",Toast.LENGTH_LONG).show();
+                }else if(which==1){
+                    BrowserLauncher.open(activity,normalized);
+                }
+            });
     }
 }

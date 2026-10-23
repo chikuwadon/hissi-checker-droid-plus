@@ -85,10 +85,6 @@
             <Button android:id="@+id/edge_search" android:text="IDを検索"
                 style="@style/HissiPrimaryButton" android:layout_marginTop="16dp"
                 android:layout_width="match_parent" android:layout_height="46dp" />
-            <TextView android:text="※サイトの検索結果から対象スレッドを選択します"
-                android:textSize="11sp" android:layout_marginTop="7dp"
-                android:textColor="@color/text_secondary"
-                android:layout_width="match_parent" android:layout_height="wrap_content" />
             <TextView android:text="必死チェッカーのURLを貼り付け" android:textSize="12sp"
                 android:layout_marginTop="18dp" android:textColor="@color/text_secondary"
                 android:layout_width="match_parent" android:layout_height="wrap_content" />
