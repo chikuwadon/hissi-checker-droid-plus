@@ -14,6 +14,21 @@ import java.util.List;
 public final class BrowserLauncher {
     private BrowserLauncher(){}
 
+    private static final String[] COMMON_BROWSERS={
+        "com.android.chrome","com.sec.android.app.sbrowser",
+        "org.mozilla.firefox","org.mozilla.firefox_beta",
+        "com.brave.browser","com.microsoft.emmx",
+        "com.duckduckgo.mobile.android","com.opera.browser",
+        "com.opera.mini.native","com.vivaldi.browser",
+        "com.kiwibrowser.browser","org.chromium.chrome",
+        "com.google.android.apps.chrome"
+    };
+    static boolean isKnownBrowserPackage(String pkg){
+        if(pkg==null)return false;
+        for(String browser:COMMON_BROWSERS)if(browser.equals(pkg))return true;
+        return false;
+    }
+
     public static boolean open(Activity activity,String url){
         if(url==null||url.isEmpty())return false;
         Uri target=Uri.parse(url);
@@ -40,16 +55,7 @@ public final class BrowserLauncher {
         // Android 11+ may hide apps from queryIntentActivities() even when
         // startActivity() with a package name would succeed. Try candidates
         // directly rather than treating an empty query as "not installed".
-        String[] common={
-            "com.android.chrome", "com.sec.android.app.sbrowser",
-            "org.mozilla.firefox", "org.mozilla.firefox_beta",
-            "com.brave.browser", "com.microsoft.emmx",
-            "com.duckduckgo.mobile.android", "com.opera.browser",
-            "com.opera.mini.native", "com.vivaldi.browser",
-            "com.kiwibrowser.browser", "org.chromium.chrome",
-            "com.google.android.apps.chrome"
-        };
-        for(String pkg:common)packages.add(pkg);
+        for(String pkg:COMMON_BROWSERS)packages.add(pkg);
         try{
             List<ResolveInfo> found=pm.queryIntentActivities(generic,0);
             for(ResolveInfo item:found)

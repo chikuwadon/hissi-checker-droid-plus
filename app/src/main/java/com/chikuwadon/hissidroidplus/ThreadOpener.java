@@ -111,7 +111,7 @@ public final class ThreadOpener {
         // normalized already equals the validated canonical form.
         PackageManager pm=activity.getPackageManager();
         if(!isMateInstalled(pm)){
-            BrowserLauncher.open(activity,normalized);
+            ExternalThreadApps.open(activity,normalized);
             return;
         }
         // adb confirmed both explicit Activities can open this exact

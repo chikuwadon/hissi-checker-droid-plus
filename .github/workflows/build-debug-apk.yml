@@ -47,12 +47,12 @@ jobs:
       - name: Unit tests and debug APK
         env:
           HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
       - name: Save private debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: HissiCheckerDroidPlus-v0.1.21-debug
+          name: HissiCheckerDroidPlus-v0.1.21-qa-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7

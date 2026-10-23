@@ -293,15 +293,16 @@ public final class ResultActivity extends Activity {
             if(i>=result.posts.size())return;
             CheckerResult.Post post=result.posts.get(i);
             showMenu(post.title,new String[]{"スレを開く","スレタイと全体をコピー","全体をコピー",
-                "スレタイと全体を追加コピー","全体を追加コピー","IDをコピー","リンクをコピー"},which->{
+                "本文をコピー","スレタイと全体を追加コピー","全体を追加コピー","IDをコピー","リンクをコピー"},which->{
                 switch(which){
                     case 0:openThread(post.link);break;
                     case 1:copy(PostFormatter.withThread(post),false);break;
                     case 2:copy(PostFormatter.full(post),false);break;
-                    case 3:copy(PostFormatter.withThread(post),true);break;
-                    case 4:copy(PostFormatter.full(post),true);break;
-                    case 5:{String id=PostFormatter.id(post);if(id.isEmpty())Toast.makeText(this,"IDが見つかりません",Toast.LENGTH_SHORT).show();else copy(id,false);break;}
-                    case 6:copy(post.link,false);break;
+                    case 3:copy(post.body==null?"":post.body.trim(),false);break;
+                    case 4:copy(PostFormatter.withThread(post),true);break;
+                    case 5:copy(PostFormatter.full(post),true);break;
+                    case 6:{String id=PostFormatter.id(post);if(id.isEmpty())Toast.makeText(this,"IDが見つかりません",Toast.LENGTH_SHORT).show();else copy(id,false);break;}
+                    case 7:copy(post.link,false);break;
                 }
             });
         } else if(tab==1){

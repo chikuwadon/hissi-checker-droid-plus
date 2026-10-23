@@ -45,17 +45,6 @@ public final class HissiAdapter {
                     uri.getRawQuery(),uri.getRawFragment()).toASCIIString();
         }catch(Exception badUrl){return "";}
     }
-    private static boolean connectionFailure(IOException error){
-        Throwable cause=error;
-        while(cause!=null){
-            if(cause instanceof java.net.SocketTimeoutException ||
-                    cause instanceof java.net.ConnectException ||
-                    cause instanceof java.net.NoRouteToHostException)
-                return true;
-            cause=cause.getCause();
-        }
-        return false;
-    }
     private static class Response {
         final String html,url;
         Response(String html,String url){this.html=html;this.url=url;}
@@ -65,7 +54,7 @@ public final class HissiAdapter {
             return new Response(HttpTransport.get(url,SJIS),url);
         }catch(IOException failure){
             // If HTTP itself is blocked, permit HTTPS as a fallback.
-            if(!url.startsWith("http://hissi.org/read.php/"))throw failure;
+            if(!HissiRetryPolicy.shouldRetry(url,failure))throw failure;
             String alternate="https://"+url.substring("http://".length());
             try{return new Response(HttpTransport.get(alternate,SJIS),alternate);}
             catch(IOException second){second.addSuppressed(failure);throw second;}
