@@ -1,0 +1,86 @@
+name: Validate signed release candidate (private)
+on:
+  push:
+    branches:
+      - 'release-candidate/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-release-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.8.2'
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Restore persistent signing key (fail closed)
+        env:
+          KEY_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
+          KEY_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEY_B64" || -z "$KEY_PASSWORD" ]]; then
+            echo "::error::Missing fixed signing secrets; refusing unsigned candidate."
+            exit 1
+          fi
+          keyfile="$RUNNER_TEMP/hissi-signing.p12"
+          printf '%s' "$KEY_B64" | base64 --decode > "$keyfile"
+          chmod 600 "$keyfile"
+          keytool -list -keystore "$keyfile" -storetype PKCS12 -storepass "$KEY_PASSWORD" -alias hissi-checker-droid > /dev/null
+          echo "HISSI_KEYSTORE_PATH=$keyfile" >> "$GITHUB_ENV"
+      - name: Run unit tests, release Lint and signed Release build
+        env:
+          HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+      - name: Verify release package, debuggable flag, licenses and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -s "$apk"
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/release-badging.txt"
+          grep -Fq "package: name='com.chikuwadon.hissidroidplus' versionCode='22' versionName='0.1.21'" "$RUNNER_TEMP/release-badging.txt"
+          if grep -q '^application-debuggable' "$RUNNER_TEMP/release-badging.txt"; then
+            echo "::error::Release candidate must not be debuggable."
+            exit 1
+          fi
+          unzip -Z1 "$apk" | grep -Fxq 'assets/third_party_licenses.txt'
+          "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-signing-check.txt"
+          expected="C908661AC6522B031D8E1FBC6E04194B774788F37161E4B979D941C4A80B7C2C"
+          actual="$(grep -i 'Signer #1 certificate SHA-256 digest:' "$RUNNER_TEMP/apk-signing-check.txt" | head -1 | sed 's/.*: //' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Signing certificate is not the fixed QA signing identity."
+            exit 1
+          fi
+          sha256sum "$apk"
+          echo "Package, version, release flags, license and signing identity verified."
+      - name: Save release lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HissiCheckerDroidPlus-release-lint
+          path: app/build/reports/lint-results-release.*
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Save private signed candidate (not a GitHub Release)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HissiCheckerDroidPlus-v0.1.21-signed-release-candidate
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7

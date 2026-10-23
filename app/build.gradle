@@ -27,6 +27,15 @@ android {
         signingConfig = signingConfigs.stableDebug
       }
     }
+    release {
+      // Never ship a debuggable APK. Require fixed signing via CI workflow.
+      debuggable = false
+      minifyEnabled = false
+      if (signingConfigs.findByName('stableDebug') != null) {
+        // Match the fixed certificate of currently installed QA APKs.
+        signingConfig = signingConfigs.stableDebug
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17

@@ -112,6 +112,9 @@ public final class EdgeAnalysisActivity extends Activity {
         // Keep a same-origin WebView alive for the site's own JS/session,
         // but render sanitized plain-text results in native widgets.
         web.getSettings().setJavaScriptEnabled(true);
+        // Site JavaScript is required, but local file and content access are not.
+        web.getSettings().setAllowFileAccess(false);
+        web.getSettings().setAllowContentAccess(false);
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_NO_CACHE);
         web.getSettings().setLoadsImagesAutomatically(false);

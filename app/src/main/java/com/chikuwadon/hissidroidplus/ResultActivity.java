@@ -459,6 +459,9 @@ public final class ResultActivity extends Activity {
         content.addView(web,new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT));
         web.getSettings().setJavaScriptEnabled(true);
+        // Site JavaScript is required, but local file and content access are not.
+        web.getSettings().setAllowFileAccess(false);
+        web.getSettings().setAllowContentAccess(false);
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setLoadsImagesAutomatically(false);
         web.getSettings().setBlockNetworkImage(true);
@@ -468,7 +471,8 @@ public final class ResultActivity extends Activity {
         web.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
                 Uri url=request.getUrl();String host=url.getHost();
-                if(host==null || !(host.equals("www.kyodemo.net")||host.equals("kyodemo.net"))){
+                if(!"https".equalsIgnoreCase(url.getScheme()) || host==null ||
+                        !(host.equals("www.kyodemo.net")||host.equals("kyodemo.net"))){
                     detail[0]="外部サイトへリダイレクトされました";return true;
                 }
                 return false;
