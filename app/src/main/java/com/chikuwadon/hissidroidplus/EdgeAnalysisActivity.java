@@ -153,15 +153,8 @@ public final class EdgeAnalysisActivity extends Activity {
                     runButton.setVisibility(View.GONE);
                     notice.setText("サイトの書き込み分析結果");
                     entries.removeAllViews();
-                    for(EdgeAnalysis.Section section:analysis.sections){
-                        TextView label=text(section.title,14,getColor(R.color.accent));
-                        label.setPadding(0,dp(14),0,dp(5));
-                        entries.addView(label);
-                        TextView body=text(section.body,13,getColor(R.color.text_primary));
-                        body.setTextIsSelectable(true);
-                        body.setPadding(0,0,0,dp(9));
-                        entries.addView(body);
-                    }
+                    for(EdgeAnalysis.Section section:analysis.sections)
+                        renderSection(section);
                 }else if(!started){
                     entries.removeAllViews();
                     if(analysis.startAvailable){
@@ -179,6 +172,93 @@ public final class EdgeAnalysisActivity extends Activity {
                 if(!started)notice.setText("分析情報を読み取れません。サイトで確認してください。");
             }
         });
+    }
+    /** Group known metric patterns into rows while preserving unknown site sections verbatim. */
+    private void renderSection(EdgeAnalysis.Section section){
+        LinearLayout panel=new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(13),dp(11),dp(13),dp(13));
+        GradientDrawable background=new GradientDrawable();
+        background.setColor(getColor(R.color.panel));
+        background.setCornerRadius(dp(11));
+        background.setStroke(dp(1),getColor(R.color.divider));
+        panel.setBackground(background);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);
+        params.setMargins(0,0,0,dp(10));
+        entries.addView(panel,params);
+        TextView heading=text(section.title,15,getColor(R.color.accent));
+        heading.setPadding(0,0,0,dp(10));
+        panel.addView(heading);
+        String body=section.body==null?"":section.body.trim();
+        boolean isPercent=section.title.contains("分類") ||
+                body.matches("(?s).*[:：]\\s*\\d{1,3}%.*");
+        java.util.regex.Pattern pattern=isPercent
+                ? java.util.regex.Pattern.compile("([^/:：\\n]{1,30})\\s*[:：]\\s*(\\d{1,3})%")
+                : java.util.regex.Pattern.compile("([^/:：\\n]{1,30})\\s*[:：]\\s*([SABCDEF][+-]?)(?=\\s|/|$)");
+        java.util.regex.Matcher matcher=pattern.matcher(body);
+        int rendered=0;
+        while(matcher.find()&&rendered<30){
+            String name=matcher.group(1).trim().replaceFirst("^[/\\s]+","").trim();
+            String value=matcher.group(2);
+            if(name.isEmpty())continue;
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(0,0,0,dp(9));
+            panel.addView(row);
+            LinearLayout line=new LinearLayout(this);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            row.addView(line);
+            TextView label=text(name,13,getColor(R.color.text_primary));
+            line.addView(label,new LinearLayout.LayoutParams(0,-2,1));
+            TextView score=text(value+(isPercent?"%":""),13,getColor(R.color.accent));
+            line.addView(score);
+            if(isPercent){
+                int count=Math.min(100,Integer.parseInt(value));
+                LinearLayout track=new LinearLayout(this);
+                GradientDrawable fill=new GradientDrawable();
+                fill.setColor(getColor(R.color.panel_pressed));
+                fill.setCornerRadius(dp(3));
+                track.setBackground(fill);
+                LinearLayout.LayoutParams barp=new LinearLayout.LayoutParams(-1,dp(5));
+                barp.setMargins(0,dp(5),0,0);
+                row.addView(track,barp);
+                View bar=new View(this);
+                GradientDrawable barShape=new GradientDrawable();
+                barShape.setColor(getColor(R.color.accent));
+                barShape.setCornerRadius(dp(3));
+                bar.setBackground(barShape);
+                track.setWeightSum(100);
+                track.addView(bar,new LinearLayout.LayoutParams(0,-1,count));
+                if(count<100)track.addView(new View(this),
+                        new LinearLayout.LayoutParams(0,-1,100-count));
+            }
+            rendered++;
+        }
+        if(rendered==0){
+            addNarrative(panel,body,13,getColor(R.color.text_primary));
+        }else{
+            // Preserve any extra text not represented by known metrics.
+            String remainder=pattern.matcher(body).replaceAll(" ")
+                    .replaceAll("[/\\s]+"," ").trim();
+            if(!remainder.isEmpty()&&!remainder.equals("/"))
+                addNarrative(panel,remainder,12,getColor(R.color.text_secondary));
+        }
+        if(section.notes!=null&&!section.notes.trim().isEmpty()){
+            View divider=new View(this);
+            divider.setBackgroundColor(getColor(R.color.divider));
+            LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(-1,dp(1));
+            dividerParams.setMargins(0,dp(5),0,dp(9));
+            panel.addView(divider,dividerParams);
+            addNarrative(panel,section.notes,12,getColor(R.color.text_secondary));
+        }
+    }
+    private void addNarrative(LinearLayout parent,String value,int size,int color){
+        if(value==null||value.isEmpty())return;
+        TextView body=text(value,size,color);
+        body.setTextIsSelectable(true);
+        body.setLineSpacing(dp(3),1f);
+        body.setGravity(Gravity.START);
+        parent.addView(body);
     }
     private void startSiteAnalysis(){
         if(web==null||!loaded||started)return;

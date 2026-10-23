@@ -189,7 +189,7 @@ public final class ThemedMenu {
         aboutHeading(a,content,"アプリについて");
         aboutLine(a,content,"5chのID別投稿を、レス・スレ・名前ごとに確認できるAndroidアプリです。オリジナルの必死チェッカーdroid v1.5を参考に独立再構築しています。",secondary);
         aboutHeading(a,content,"主な機能");
-        aboutLine(a,content,"ID検索、板選択、レス・スレ・名前の一覧、投稿のコピー、ChMate連携、時間帯別の投稿グラフ。エッヂの検索は試験対応です。",secondary);
+        aboutLine(a,content,"ID検索、板選択、レス・スレ・名前の一覧、投稿のコピー、ChMate連携、時間帯別の投稿グラフ。エッヂのID検索と書き込み分析にも対応しています。",secondary);
         aboutHeading(a,content,"アプリ情報");
         aboutLine(a,content,"バージョン："+version+"\n対応OS：Android 8.0以降\nアプリID："+a.getPackageName()+"\n開発：chikuwadon\n状態：開発・検証中",secondary);
         aboutHeading(a,content,"データと通信");
