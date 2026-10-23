@@ -295,7 +295,7 @@ public final class ResultActivity extends Activity {
             showMenu(post.title,new String[]{"スレを開く","スレタイと全体をコピー","全体をコピー",
                 "スレタイと全体を追加コピー","全体を追加コピー","IDをコピー","リンクをコピー"},which->{
                 switch(which){
-                    case 0:openExternalBrowser(post.link);break;
+                    case 0:openThread(post.link);break;
                     case 1:copy(PostFormatter.withThread(post),false);break;
                     case 2:copy(PostFormatter.full(post),false);break;
                     case 3:copy(PostFormatter.withThread(post),true);break;
@@ -308,7 +308,7 @@ public final class ResultActivity extends Activity {
             if(i>=threadRows.size())return;
             Map.Entry<String,String> entry=threadRows.get(i);
             showMenu(entry.getValue(),new String[]{"スレを開く","スレタイをコピー","リンクをコピー","スレタイとリンクをコピー","スレタイとリンクを追加コピー"},which->{
-                if(which==0)openExternalBrowser(entry.getKey());
+                if(which==0)openThread(entry.getKey());
                 else if(which==1)copy(entry.getValue(),false);
                 else if(which==2)copy(entry.getKey(),false);
                 else if(which==3)copy(entry.getValue()+"\n"+entry.getKey(),false);
@@ -537,37 +537,23 @@ public final class ResultActivity extends Activity {
         showMessage("レスを取得できませんでした",text,
             url.isEmpty()?null:"外部ブラウザで開く",()->openExternalBrowser(url),"閉じる",this::exitResults);
     }
-    /** Launch a resolved external handler explicitly. The app itself is never offered. */
-    private void openExternalBrowser(String url){
-        if(url==null || url.isEmpty()){
-            Toast.makeText(this,"リンクがありません",Toast.LENGTH_SHORT).show();return;
-        }
-        Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(url));
+    private void openThread(String url){
+        String target=EdgeThreadLink.original(url);
+        if(target==null||target.isEmpty())return;
+        Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(target));
         view.addCategory(Intent.CATEGORY_BROWSABLE);
-        List<ResolveInfo> options=getPackageManager().queryIntentActivities(view,0);
-        List<ResolveInfo> external=new ArrayList<>();
-        List<String> labels=new ArrayList<>();
-        java.util.HashSet<String> seen=new java.util.HashSet<>();
-        for(ResolveInfo resolve:options){
-            ActivityInfo info=resolve.activityInfo;
-            if(info==null || info.packageName.equals(getPackageName()) ||
-                    !seen.add(info.packageName+"/"+info.name))continue;
-            external.add(resolve);
-            CharSequence label=resolve.loadLabel(getPackageManager());
-            labels.add(label==null?info.packageName:label.toString());
-        }
-        if(external.isEmpty()){
-            Toast.makeText(this,"外部ブラウザが見つかりません",Toast.LENGTH_LONG).show();return;
-        }
-        if(external.size()==1){launchResolved(view,external.get(0));return;}
-        showMenu("外部ブラウザで開く",labels.toArray(new String[0]),w->launchResolved(view,external.get(w)));
+        // Allow the user's configured thread reader (e.g., ChMate) to handle
+        // the original bbs.eddibb.cc thread directly.
+        try{startActivity(view);}
+        catch(Exception ex){BrowserLauncher.open(this,target);}
     }
-    private void launchResolved(Intent base,ResolveInfo resolution){
-        try{
-            Intent intent=new Intent(base);
-            intent.setClassName(resolution.activityInfo.packageName,resolution.activityInfo.name);
-            startActivity(intent);
-        }catch(Exception ex){Toast.makeText(this,"ブラウザを開けません",Toast.LENGTH_SHORT).show();}
+    /** Browser-only actions must never bounce back through our deep links. */
+    private void openExternalBrowser(String url){
+        if(url==null||url.isEmpty()){
+            Toast.makeText(this,"リンクがありません",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        BrowserLauncher.open(this,url);
     }
     @Override public boolean onCreateOptionsMenu(Menu menu){
         menu.add(0,1,0,"表示中のレスをすべてコピー");

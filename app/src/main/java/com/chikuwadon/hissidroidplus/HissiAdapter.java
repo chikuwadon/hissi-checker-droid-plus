@@ -27,7 +27,9 @@ public final class HissiAdapter {
     static String resultUrl(String board,String date,String id) {
         String encoded=java.util.Base64.getEncoder().withoutPadding()
                 .encodeToString(id.getBytes(StandardCharsets.UTF_8));
-        return "https://hissi.org/read.php/"+board+"/"+date+"/"+encoded+".html";
+        // hissi.org's Android access can time out on HTTPS before succeeding via HTTP.
+        // Match the site's working HTTP endpoint first, avoiding a 10s serial retry.
+        return "http://hissi.org/read.php/"+board+"/"+date+"/"+encoded+".html";
     }
 
     /** Retry over HTTP only for a known HTTPS connection failure on hissi.org. */
@@ -61,19 +63,19 @@ public final class HissiAdapter {
     private static Response getPage(String url)throws IOException{
         try{
             return new Response(HttpTransport.get(url,SJIS),url);
-        }catch(IOException httpsFailure){
-            String fallback=httpFallbackUrl(url);
-            if(fallback.isEmpty()||!connectionFailure(httpsFailure))throw httpsFailure;
-            try{
-                return new Response(HttpTransport.get(fallback,SJIS),fallback);
-            }catch(IOException httpFailure){
-                httpFailure.addSuppressed(httpsFailure);
-                throw httpFailure;
-            }
+        }catch(IOException failure){
+            // If HTTP itself is blocked, permit HTTPS as a fallback.
+            if(!url.startsWith("http://hissi.org/read.php/"))throw failure;
+            String alternate="https://"+url.substring("http://".length());
+            try{return new Response(HttpTransport.get(alternate,SJIS),alternate);}
+            catch(IOException second){second.addSuppressed(failure);throw second;}
         }
     }
     public CheckerResult load(CheckerQuery query)throws IOException {
         String url=query.url.isEmpty()?resultUrl(query.board,query.date,query.id):query.url;
+        // Older history links may still use HTTPS; avoid the same slow retry.
+        String directHttp=httpFallbackUrl(url);
+        if(!directHttp.isEmpty())url=directHttp;
         CheckerResult result=new CheckerResult();
         IOException canonicalError=null;
         try {

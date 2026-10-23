@@ -91,10 +91,9 @@ public final class HomeActivity extends Activity {
                         edgeSelected.get(Calendar.DAY_OF_MONTH));
                 CheckerQuery.validateDate(date);
                 prefs.edit().putString("edge_board",code).putString("edge_last_id",user).apply();
-                startActivity(new Intent(this,EdgeSearchActivity.class)
-                        .putExtra(EdgeSearchActivity.BOARD,code)
-                        .putExtra(EdgeSearchActivity.DATE,date)
-                        .putExtra(EdgeSearchActivity.USER_ID,user));
+                // Resolve the site's real thread key in the background.
+                // Do not launch an intermediate browser or search Activity.
+                openEdgeDirect(code,date,user);
             }catch(IllegalArgumentException e){
                 Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();
             }
@@ -181,6 +180,37 @@ public final class HomeActivity extends Activity {
                 edgeSelected.get(Calendar.DAY_OF_MONTH)));
     }
     /** Use last successful official menu without network calls on subsequent opens. */
+    private void openEdgeDirect(String code,String date,String user){
+        if(busy)return;
+        busy=true;
+        Toast.makeText(this,"エッヂのIDを検索中…",Toast.LENGTH_SHORT).show();
+        worker.execute(()->{
+            try{
+                String url=EdgeSearchLink.searchUrl(code,date,user);
+                String html=HttpTransport.get(url,StandardCharsets.UTF_8);
+                List<EdgeSearchResults.Item> matches=EdgeSearchResults.parse(html,url,code,date,user);
+                runOnUiThread(()->{
+                    busy=false;
+                    if(isFinishing()||isDestroyed())return;
+                    if(!matches.isEmpty()){
+                        startActivity(new Intent(this,ResultActivity.class)
+                            .setData(android.net.Uri.parse(matches.get(0).checkerUrl)));
+                    }else{
+                        Toast.makeText(this,"検索結果がありません。サイトで検索を確認してください",
+                            Toast.LENGTH_LONG).show();
+                    }
+                });
+            }catch(Exception error){
+                runOnUiThread(()->{
+                    busy=false;
+                    if(!isFinishing()&&!isDestroyed())
+                        Toast.makeText(this,"検索に失敗しました: "+
+                            (error.getMessage()==null?"通信エラー":error.getMessage()),
+                            Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
     private void showBoards(){
         if(busy)return;
         if(boardGroups!=null&&!boardGroups.isEmpty()){

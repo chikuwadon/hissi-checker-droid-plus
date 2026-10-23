@@ -112,7 +112,9 @@ public final class HistoryActivity extends Activity {
         list=new ListView(this);
         list.setDivider(new ColorDrawable(getColor(R.color.divider)));
         list.setDividerHeight(dp(1));
-        list.setSelector(new ColorDrawable(getColor(R.color.panel_pressed)));
+        // ListView selector remains latched to the previously focused row on Android.
+        // Only the actual checked items may have a persistent tint.
+        list.setSelector(new ColorDrawable(android.graphics.Color.TRANSPARENT));
         list.setFastScrollEnabled(true);
         list.setAdapter(adapter);
         root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
@@ -195,6 +197,12 @@ public final class HistoryActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(10),dp(6),dp(6),dp(6));
             row.setMinimumHeight(dp(64));
+            if(selection && chosen.contains(entry.url))
+                row.setBackgroundColor(getColor(R.color.panel_pressed));
+            else
+                row.setBackground(new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.panel_pressed)),
+                    new ColorDrawable(android.graphics.Color.TRANSPARENT),null));
             if(selection){
                 TextView check=text(chosen.contains(entry.url)?"☑":"☐",21,
                     getColor(chosen.contains(entry.url)?R.color.accent:R.color.text_secondary));
