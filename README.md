@@ -82,6 +82,8 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 - [オフライン板一覧の生成元と再生成方法](docs/BOARD_MENU_SNAPSHOT.md)
 - [署名設定](docs/SIGNING.md)
 - [第三者ライセンス](THIRD_PARTY_NOTICES.md)
+- [ライセンス適用範囲](docs/LICENSING_SCOPE.md)
+- [安全なソース公開手順](docs/PUBLIC_EXPORT_PLAN.md)
 - [セキュリティ報告](SECURITY.md)
 - [公開前チェックリスト](docs/PUBLIC_RELEASE_CHECKLIST.md)
 
@@ -91,4 +93,4 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
 本アプリのJavaコードとランチャーアイコンは独自に制作しています。原作アプリのコード・画像・板一覧データを同梱していません。5ch、エッヂ、ChMateの公式製品ではありません。
 
-独自コードと自作アイコンの公開ライセンスは、開発者が決定してから明示します。選定前に第三者へ改変・再配布を許諾するものではありません。利用するjsoupのMITライセンスは別途適用されます。
+本プロジェクトが独自に制作したJavaソースコードと自作アイコンは [MIT License](LICENSE) で公開する方針です。5ch公式メニューから生成した `offline_boards.tsv`、外部サービスのコンテンツ、jsoupなどの第三者ライブラリにはこの許諾は及びません。詳細は [ライセンス適用範囲](docs/LICENSING_SCOPE.md) と [第三者ライセンス](THIRD_PARTY_NOTICES.md) を参照してください。
