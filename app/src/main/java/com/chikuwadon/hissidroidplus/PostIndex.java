@@ -67,6 +67,9 @@ public final class PostIndex {
     public static String cleanAuthor(String raw){
         if(raw==null)return "";
         String value=raw.replaceAll("<[^>]*>"," ").replace('\u00a0',' ').trim();
+        // Edge response numbers and reference badges are not author names.
+        value=value.replaceFirst("^\\d{1,6}(?:\\(\\d+\\))?\\s*[:：]\\s*","");
+        value=value.replaceFirst("\\s+\\d{1,6}\\(\\d+\\)\\s*[:：].*$","");
         value=ID.matcher(value).replaceFirst("");
         value=DATE.matcher(value).replaceFirst("");
         value=value.replaceFirst("(?i)\\s+(?:sage|age)\\s*$", "");
