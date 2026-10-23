@@ -1,0 +1,47 @@
+name: Generate independent offline board menu snapshot
+on:
+  push:
+    branches: ['release-candidate/v1.0.0-rc1']
+    paths:
+      - '.github/workflows/generate-5ch-snapshot.yml'
+      - 'tools/generate_5ch_snapshot.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise parser against independently created sample
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          groups=[]
+          for n in range(12):
+              boards=[dict(url=f'https://egg.5ch.io/test{n}_{j}/',
+                           directory_name=f'test{n}_{j}',
+                           board_name=f'テスト板{n}_{j}') for j in range(10)]
+              groups.append(dict(category_name=f'カテゴリ{n}',category_content=boards))
+          pathlib.Path('sample.json').write_text(json.dumps({'menu_list':groups}), encoding='utf-8')
+          PY
+          python3 tools/generate_5ch_snapshot.py --input sample.json --output sample.tsv --metadata sample.meta.json
+          test "$(wc -l < sample.tsv)" -eq 120
+          python3 - <<'PY'
+          import json
+          m=json.load(open('sample.meta.json'))
+          assert m['category_count'] == 12 and m['board_count'] == 120, m
+          PY
+      - name: Generate official offline board snapshot
+        run: |
+          set -euo pipefail
+          python3 tools/generate_5ch_snapshot.py --output snapshot/offline_boards.tsv --metadata snapshot/offline_boards.meta.json
+          test "$(wc -l < snapshot/offline_boards.tsv)" -ge 100
+      - name: Save snapshot for review before committing
+        uses: actions/upload-artifact@v4
+        with:
+          name: 5ch-board-menu-snapshot
+          path: snapshot/
+          if-no-files-found: error
+          retention-days: 7
