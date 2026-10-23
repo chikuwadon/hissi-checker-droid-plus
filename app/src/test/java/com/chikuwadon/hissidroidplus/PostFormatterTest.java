@@ -27,5 +27,22 @@ public class PostFormatterTest {
         assertEquals("名無し 2026/10/22",PostFormatter.normalizedInfo("名無し [] ：2026/10/22"));
         assertEquals("名無し 2026/10/22",PostFormatter.normalizedInfo("名無し  ：2026/10/22"));
     }
-    @Test public void rawIdIsCopied(){assertEquals("2BwK4lBW0",PostFormatter.id(post));}
+    @Test public void prefixedIdIsCopied(){assertEquals("ID:2BwK4lBW0",PostFormatter.id(post));}
+    @Test public void edgeReferenceCountIsDisplayOnly(){
+        CheckerResult.Post edge=new CheckerResult.Post("スレッドA","エッヂの名無し",
+                "506(1):エッヂの名無し 2026/10/23(金) 08:38:49.033 ID:3.43FEyAx 506(1):エッヂの名無し",
+                ">>495\n本文","https://www.kyodemo.net/sdemo/r/e_e_liveedge/1790000000/506",1);
+        String copy=PostFormatter.full(edge);
+        assertEquals("506 エッヂの名無し 2026/10/23(金) 08:38:49.033 ID:3.43FEyAx\n>>495\n本文",copy);
+        assertFalse(copy.contains("(1)"));
+        assertEquals("ID:3.43FEyAx",PostFormatter.id(edge));
+    }
+    @Test public void edgeSageEmailIsPreserved(){
+        CheckerResult.Post edge=new CheckerResult.Post("スレ","エッヂの名無し",
+            "331:エッヂの名無し [sage] 2026/10/23(金) 10:42:53.468 ID:3.43FEyAx",
+            "本文","https://www.kyodemo.net/sdemo/r/e_e_liveedge/1790000000/331",0);
+        assertEquals("331 エッヂの名無し sage 2026/10/23(金) 10:42:53.468 ID:3.43FEyAx\n本文",
+                PostFormatter.full(edge));
+    }
+
 }
