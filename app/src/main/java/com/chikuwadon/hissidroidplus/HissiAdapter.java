@@ -41,13 +41,22 @@ public final class HissiAdapter {
             }catch(IllegalArgumentException ex){throw new IOException("不正な検索結果URLです",ex);}
         }
         String all=url+(url.contains("?")?"&":"?")+"thread=all&name=all";
-        String html=HttpTransport.get(all,SJIS);
-        CheckerResult result=parse(html,all);
-        // The site's normal HTML is the compatibility baseline. If the optional
-        // all-mode query changes format, retry the unmodified result URL.
+        CheckerResult result=new CheckerResult();
+        IOException optionalError=null;
+        try {
+            result=parse(HttpTransport.get(all,SJIS),all);
+        }catch(IOException ex){ optionalError=ex; }
+        // Some server builds reject optional query parameters or change the
+        // HTML for all-mode. Retry the canonical, original result URL.
         if(result.posts.isEmpty()) {
-            CheckerResult basic=parse(HttpTransport.get(url,SJIS),url);
-            if(!basic.posts.isEmpty() || !basic.threads.isEmpty())result=basic;
+            try {
+                CheckerResult basic=parse(HttpTransport.get(url,SJIS),url);
+                if(!basic.posts.isEmpty() || !basic.threads.isEmpty())result=basic;
+                else if(optionalError!=null)throw optionalError;
+            }catch(IOException standardError){
+                if(optionalError!=null)standardError.addSuppressed(optionalError);
+                throw standardError;
+            }
         }
         result.sourceUrl=url;
         result.diagnostic=HttpTransport.lastDiagnostic();
