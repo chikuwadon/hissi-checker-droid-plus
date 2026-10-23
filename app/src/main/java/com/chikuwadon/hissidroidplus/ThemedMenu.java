@@ -140,6 +140,32 @@ public final class ThemedMenu {
         addClose(a,panel,holder);
         holder[0]=dialog(a,panel);
     }
+    /** One shared, centered, theme-aware confirmation UI across all screens. */
+    public static void confirm(Activity a,String heading,String message,String affirmative,Runnable onConfirm){
+        if(a.isFinishing()||a.isDestroyed())return;
+        LinearLayout panel=column(a,14);
+        panel.addView(title(a,heading));
+        TextView details=text(a,message,14,a.getColor(R.color.text_primary));
+        details.setPadding(dp(a,8),dp(a,2),dp(a,8),dp(a,16));
+        panel.addView(details);
+        LinearLayout buttons=new LinearLayout(a);
+        buttons.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        panel.addView(buttons);
+        final AlertDialog[] holder={null};
+        TextView cancel=text(a,"キャンセル",14,a.getColor(R.color.text_secondary));
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setMinimumHeight(dp(a,48));
+        cancel.setPadding(dp(a,14),0,dp(a,14),0);
+        applyTouch(a,cancel);buttons.addView(cancel);
+        cancel.setOnClickListener(v->holder[0].dismiss());
+        TextView apply=text(a,affirmative,14,a.getColor(R.color.accent));
+        apply.setGravity(Gravity.CENTER);
+        apply.setMinimumHeight(dp(a,48));
+        apply.setPadding(dp(a,14),0,dp(a,14),0);
+        applyTouch(a,apply);buttons.addView(apply);
+        apply.setOnClickListener(v->{holder[0].dismiss();onConfirm.run();});
+        holder[0]=dialog(a,panel);
+    }
     private static void aboutLine(Activity a,LinearLayout panel,String line,int color){
         TextView row=text(a,line,13,color);
         row.setPadding(dp(a,8),dp(a,2),dp(a,8),dp(a,5));

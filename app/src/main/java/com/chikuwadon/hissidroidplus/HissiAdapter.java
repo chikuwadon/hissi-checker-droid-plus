@@ -30,38 +30,84 @@ public final class HissiAdapter {
         return "https://hissi.org/read.php/"+board+"/"+date+"/"+encoded+".html";
     }
 
+    /** Retry over HTTP only for a known HTTPS connection failure on hissi.org. */
+    static String httpFallbackUrl(String url){
+        try{
+            java.net.URI uri=new java.net.URI(url);
+            if(!"https".equalsIgnoreCase(uri.getScheme()))return "";
+            if(!("hissi.org".equalsIgnoreCase(uri.getHost()) ||
+                    "www.hissi.org".equalsIgnoreCase(uri.getHost())))return "";
+            if(uri.getPort()!=-1||uri.getRawUserInfo()!=null)return "";
+            if(!uri.getRawPath().startsWith("/read.php/"))return "";
+            return new java.net.URI("http",null,uri.getHost(),-1,uri.getRawPath(),
+                    uri.getRawQuery(),uri.getRawFragment()).toASCIIString();
+        }catch(Exception badUrl){return "";}
+    }
+    private static boolean connectionFailure(IOException error){
+        Throwable cause=error;
+        while(cause!=null){
+            if(cause instanceof java.net.SocketTimeoutException ||
+                    cause instanceof java.net.ConnectException ||
+                    cause instanceof java.net.NoRouteToHostException)
+                return true;
+            cause=cause.getCause();
+        }
+        return false;
+    }
+    private static class Response {
+        final String html,url;
+        Response(String html,String url){this.html=html;this.url=url;}
+    }
+    private static Response getPage(String url)throws IOException{
+        try{
+            return new Response(HttpTransport.get(url,SJIS),url);
+        }catch(IOException httpsFailure){
+            String fallback=httpFallbackUrl(url);
+            if(fallback.isEmpty()||!connectionFailure(httpsFailure))throw httpsFailure;
+            try{
+                return new Response(HttpTransport.get(fallback,SJIS),fallback);
+            }catch(IOException httpFailure){
+                httpFailure.addSuppressed(httpsFailure);
+                throw httpFailure;
+            }
+        }
+    }
     public CheckerResult load(CheckerQuery query)throws IOException {
-        // Form POST + a meta redirect is fragile on newer servers. Use Hissi's
-        // canonical /read.php/<board>/<date>/<base64-id>.html address directly.
         String url=query.url.isEmpty()?resultUrl(query.board,query.date,query.id):query.url;
         CheckerResult result=new CheckerResult();
         IOException canonicalError=null;
         try {
-            result=parse(HttpTransport.get(url,SJIS),url);
-        } catch(IOException ex) {canonicalError=ex;}
-        if(result.posts.isEmpty()) {
-            // The older site also accepts all-mode parameters. Keep as fallback.
+            Response primary=getPage(url);
+            url=primary.url;
+            result=parse(primary.html,url);
+        }catch(IOException ex){canonicalError=ex;}
+        if(result.posts.isEmpty()){
             String all=url+(url.contains("?")?"&":"?")+"thread=all&name=all";
-            try {
-                CheckerResult secondary=parse(HttpTransport.get(all,SJIS),all);
-                if(!secondary.posts.isEmpty() || result.reportedPostCount<0)result=secondary;
-            } catch(IOException ex) {
+            try{
+                Response secondaryPage=getPage(all);
+                CheckerResult secondary=parse(secondaryPage.html,secondaryPage.url);
+                if(!secondary.posts.isEmpty()||result.reportedPostCount<0){
+                    result=secondary;
+                    url=secondaryPage.url.replaceFirst("[?&]thread=all&name=all$", "");
+                }
+            }catch(IOException ex){
                 if(canonicalError!=null)ex.addSuppressed(canonicalError);
                 if(result.reportedPostCount<0)throw ex;
             }
         }
-        if(canonicalError!=null && result.posts.isEmpty()&&result.reportedPostCount<0)
+        if(canonicalError!=null&&result.posts.isEmpty()&&result.reportedPostCount<0)
             throw canonicalError;
         result.sourceUrl=url;
-        result.diagnostic=HttpTransport.lastDiagnostic()
-                +" / 解析="+result.posts.size()+"件 / 表示集計="+result.reportedPostCount+"件"
+        result.diagnostic=HttpTransport.lastDiagnostic()+
+                " / 解析="+result.posts.size()+"件 / 表示集計="+result.reportedPostCount+"件"
                 +(result.diagnostic.isEmpty()?"":" / "+result.diagnostic);
         return result;
     }
-
-    public CheckerResult nextPage(String url, int page) throws IOException {
-        if(page<1 || page>20)throw new IOException("ページ番号が不正です");
-        CheckerResult result=parse(HttpTransport.get(url+(url.contains("?")?"&":"?")+"p="+page,SJIS),url);
+    public CheckerResult nextPage(String url,int page)throws IOException{
+        if(page<1||page>20)throw new IOException("ページ番号が不正です");
+        String link=url+(url.contains("?")?"&":"?")+"p="+page;
+        Response received=getPage(link);
+        CheckerResult result=parse(received.html,received.url);
         result.sourceUrl=url;
         return result;
     }

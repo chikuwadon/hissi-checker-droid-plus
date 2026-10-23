@@ -1,7 +1,6 @@
 package com.chikuwadon.hissidroidplus;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
@@ -27,7 +26,9 @@ public final class HistoryActivity extends Activity {
     private final Set<String> chosen=new HashSet<>();
     private final String[] sorts={"新しい順","古い順","板名順","検索日順"};
     private TextView recentTab,favoriteTab,sortLabel,toolbarTitle,menuButton,selectedActions;
+    private TextView cancelSelection,deleteSelected;
     private ListView list;
+    private LinearLayout selectionActions;
     private final List<SearchHistory.Entry> rows=new ArrayList<>();
     private final EntriesAdapter adapter=new EntriesAdapter();
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
@@ -90,13 +91,23 @@ public final class HistoryActivity extends Activity {
             if(selection){selection=false;chosen.clear();}
             tab=1;refresh();
         });
-        selectedActions=text("",14,getColor(R.color.accent));
-        selectedActions.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
-        selectedActions.setPadding(dp(12),0,dp(16),0);
-        selectedActions.setMinHeight(dp(48));
-        selectedActions.setVisibility(View.GONE);
-        root.addView(selectedActions,new LinearLayout.LayoutParams(-1,dp(48)));
-        selectedActions.setOnClickListener(v->confirmSelected());
+        LinearLayout actions=new LinearLayout(this);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(dp(9),0,dp(9),0);
+        root.addView(actions,new LinearLayout.LayoutParams(-1,dp(48)));
+        cancelSelection=text("解除",13,getColor(R.color.text_primary));
+        cancelSelection.setGravity(Gravity.CENTER);
+        actions.addView(cancelSelection,new LinearLayout.LayoutParams(dp(62),dp(46)));
+        cancelSelection.setOnClickListener(v->{selection=false;chosen.clear();refresh();});
+        selectedActions=text("",13,getColor(R.color.text_secondary));
+        selectedActions.setGravity(Gravity.CENTER);
+        actions.addView(selectedActions,new LinearLayout.LayoutParams(0,dp(46),1));
+        deleteSelected=text("削除",14,getColor(R.color.accent));
+        deleteSelected.setGravity(Gravity.CENTER);
+        actions.addView(deleteSelected,new LinearLayout.LayoutParams(dp(74),dp(46)));
+        deleteSelected.setOnClickListener(v->confirmSelected());
+        actions.setTag("selectionActions");
+        selectionActions=actions;
 
         list=new ListView(this);
         list.setDivider(new ColorDrawable(getColor(R.color.divider)));
@@ -121,20 +132,15 @@ public final class HistoryActivity extends Activity {
             if(position<0||position>=rows.size())return true;
             SearchHistory.Entry entry=rows.get(position);
             if(selection){toggleSelection(entry.url);return true;}
-            if(tab==0)new AlertDialog.Builder(this)
-                .setMessage("この履歴を削除しますか？\nお気に入り登録は維持されます。")
-                .setNegativeButton("キャンセル",null)
-                .setPositiveButton("削除",(dialog,which)->{
-                    SearchHistory.deleteRecent(this,entry.url);refresh();
-                }).show();
-            else new AlertDialog.Builder(this)
-                .setMessage("お気に入り登録を解除しますか？")
-                .setNegativeButton("キャンセル",null)
-                .setPositiveButton("解除",(dialog,which)->{
+            if(tab==0)ThemedMenu.confirm(this,"履歴の削除",
+                "この履歴を削除しますか？\nお気に入り登録は維持されます。","削除",
+                ()->{SearchHistory.deleteRecent(this,entry.url);refresh();});
+            else ThemedMenu.confirm(this,"お気に入りの解除",
+                "お気に入り登録を解除しますか？","解除",()->{
                     if(SearchHistory.isFavorite(this,entry.url))
                         SearchHistory.toggleFavorite(this,entry);
                     refresh();
-                }).show();
+                });
             return true;
         });
         refresh();
@@ -145,21 +151,17 @@ public final class HistoryActivity extends Activity {
     }
     private void confirmSelected(){
         if(chosen.isEmpty())return;
-        new AlertDialog.Builder(this)
-            .setMessage("選択した"+chosen.size()+"件の履歴を削除しますか？\nお気に入りは削除されません。")
-            .setNegativeButton("キャンセル",null)
-            .setPositiveButton("削除",(d,w)->{
+        ThemedMenu.confirm(this,"選択した履歴の削除",
+            "選択した"+chosen.size()+"件を削除しますか？\nお気に入りは維持されます。","削除",()->{
                 SearchHistory.deleteRecents(this,new HashSet<>(chosen));
                 chosen.clear();selection=false;refresh();
-            }).show();
+            });
     }
     private void confirmClear(){
-        new AlertDialog.Builder(this)
-            .setMessage("通常履歴をすべて削除しますか？\nお気に入りは残ります。")
-            .setNegativeButton("キャンセル",null)
-            .setPositiveButton("全削除",(d,w)->{
+        ThemedMenu.confirm(this,"履歴の全削除",
+            "通常履歴をすべて削除しますか？\nお気に入りは残ります。","全削除",()->{
                 SearchHistory.clearRecents(this);chosen.clear();selection=false;refresh();
-            }).show();
+            });
     }
     @Override protected void onResume(){super.onResume();if(list!=null)refresh();}
     private void refresh(){
@@ -174,9 +176,10 @@ public final class HistoryActivity extends Activity {
         sortLabel.setVisibility(selection?View.GONE:View.VISIBLE);
         menuButton.setVisibility(selection?View.GONE:View.VISIBLE);
         toolbarTitle.setText(selection?"履歴を選択":"検索履歴");
-        selectedActions.setVisibility(selection?View.VISIBLE:View.GONE);
-        selectedActions.setText("選択 "+chosen.size()+"件   /   削除");
-        selectedActions.setEnabled(!chosen.isEmpty());
+        selectionActions.setVisibility(selection?View.VISIBLE:View.GONE);
+        selectedActions.setText("選択 "+chosen.size()+"件");
+        deleteSelected.setEnabled(!chosen.isEmpty());
+        deleteSelected.setAlpha(chosen.isEmpty()?0.45f:1f);
         adapter.notifyDataSetChanged();
     }
     @Override public void onBackPressed(){

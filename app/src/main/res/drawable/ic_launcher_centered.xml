@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Shift the original artwork ~4dp upward and ~3dp left, without redrawing it. -->
+    <item android:left="-3dp" android:right="3dp" android:top="-4dp" android:bottom="4dp">
+        <bitmap android:src="@drawable/ic_launcher_foreground" android:gravity="fill"/>
+    </item>
+</layer-list>
