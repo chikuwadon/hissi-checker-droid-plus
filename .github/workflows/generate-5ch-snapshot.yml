@@ -7,7 +7,7 @@ on:
       - 'tools/generate_5ch_snapshot.py'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   snapshot:
     runs-on: ubuntu-24.04
@@ -45,3 +45,24 @@ jobs:
           path: snapshot/
           if-no-files-found: error
           retention-days: 7
+      - name: Commit generated snapshot to private release candidate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head="$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"
+          if [[ "$head" != "$GITHUB_SHA" ]]; then
+            echo "::error::Branch advanced since workflow checkout, refusing to commit a potentially stale snapshot"
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/contents/app/src/main/assets/offline_boards.tsv" --silent >/dev/null 2>&1; then
+            echo "::error::Snapshot file already exists. Refusing overwrite without review."
+            exit 1
+          fi
+          snapshot="$(base64 -w0 snapshot/offline_boards.tsv)"
+          gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/app/src/main/assets/offline_boards.tsv" \
+            -f message='data: bundle independently generated 5ch offline board snapshot' \
+            -f branch="$GITHUB_REF_NAME" \
+            -f content="$snapshot" > "$RUNNER_TEMP/snapshot-commit.json"
+          echo "Generated snapshot committed on $GITHUB_REF_NAME."
