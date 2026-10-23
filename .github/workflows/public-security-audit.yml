@@ -1,6 +1,7 @@
 name: Private publication security audit
 on:
   push:
+    branches: ['release-candidate/v1.0.0-rc1']
     paths:
       - 'tools/public_security_audit.py'
       - '.github/workflows/public-security-audit.yml'

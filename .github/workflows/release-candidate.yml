@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -75,6 +77,25 @@ jobs:
           fi
           sha256sum "$apk"
           echo "Package, version, release flags, license and signing identity verified."
+      - name: Build signed v0.1.21 predecessor from pinned source
+        env:
+          HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/hissi-v021" 2084be7388396fd91db9dec46da021e86ff5d701
+          gradle --no-daemon -p "$RUNNER_TEMP/hissi-v021" :app:assembleRelease
+          mkdir -p baseline
+          cp "$RUNNER_TEMP/hissi-v021/app/build/outputs/apk/release/app-release.apk" baseline/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging baseline/app-release.apk | grep -Fq "versionCode='22' versionName='0.1.21'"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose baseline/app-release.apk
+      - name: Save private upgrade predecessor APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HissiCheckerDroidPlus-v0.1.21-private-upgrade-baseline
+          path: baseline/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
       - name: Save release lint diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -106,15 +127,11 @@ jobs:
         with:
           name: HissiCheckerDroidPlus-v1.0.0-signed-release-candidate
           path: candidate
-      - name: Fetch signed v0.1.21 baseline for upgrade verification
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          mkdir -p baseline
-          gh run download 39964854894 --repo "$GITHUB_REPOSITORY" \
-            --name HissiCheckerDroidPlus-v0.1.21-signed-release-candidate --dir baseline
-          test -s baseline/app-release.apk
+      - name: Download signed predecessor from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: HissiCheckerDroidPlus-v0.1.21-private-upgrade-baseline
+          path: baseline
       - name: Enable KVM acceleration
         shell: bash
         run: |
@@ -136,5 +153,47 @@ jobs:
         with:
           name: emulator-smoke-api-${{ matrix.api-level }}
           path: emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
+  private-clean-source-export:
+    needs: signed-release-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive without Git history or third-party board snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          git archive --format=zip --output=export/v1.0.0-source-preview.zip HEAD
+          unzip -Z1 export/v1.0.0-source-preview.zip | grep -Fxq LICENSE
+          unzip -Z1 export/v1.0.0-source-preview.zip | grep -Fxq app/src/main/assets/offline_boards.tsv
+          cp export/v1.0.0-source-preview.zip export/v1.0.0-source-preview-no-board-data.zip
+          zip -dq export/v1.0.0-source-preview-no-board-data.zip app/src/main/assets/offline_boards.tsv
+          ! unzip -Z1 export/v1.0.0-source-preview-no-board-data.zip | grep -Fq app/src/main/assets/offline_boards.tsv
+          ! unzip -Z1 export/v1.0.0-source-preview-no-board-data.zip | grep -Eq '(^|/)\.git/'
+          sha256sum export/*.zip > export/SHA256SUMS
+      - name: Save private source snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: v1.0.0-clean-source-preview
+          path: export/
+          if-no-files-found: error
+          retention-days: 7
+
+  service-connectivity-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe published endpoints without IDs or cookies
+        run: python3 tools/live_service_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v1.0.0-service-connectivity-evidence
+          path: connectivity-report.json
           if-no-files-found: warn
           retention-days: 7
