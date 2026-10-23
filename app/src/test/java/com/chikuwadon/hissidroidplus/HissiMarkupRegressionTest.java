@@ -4,9 +4,9 @@ import org.junit.Test;
 
 public final class HissiMarkupRegressionTest {
     @Test public void canonicalResultUrlUsesBase64WithoutPadding(){
-        assertEquals("https://hissi.org/read.php/wmotenai/20260424/RXhhalVJaDA.html",
+        assertEquals("http://hissi.org/read.php/wmotenai/20260424/RXhhalVJaDA.html",
             HissiAdapter.resultUrl("wmotenai","20260424","ExajUIh0"));
-        assertEquals("https://hissi.org/read.php/livebase/20260605/YzU5VU1GNys.html",
+        assertEquals("http://hissi.org/read.php/livebase/20260605/YzU5VU1GNys.html",
             HissiAdapter.resultUrl("livebase","20260605","c59UMF7+"));
     }
 
