@@ -94,11 +94,12 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.tab_names).setOnClickListener(v->selectTab(2));
         findViewById(R.id.toolbar_back).setOnClickListener(v->exitResults());
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
-            String[] labels={"検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+            String[] labels={"検索履歴","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
-                if(which==0)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                else if(which==1)copySearchedId();
-                else if(which==2)copyAllVisible();
+                if(which==0)startActivity(new Intent(this,HistoryActivity.class));
+                else if(which==1)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
+                else if(which==2)copySearchedId();
+                else if(which==3)copyAllVisible();
                 else exitResults();
             });
         });
@@ -141,6 +142,7 @@ public final class ResultActivity extends Activity {
                     }
                     result=received;rebuildIndexes();
                     loading=false;adapter.notifyDataSetChanged();updateHeader();
+                    if(!result.posts.isEmpty())SearchHistory.record(this,query,result);
                     if(result.posts.isEmpty()){
                         showEmpty();
                     }
@@ -246,7 +248,7 @@ public final class ResultActivity extends Activity {
         label.append("  /  スレ ").append(result.reportedThreadCount>=0?result.reportedThreadCount:threadRows.size());
         if(result.referencedCount>=0)label.append("  /  被参照 ").append(result.referencedCount);
         if(dated>0){
-            boolean show=AppSettings.prefs(this).getBoolean("show_hourly_chart",false);
+            boolean show=AppSettings.prefs(this).getBoolean("show_hourly_chart",true);
             chart.setVisibility(show?View.VISIBLE:View.GONE);
             label.append(show?"  ▴":"  ▾");
         }else chart.setVisibility(View.GONE);
@@ -479,6 +481,7 @@ public final class ResultActivity extends Activity {
                                 found.sourceUrl=query.url;
                                 result=found;
                                 rebuildIndexes();loading=false;adapter.notifyDataSetChanged();updateHeader();
+                                SearchHistory.record(ResultActivity.this,query,result);
                                 cleanupWebView(view);
                             }
                         } catch(Exception ex) {

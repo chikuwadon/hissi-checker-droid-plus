@@ -104,10 +104,11 @@ public final class HomeActivity extends Activity {
     /** Toolbar overflow stays attached to ⋮ instead of opening a full modal list. */
     private void showSettings(View anchor){
         ThemedMenu.showOverflow(this,anchor,new String[]{
-            "テーマ", "リンクの開き方", "このアプリについて"
+            "検索履歴", "テーマ", "リンクの開き方", "このアプリについて"
         },index->{
-            if(index==0)showThemePicker();
-            else if(index==1)showLinkModePicker();
+            if(index==0)startActivity(new Intent(this,HistoryActivity.class));
+            else if(index==1)showThemePicker();
+            else if(index==2)showLinkModePicker();
             else ThemedMenu.showAbout(this);
         });
     }

@@ -97,8 +97,15 @@ public final class HttpTransport {
                         if(match.find())try{chosen=Charset.forName(match.group(1));}
                         catch(Exception ignored){}
                     }
-                    diagnostics+=" / 文字コード="+chosen.name()+" / 受信="+data.length+"B";
-                    return new String(data,chosen);
+                    String decoded=HissiHtmlDecoder.decode(data,chosen,
+                            target.getHost().equalsIgnoreCase("hissi.org") ||
+                            target.getHost().equalsIgnoreCase("www.hissi.org"));
+                    diagnostics+=" / 文字コード="+chosen.name()
+                            +(decoded.startsWith(HissiHtmlDecoder.FALLBACK_MARKER)?"(Shift_JIS再判定)":"")
+                            +" / 受信="+data.length+"B";
+                    if(decoded.startsWith(HissiHtmlDecoder.FALLBACK_MARKER))
+                        decoded=decoded.substring(HissiHtmlDecoder.FALLBACK_MARKER.length());
+                    return decoded;
                 }
             }finally{c.disconnect();}
         }
