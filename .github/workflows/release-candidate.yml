@@ -53,7 +53,7 @@ jobs:
           aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
           signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$aapt" dump badging "$apk" > "$RUNNER_TEMP/release-badging.txt"
-          grep -Fq "package: name='com.chikuwadon.hissidroidplus' versionCode='22' versionName='0.1.21'" "$RUNNER_TEMP/release-badging.txt"
+          grep -Fq "package: name='com.chikuwadon.hissidroidplus' versionCode='23' versionName='1.0.0'" "$RUNNER_TEMP/release-badging.txt"
           if grep -q '^application-debuggable' "$RUNNER_TEMP/release-badging.txt"; then
             echo "::error::Release candidate must not be debuggable."
             exit 1
@@ -80,7 +80,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: HissiCheckerDroidPlus-v0.1.21-signed-release-candidate
+          name: HissiCheckerDroidPlus-v1.0.0-signed-release-candidate
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7

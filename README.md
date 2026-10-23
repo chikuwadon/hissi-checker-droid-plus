@@ -4,7 +4,7 @@
 
 **Hissi Checker Droid Plus**
 
-`v0.1.21` · `Android 8.0+` · `Java 17`
+`v1.0.0` · `Android 8.0+` · `Java 17`
 
 </div>
 
@@ -48,7 +48,7 @@ ChMateがインストールされている場合は、動作確認済みのス�
 | :-- | :-- |
 | 対応OS | Android 8.0（API 26）以降 |
 | アプリID | `com.chikuwadon.hissidroidplus` |
-| 開発バージョン | `0.1.21`（`versionCode 22`） |
+| バージョン | `1.0.0` |
 | compileSdk / targetSdk | 36 / 36 |
 | Java | 17 |
 | Android Gradle Plugin | 9.4.0 |
@@ -63,7 +63,7 @@ JDK 17、Android SDK 36、Gradle 9.8.2が必要です。Gradle Wrapperは同梱�
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-APKは `app/build/outputs/apk/debug/` に生成されます。GitHub Actionsでも同じテスト・Lint・QAビルドを実行します。Actionsの成果物は開発検証用であり、正式なReleaseとしての配布を意味しません。
+開発用APKは `app/build/outputs/apk/debug/` に、配布用にビルドしたAPKは `app/build/outputs/apk/release/` に生成されます。配布用APKには固定署名が必要です。GitHub Actionsではビルド、Lint、署名検証を実施します。検証用成果物は正式なGitHub Releaseではありません。
 
 署名鍵の安全な管理については [署名設定](docs/SIGNING.md) を参照してください。**秘密鍵・キーストア・パスワードをコミットしないでください。**
 

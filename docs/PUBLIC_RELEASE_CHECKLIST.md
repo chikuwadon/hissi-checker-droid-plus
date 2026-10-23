@@ -1,6 +1,6 @@
 # Public公開・正式配布前チェックリスト
 
-基準: 2026-10-23 / 開発版 v0.1.21
+基準: 2026-10-23 / v1.0.0 リリース候補
 
 このチェックリストは、ソースコードのPublic公開と、署名済みAPKの正式配布を分けて扱います。チェックされていない項目は、検証済み・権利確認済みを意味しません。
 
@@ -15,7 +15,8 @@
 - [ ] **ランチャーアイコンの原作・加工・再配布権限を確認**（初期コミットのPNGにも含まれる）
 - [ ] **`app/src/main/assets/original_boards.tsv` のデータの出所・再配布条件を確認**
 - [ ] プロジェクト全体に適用するLICENSEを、実際の権利を持つ著作者が決定
-- [ ] **過去全88コミットとActions実行ログ・添付成果物を完全に機密情報監査**。古い履歴もPublic化で見える
+- [x] 過去Git履歴とActionsの機密情報パターンを監査（2026-10-23時点：136 runs、全33件の旧run head、442 blobs、ログ149件、成果物101件。既知パターン検出0件）
+- [ ] 監査後に追加したブランチ・ワークフロー・成果物を含む増分監査。自動検出だけでは権利・秘匿性を完全に保証できない。
 - [ ] ブランチ・タグ・Actionsログ・過去のワークフロー成果物・Issueの公開範囲を最終確認
 - [ ] GitHubのSecurity設定（Private vulnerability reporting、Dependabot、Secret scanning）を管理者が確認
 - [ ] 公開操作の最終承認
@@ -28,10 +29,13 @@
 - [x] Actionsで継続使用する固定署名キーの読み込みを確認
 - [ ] Android 8 / 14 / 16端末で、検索・コピー・スクロール・履歴・連携・戻る操作を回帰確認
 - [ ] エッヂのアクセス制限・HTTP 403の現状とREADMEの説明が一致することを確認
-- [ ] 開発用debug APKと正式release APKの署名・`android:debuggable`・更新互換性を確認
+- [x] QA APKとRelease候補で固定署名の証明書SHA-256一致・`debuggable=false` を確認
+- [ ] Android実機で旧v0.1.21からv1.0.0の上書き更新・保存データ互換性を確認
 - [ ] 署名鍵と復旧情報の独立バックアップ、証明書SHA-256の一致を確認
-- [ ] 正式配布に使う `versionName` / `versionCode` とCHANGELOG、Release notesを確定
-- [ ] 正式releaseビルドを生成し、APK署名・インストール・既存アプリからの更新・整合性を確認
+- [x] リリース候補の `versionName=1.0.0` / `versionCode=23` とCHANGELOG、READMEを整合
+- [ ] 実機検証・権利承認後にRelease notesを最終確定
+- [ ] v1.0.0署名付きRelease候補をビルド・検証（GitHub Actionsで実施）
+- [ ] Android実機でインストール・旧バージョンからの更新・機能を確認
 - [ ] 第三者ライセンス・プライバシー表記が配布APKに含まれることを確認
 - [ ] 正式GitHub Releaseの作成を個別に承認
 
