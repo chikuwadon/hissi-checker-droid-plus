@@ -104,11 +104,12 @@ public final class EdgeAdapter {
                 String meta=head.text().trim();
                 String linkedNumber=link.text().trim();
                 String number=linkedNumber.replaceFirst("[^0-9].*$","");
-                if(number.isEmpty())number=meta.replaceFirst("^\\\\s*(\\\\d+).*$","$1");
+                if(number.isEmpty())number=meta.replaceFirst("^\\s*(\\d+).*$","$1");
                 int references=0;
                 Matcher ref=POST_REF.matcher(linkedNumber);
-                if(!ref.find())ref=POST_REF.matcher(meta);
-                if(ref.find())try{references=Integer.parseInt(ref.group(1));}catch(NumberFormatException ignored){}
+                boolean hasRef=ref.find();
+                if(!hasRef){ref=POST_REF.matcher(meta);hasRef=ref.find();}
+                if(hasRef)try{references=Integer.parseInt(ref.group(1));}catch(NumberFormatException ignored){}
                 String raw=POST_HEAD.matcher(meta).replaceFirst("").trim();
                 String author="";
                 Matcher date=RES_DATE.matcher(raw);
