@@ -59,6 +59,28 @@ public final class SecurityAndPerformanceContractTest {
         assertTrue(activity.contains("box.setTag(row)"));
         assertTrue(activity.contains("row.title.setText(title)"));
     }
+    @Test public void historyAvoidsRecreatingRowsAndFavoriteReads() throws Exception {
+        String history=code("HistoryActivity.java");
+        assertTrue(history.contains("convert.getTag() instanceof HistoryRow"));
+        assertTrue(history.contains("favoriteUrls.contains(entry.url)"));
+        assertTrue(history.contains("favoriteUrls.clear()"));
+        assertTrue(history.contains("List<SearchHistory.Entry> favorites=SearchHistory.favorites(this)"));
+        assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
+    }
+    @Test public void analysisHtmlParsingUsesWorkerAndDropsStaleResponses() throws Exception {
+        String source=code("EdgeAnalysisActivity.java");
+        assertTrue(source.contains("parserWorker.execute(()->{"));
+        assertTrue(source.contains("EdgeAnalysis.parse(html)"));
+        assertTrue(source.contains("requestedCycle!=cycle"));
+        assertTrue(source.contains("parserWorker.shutdownNow()"));
+    }
+    @Test public void manifestDeclaresOnlyInternetPermission() throws Exception {
+        String manifest=new String(Files.readAllBytes(Paths.get(
+                "src/main/AndroidManifest.xml")),StandardCharsets.UTF_8);
+        assertEquals(1,manifest.split("<uses-permission ",-1).length-1);
+        assertTrue(manifest.contains("android.permission.INTERNET"));
+        assertFalse(manifest.contains("android:debuggable=\\\"true\\\""));
+    }
     @Test public void fallbackHtmlParsingDoesNotBlockMainThread() throws Exception {
         String activity=code("ResultActivity.java");
         assertTrue(activity.contains("worker.execute(()->{"));
