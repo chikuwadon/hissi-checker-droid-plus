@@ -87,8 +87,12 @@ public final class SelectableResultTextView extends TextView {
             if(ordinaryTap){
                 // Selectable TextViews may consume UP for focus instead of
                 // calling the registered click listener. Dispatch exactly once.
-                cancelLongPress();
-                setPressed(false);
+                // Deliver CANCEL to clear the framework's pending click,
+                // focus/press and long-press bookkeeping without a duplicate UP.
+                MotionEvent cancel=MotionEvent.obtain(event);
+                cancel.setAction(MotionEvent.ACTION_CANCEL);
+                try{super.onTouchEvent(cancel);}
+                finally{cancel.recycle();}
                 performClick();
                 return true;
             }
