@@ -79,7 +79,7 @@ public final class SecurityAndPerformanceContractTest {
                 "src/main/AndroidManifest.xml")),StandardCharsets.UTF_8);
         assertEquals(1,manifest.split("<uses-permission ",-1).length-1);
         assertTrue(manifest.contains("android.permission.INTERNET"));
-        assertFalse(manifest.contains("android:debuggable=\\\"true\\\""));
+        assertFalse(manifest.contains("android:debuggable=\"true\""));
     }
     @Test public void fallbackHtmlParsingDoesNotBlockMainThread() throws Exception {
         String activity=code("ResultActivity.java");
