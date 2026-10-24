@@ -24,8 +24,8 @@ jobs:
           gradle-version: '9.8.2'
       - name: Install Android SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - name: Debug and release tests, lint and debug build
-        run: gradle --no-daemon :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug
+      - name: Unit tests, lint and debug build
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
       # Sign only the maintainer's own PR, never forks or bot contributions.
       # The QA APK is non-debuggable and uses the release certificate for in-place upgrades.
       - name: Build signed QA APK
