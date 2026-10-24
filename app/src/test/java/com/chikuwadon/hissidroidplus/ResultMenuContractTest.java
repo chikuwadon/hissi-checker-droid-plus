@@ -22,6 +22,8 @@ public final class ResultMenuContractTest {
         for(String id:new String[]{"item_title","item_subtitle","item_body"}){
             assertTrue(layout.contains("android:id=\"@+id/"+id+"\" android:textIsSelectable=\"true\""));
         }
+        assertEquals(3,layout.split(java.util.regex.Pattern.quote(
+                "<com.chikuwadon.hissidroidplus.SelectableResultTextView"),-1).length-1);
         // Selectable text consumes short taps, so forward taps to the
         // existing action menu instead of changing its behavior.
         assertTrue(code.contains("list.setOnItemClickListener((parent,v,index,id)->showEntry(index))"));
@@ -29,6 +31,19 @@ public final class ResultMenuContractTest {
         assertTrue(code.contains("title.setOnClickListener(showActions)"));
         assertTrue(code.contains("subtitle.setOnClickListener(showActions)"));
         assertTrue(code.contains("body.setOnClickListener(showActions)"));
+    }
+
+    @Test public void longPressHasComfortableDelayAndTapHandling() throws Exception {
+        assertEquals(700,SelectableResultTextView.selectionDelayMs(500));
+        assertEquals(950,SelectableResultTextView.selectionDelayMs(800));
+        String code=new String(Files.readAllBytes(Paths.get(
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                StandardCharsets.UTF_8);
+        assertTrue(code.contains("cancelLongPress()"));
+        assertTrue(code.contains("performClick()"));
+        assertTrue(code.contains("MotionEvent.ACTION_CANCEL"));
+        assertTrue(code.contains("touchSlop"));
+        assertTrue(code.contains("clearPending()"));
     }
 
     @Test public void homeImmediatelyFollowsHistoryForBothSites() throws Exception {
