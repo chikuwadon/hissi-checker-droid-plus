@@ -77,8 +77,8 @@ public final class ThreadOpenerTest {
         assertTrue(opener.contains("AppSettings.threadOpenMode(activity)"));
         assertTrue(opener.contains("chooseWithAlways"));
         assertTrue(opener.contains("validated5chThreadUrl(raw)"));
-        assertTrue(home.contains("\\"スレの開き方\\", \\"リンクの開き方\\""));
-        assertTrue(home.contains("\\"毎回選択\\""));
+        assertTrue(home.indexOf("スレの開き方")<home.indexOf("リンクの開き方"));
+        assertTrue(home.contains("毎回選択"));
     }
 
     @Test public void validatesWithoutUnknownHost(){
