@@ -8,6 +8,19 @@ import org.junit.Test;
 
 /** Keep the entry visible for both 5ch and Edge without changing menu offsets. */
 public final class ResultMenuContractTest {
+    @Test public void nativeTextSelectionStartsOnLongPressWithoutChangingTapAction() throws Exception {
+        String code=new String(Files.readAllBytes(Paths.get(
+                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
+                StandardCharsets.UTF_8);
+        assertTrue(code.contains("list.setOnItemClickListener((parent,v,index,id)->showEntry(index))"));
+        assertTrue(code.contains("list.setOnItemLongClickListener((parent,v,index,id)->beginTextSelection(v,index))"));
+        assertTrue(code.contains("target.setTextIsSelectable(true)"));
+        assertTrue(code.contains("target.performLongClick()"));
+        assertTrue(code.contains("onDestroyActionMode"));
+        assertTrue(code.contains("endTextSelection()"));
+        assertTrue(code.contains("tab==0?R.id.item_body:R.id.item_title"));
+    }
+
     @Test public void homeImmediatelyFollowsHistoryForBothSites() throws Exception {
         String code=new String(Files.readAllBytes(Paths.get(
                 "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
