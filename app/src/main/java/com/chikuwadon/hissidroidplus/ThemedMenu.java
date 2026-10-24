@@ -25,6 +25,7 @@ import android.widget.TextView;
  */
 public final class ThemedMenu {
     public interface Selection { void onSelected(int index); }
+    public interface RememberSelection { void onSelected(int index,boolean always); }
     private ThemedMenu(){}
 
     private static int dp(Activity a,int amount){
@@ -137,6 +138,40 @@ public final class ThemedMenu {
                 onChoice.onSelected(index);
             });
         }
+        addClose(a,panel,holder);
+        holder[0]=dialog(a,panel);
+    }
+    /** App picker with a compact "always" checkbox below its choices. */
+    public static void chooseWithAlways(Activity a,String heading,String[] labels,
+                                         RememberSelection onChoice){
+        if(a.isFinishing()||a.isDestroyed())return;
+        LinearLayout panel=column(a,10);
+        panel.addView(title(a,heading));
+        final AlertDialog[] holder={null};
+        android.widget.CheckBox always=new android.widget.CheckBox(a);
+        always.setText("常時開く");
+        always.setTextSize(14);
+        always.setTextColor(a.getColor(R.color.text_primary));
+        always.setButtonTintList(ColorStateList.valueOf(a.getColor(R.color.accent)));
+        always.setPadding(dp(a,10),0,dp(a,8),0);
+        always.setMinimumHeight(dp(a,48));
+        for(int i=0;i<labels.length;i++){
+            final int index=i;
+            LinearLayout row=new LinearLayout(a);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setMinimumHeight(dp(a,48));
+            applyTouch(a,row);
+            TextView option=text(a,labels[i],14,a.getColor(R.color.text_primary));
+            option.setPadding(dp(a,10),dp(a,8),dp(a,10),dp(a,8));
+            row.addView(option,new LinearLayout.LayoutParams(-1,-2));
+            panel.addView(row);
+            row.setOnClickListener(v->{
+                boolean checked=always.isChecked();
+                holder[0].dismiss();
+                onChoice.onSelected(index,checked);
+            });
+        }
+        panel.addView(always);
         addClose(a,panel,holder);
         holder[0]=dialog(a,panel);
     }
