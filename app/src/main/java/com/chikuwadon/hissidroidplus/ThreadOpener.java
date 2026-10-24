@@ -26,6 +26,8 @@ public final class ThreadOpener {
     private static final String OPEN_URL="app.morphe.extension.chmate.OpenUrlActivity";
     private static final Pattern THREAD=Pattern.compile(
         "^/test/read\\.cgi/([A-Za-z0-9_]{1,60})/(\\d{10,20})/(\\d{1,6})?$");
+    private static final Pattern FIVECH_THREAD=Pattern.compile(
+        "^/test/read\\.cgi/[A-Za-z0-9_]{1,60}/\\d{10,20}(?:/[A-Za-z0-9_,+\\-]{1,50})?/?$");
     private ThreadOpener(){}
 
     static List<String> chMateUrls(String source){
@@ -87,6 +89,24 @@ public final class ThreadOpener {
         return chMateUrls(canonical).isEmpty()?"":canonical;
     }
 
+    /** Accept only real 5ch thread URLs for package-specific handoff. */
+    static String validated5chThreadUrl(String raw){
+        if(raw==null)return "";
+        try{
+            URI uri=URI.create(raw);
+            String scheme=uri.getScheme(),host=uri.getHost();
+            if(scheme==null || (!scheme.equalsIgnoreCase("http") &&
+                    !scheme.equalsIgnoreCase("https")))return "";
+            if(host==null || uri.getRawUserInfo()!=null || uri.getPort()!=-1 ||
+                    uri.getRawQuery()!=null || uri.getRawFragment()!=null)return "";
+            String lower=host.toLowerCase(java.util.Locale.ROOT);
+            boolean is5ch=lower.equals("5ch.net")||lower.endsWith(".5ch.net")||
+                    lower.equals("5ch.io")||lower.endsWith(".5ch.io");
+            if(!is5ch || !FIVECH_THREAD.matcher(uri.getRawPath()).matches())return "";
+            return raw;
+        }catch(IllegalArgumentException ignored){return "";}
+    }
+
     /** Explicit component bypasses domain filters, unlike setPackage() alone. */
     private static Intent directThreadIntent(String url,String pkg,String activityClass){
         return new Intent(Intent.ACTION_VIEW,Uri.parse(url))
@@ -114,8 +134,10 @@ public final class ThreadOpener {
         }catch(RuntimeException error){return false;}
     }
 
-    private static void openInReader(Activity activity,String url,String pkg){
-        // Haiagaru keeps ChMate's Activity class names when changing its package.
+    private static void openInReader(Activity activity,String url,String pkg,boolean edge){
+        // ChMate normally resolves 5ch URLs through its VIEW intent filters.
+        if(!edge && launch(activity,viewIntent(url,pkg)))return;
+        // Explicit Activity handoff is required for some Edge links.
         if(launch(activity,directThreadIntent(url,pkg,RES_LIST)))return;
         if(launch(activity,directThreadIntent(url,pkg,OPEN_URL)))return;
         String label=readerLabel(pkg);
@@ -129,38 +151,69 @@ public final class ThreadOpener {
             });
     }
 
+    private static String modeForPackage(String pkg){
+        return HAIAGARU.equals(pkg)?AppSettings.THREAD_HAIAGARU:AppSettings.THREAD_CHMATE;
+    }
+
+    /** Route 5ch and Edge through the same persistent app preference. */
+    private static void chooseReader(Activity activity,String url,boolean edge,List<String> readers){
+        if(readers.isEmpty()){
+            ExternalThreadApps.open(activity,url);
+            return;
+        }
+        String[] labels=new String[readers.size()+2];
+        for(int i=0;i<readers.size();i++)labels[i]=readerLabel(readers.get(i))+"で開く";
+        labels[readers.size()]="他のアプリで開く";
+        labels[readers.size()+1]="外部ブラウザで開く";
+        ThemedMenu.chooseWithAlways(activity,"スレッドを開く",labels,(which,always)->{
+            String selection=which<readers.size()?
+                    modeForPackage(readers.get(which)):
+                    which==readers.size()?AppSettings.THREAD_OTHER:AppSettings.THREAD_BROWSER;
+            // An unchecked choice remains one-time, even after a saved preference became unavailable.
+            AppSettings.setThreadOpenMode(activity,always?selection:AppSettings.THREAD_ASK);
+            if(which<readers.size())openInReader(activity,url,readers.get(which),edge);
+            else if(which==readers.size())ExternalThreadApps.open(activity,url);
+            else BrowserLauncher.open(activity,url);
+        });
+    }
+
     public static void open(Activity activity,String raw,boolean edge){
         if(raw==null||raw.isEmpty())return;
         String normalized=edge?EdgeThreadLink.original(raw):raw;
-        if(!edge){
-            if(!launch(activity,viewIntent(normalized,null)))
-                BrowserLauncher.open(activity,normalized);
-            return;
-        }
-        String accepted=validatedThreadUrl(raw);
+        String accepted=edge?validatedThreadUrl(raw):validated5chThreadUrl(raw);
         if(accepted.isEmpty()){
+            // Preserve implicit VIEW support for non-standard links.
+            if(!edge && launch(activity,viewIntent(normalized,null)))return;
             BrowserLauncher.open(activity,normalized);
             return;
         }
-        // normalized already equals the validated canonical form.
         PackageManager pm=activity.getPackageManager();
         List<String> readers=readerPackages(
             isMateInstalled(pm),isReaderInstalled(pm,HAIAGARU));
+        String mode=AppSettings.threadOpenMode(activity);
+        if(AppSettings.THREAD_BROWSER.equals(mode)){
+            BrowserLauncher.open(activity,accepted);
+            return;
+        }
+        if(AppSettings.THREAD_OTHER.equals(mode)){
+            ExternalThreadApps.open(activity,accepted);
+            return;
+        }
+        if(AppSettings.THREAD_CHMATE.equals(mode)&&readers.contains(MATE)){
+            openInReader(activity,accepted,MATE,edge);
+            return;
+        }
+        if(AppSettings.THREAD_HAIAGARU.equals(mode)&&readers.contains(HAIAGARU)){
+            openInReader(activity,accepted,HAIAGARU,edge);
+            return;
+        }
         if(readers.isEmpty()){
-            ExternalThreadApps.open(activity,normalized);
-            return;
+            ExternalThreadApps.open(activity,accepted);
+        }else if(readers.size()==1 && AppSettings.THREAD_ASK.equals(mode)){
+            openInReader(activity,accepted,readers.get(0),edge);
+        }else{
+            // Two apps installed, or a previously saved app is no longer available.
+            chooseReader(activity,accepted,edge,readers);
         }
-        if(readers.size()==1){
-            openInReader(activity,normalized,readers.get(0));
-            return;
-        }
-        // If ChMate and Haiagaru coexist, never silently prefer one.
-        ThemedMenu.choose(activity,"スレッドを開く",
-            new String[]{"ChMateで開く","Haiagaruで開く",
-                "他のアプリで開く","外部ブラウザで開く"},-1,which->{
-                if(which<readers.size())openInReader(activity,normalized,readers.get(which));
-                else if(which==readers.size())ExternalThreadApps.open(activity,normalized);
-                else BrowserLauncher.open(activity,normalized);
-            });
     }
 }
