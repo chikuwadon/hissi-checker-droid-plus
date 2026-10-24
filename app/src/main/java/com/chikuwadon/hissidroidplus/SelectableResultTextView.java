@@ -103,6 +103,26 @@ public final class SelectableResultTextView extends TextView {
         return super.onTouchEvent(event);
     }
 
+    /**
+     * Android's selectable TextView editor can lose its selection controllers
+     * when ListView detaches and later reuses a row. Refresh the editor state
+     * on reattachment and after binding different row content.
+     */
+    void refreshSelectionAfterRebind(){
+        clearPending();
+        touchActive=false;
+        selectionStarted=false;
+        if(isTextSelectable() && isEnabled()){
+            setEnabled(false);
+            setEnabled(true);
+        }
+    }
+
+    @Override protected void onAttachedToWindow(){
+        super.onAttachedToWindow();
+        refreshSelectionAfterRebind();
+    }
+
     @Override protected void onDetachedFromWindow(){
         touchActive=false;
         clearPending();
