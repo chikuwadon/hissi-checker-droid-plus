@@ -24,7 +24,16 @@ public final class HttpTransport {
     private static final Pattern CHARSET=Pattern.compile("(?i)charset\\s*=\\s*[\"' ]*([A-Za-z0-9_-]+)");
     public interface CookieJar { String read(String url); void save(String url,String cookie); }
     private static volatile CookieJar cookieJar;
-    public static void setCookieJar(CookieJar jar){cookieJar=jar;}
+    private static final CookieJar WEBVIEW_COOKIES=new CookieJar(){
+        @Override public String read(String url){
+            return android.webkit.CookieManager.getInstance().getCookie(url);
+        }
+        @Override public void save(String url,String cookie){
+            android.webkit.CookieManager.getInstance().setCookie(url,cookie);
+        }
+    };
+    /** A process-wide cookie bridge which never retains an Activity instance. */
+    public static void enableWebViewCookies(){cookieJar=WEBVIEW_COOKIES;}
     private HttpTransport(){}
     public static String get(String url, Charset charset)throws IOException{return request(url,null,charset,10000,15000);}
     public static String post(String url,String data,Charset charset)throws IOException{return request(url,data,charset,10000,15000);}
