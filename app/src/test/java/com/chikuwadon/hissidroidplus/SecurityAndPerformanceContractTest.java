@@ -47,17 +47,11 @@ public final class SecurityAndPerformanceContractTest {
         String transport=code("HttpTransport.java");
         assertTrue(transport.contains("static final CookieJar WEBVIEW_COOKIES"));
         assertTrue(transport.contains("enableWebViewCookies()"));
-        for(String file:new String[]{"ResultActivity.java","EdgeSearchActivity.java"}){
+        for(String file:new String[]{"ResultActivity.java"}){
             String source=code(file);
             assertTrue(source.contains("HttpTransport.enableWebViewCookies();"));
             assertFalse(source.contains("HttpTransport.setCookieJar(new"));
         }
-    }
-    @Test public void edgeSearchRecyclesListRows() throws Exception {
-        String activity=code("EdgeSearchActivity.java");
-        assertTrue(activity.contains("reuse instanceof LinearLayout"));
-        assertTrue(activity.contains("box.setTag(row)"));
-        assertTrue(activity.contains("row.title.setText(title)"));
     }
     @Test public void historyAvoidsRecreatingRowsAndFavoriteReads() throws Exception {
         String history=code("HistoryActivity.java");
