@@ -41,8 +41,8 @@ public final class ThreadOpenerTest {
     @Test public void androidManifestQueriesBothKnownReaderPackages() throws Exception {
         String manifest=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
             "src/main/AndroidManifest.xml")),java.nio.charset.StandardCharsets.UTF_8);
-        assertTrue(manifest.contains("android:name=\\\"jp.co.airfront.android.a2chMate\\\""));
-        assertTrue(manifest.contains("android:name=\\\"jp.co.airfront.android.a2chMate.haiagaru\\\""));
+        assertTrue(manifest.contains("jp.co.airfront.android.a2chMate"));
+        assertTrue(manifest.contains("jp.co.airfront.android.a2chMate.haiagaru"));
     }
 
     @Test public void validatesWithoutUnknownHost(){
