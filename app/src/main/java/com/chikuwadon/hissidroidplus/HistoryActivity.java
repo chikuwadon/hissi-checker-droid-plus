@@ -32,6 +32,7 @@ public final class HistoryActivity extends Activity {
     private ListView list;
     private LinearLayout selectionActions;
     private final List<SearchHistory.Entry> rows=new ArrayList<>();
+    private final Set<String> favoriteUrls=new HashSet<>();
     private final EntriesAdapter adapter=new EntriesAdapter();
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
@@ -190,10 +191,14 @@ public final class HistoryActivity extends Activity {
     }
     private void refresh(){
         if(list==null)return;
+        List<SearchHistory.Entry> recents=SearchHistory.recents(this);
+        List<SearchHistory.Entry> favorites=SearchHistory.favorites(this);
         rows.clear();
-        rows.addAll(SearchHistory.sorted(tab==0?SearchHistory.recents(this):SearchHistory.favorites(this),sort));
-        recentTab.setText(getString(R.string.history_recent_count,SearchHistory.recents(this).size()));
-        favoriteTab.setText(getString(R.string.history_favorite_count,SearchHistory.favorites(this).size()));
+        rows.addAll(SearchHistory.sorted(tab==0?recents:favorites,sort));
+        favoriteUrls.clear();
+        for(SearchHistory.Entry favorite:favorites)favoriteUrls.add(favorite.url);
+        recentTab.setText(getString(R.string.history_recent_count,recents.size()));
+        favoriteTab.setText(getString(R.string.history_favorite_count,favorites.size()));
         recentTab.setTextColor(getColor(tab==0?R.color.accent:R.color.text_secondary));
         favoriteTab.setTextColor(getColor(tab==1?R.color.accent:R.color.text_secondary));
         sortLabel.setText(getString(R.string.history_sort_label,sorts[sort]));
@@ -213,55 +218,73 @@ public final class HistoryActivity extends Activity {
     @Override public void onBackPressed(){
         navigateBack();
     }
+    private static final class HistoryRow {
+        final LinearLayout root;
+        final TextView number,title,detail,star;
+        HistoryRow(LinearLayout root,TextView number,TextView title,TextView detail,TextView star){
+            this.root=root;this.number=number;this.title=title;
+            this.detail=detail;this.star=star;
+        }
+    }
     private final class EntriesAdapter extends BaseAdapter {
         @Override public int getCount(){return rows.size();}
         @Override public Object getItem(int i){return rows.get(i);}
         @Override public long getItemId(int i){return i;}
         @Override public View getView(int position,View convert,ViewGroup parent){
             SearchHistory.Entry entry=rows.get(position);
-            LinearLayout row=new LinearLayout(HistoryActivity.this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(10),dp(6),dp(6),dp(6));
-            row.setMinimumHeight(dp(64));
-            if((selection && chosen.contains(entry.url)) ||
-                    entry.url.equals(pendingConfirmationUrl))
-                row.setBackgroundColor(getColor(R.color.panel_pressed));
+            HistoryRow holder;
+            if(convert instanceof LinearLayout && convert.getTag() instanceof HistoryRow){
+                holder=(HistoryRow)convert.getTag();
+            }else{
+                LinearLayout row=new LinearLayout(HistoryActivity.this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(10),dp(6),dp(6),dp(6));
+                row.setMinimumHeight(dp(64));
+                TextView number=text("",12,getColor(R.color.text_secondary));
+                number.setGravity(Gravity.CENTER);
+                row.addView(number,new LinearLayout.LayoutParams(dp(34),dp(48)));
+                LinearLayout labels=new LinearLayout(HistoryActivity.this);
+                labels.setOrientation(LinearLayout.VERTICAL);
+                labels.setGravity(Gravity.CENTER_VERTICAL);
+                TextView title=text("",14,getColor(R.color.text_primary));
+                title.setSingleLine(true);
+                title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                labels.addView(title);
+                TextView detail=text("",11,getColor(R.color.text_secondary));
+                detail.setSingleLine(true);
+                detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                labels.addView(detail);
+                row.addView(labels,new LinearLayout.LayoutParams(0,dp(52),1));
+                TextView star=text("",23,getColor(R.color.text_secondary));
+                star.setGravity(Gravity.CENTER);
+                row.addView(star,new LinearLayout.LayoutParams(dp(48),dp(48)));
+                holder=new HistoryRow(row,number,title,detail,star);
+                row.setTag(holder);
+            }
+            boolean checked=selection && chosen.contains(entry.url);
+            if(checked || entry.url.equals(pendingConfirmationUrl))
+                holder.root.setBackgroundColor(getColor(R.color.panel_pressed));
             else
-                row.setBackground(new android.graphics.drawable.RippleDrawable(
+                holder.root.setBackground(new android.graphics.drawable.RippleDrawable(
                     android.content.res.ColorStateList.valueOf(getColor(R.color.panel_pressed)),
                     new ColorDrawable(android.graphics.Color.TRANSPARENT),null));
-            if(selection){
-                TextView check=text(chosen.contains(entry.url)?"☑":"☐",21,
-                    getColor(chosen.contains(entry.url)?R.color.accent:R.color.text_secondary));
-                check.setGravity(Gravity.CENTER);
-                row.addView(check,new LinearLayout.LayoutParams(dp(34),dp(48)));
-            }else{
-                TextView index=text(Integer.toString(position+1),12,getColor(R.color.text_secondary));
-                index.setGravity(Gravity.CENTER);
-                row.addView(index,new LinearLayout.LayoutParams(dp(30),dp(48)));
-            }
-            LinearLayout labels=new LinearLayout(HistoryActivity.this);
-            labels.setOrientation(LinearLayout.VERTICAL);
-            labels.setGravity(Gravity.CENTER_VERTICAL);
-            TextView title=text(entry.title(),14,getColor(R.color.text_primary));
-            title.setSingleLine(true);
-            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            labels.addView(title);
-            TextView detail=text(entry.detail(),11,getColor(R.color.text_secondary));
-            detail.setSingleLine(true);
-            detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            labels.addView(detail);
-            row.addView(labels,new LinearLayout.LayoutParams(0,dp(52),1));
+            holder.number.setText(selection?(checked?"☑":"☐"):Integer.toString(position+1));
+            holder.number.setTextSize(selection?21:12);
+            holder.number.setTextColor(getColor(checked?R.color.accent:R.color.text_secondary));
+            holder.title.setText(entry.title());
+            holder.detail.setText(entry.detail());
+            holder.star.setVisibility(selection?View.GONE:View.VISIBLE);
             if(!selection){
-                boolean starred=SearchHistory.isFavorite(HistoryActivity.this,entry.url);
-                TextView star=text(starred?"★":"☆",23,
-                        getColor(starred?R.color.accent:R.color.text_secondary));
-                star.setGravity(Gravity.CENTER);
-                star.setContentDescription(starred?"お気に入りを解除":"お気に入りに登録");
-                row.addView(star,new LinearLayout.LayoutParams(dp(48),dp(48)));
-                star.setOnClickListener(v->{SearchHistory.toggleFavorite(HistoryActivity.this,entry);refresh();});
-            }
-            return row;
+                boolean starred=favoriteUrls.contains(entry.url);
+                holder.star.setText(starred?"★":"☆");
+                holder.star.setTextColor(getColor(starred?R.color.accent:R.color.text_secondary));
+                holder.star.setContentDescription(starred?"お気に入りを解除":"お気に入りに登録");
+                holder.star.setOnClickListener(v->{
+                    SearchHistory.toggleFavorite(HistoryActivity.this,entry);
+                    refresh();
+                });
+            }else holder.star.setOnClickListener(null);
+            return holder.root;
         }
     }
 }
