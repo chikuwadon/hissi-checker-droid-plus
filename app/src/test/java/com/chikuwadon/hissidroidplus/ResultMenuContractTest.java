@@ -39,7 +39,8 @@ public final class ResultMenuContractTest {
         String code=new String(Files.readAllBytes(Paths.get(
                 "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
                 StandardCharsets.UTF_8);
-        assertTrue(code.contains("cancelLongPress()"));
+        assertTrue(code.contains("MotionEvent.obtain(event)"));
+        assertTrue(code.contains("cancel.setAction(MotionEvent.ACTION_CANCEL)"));
         assertTrue(code.contains("performClick()"));
         assertTrue(code.contains("MotionEvent.ACTION_CANCEL"));
         assertTrue(code.contains("touchSlop"));
