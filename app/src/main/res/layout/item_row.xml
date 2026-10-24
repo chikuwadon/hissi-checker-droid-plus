@@ -4,13 +4,13 @@
     android:paddingTop="5dp" android:paddingBottom="6dp"
     android:background="?android:attr/selectableItemBackground" tools:ignore="Overdraw"
     android:layout_width="match_parent" android:layout_height="wrap_content">
-    <TextView android:id="@+id/item_title" android:textIsSelectable="true" android:textColor="@color/accent"
+    <com.chikuwadon.hissidroidplus.SelectableResultTextView android:id="@+id/item_title" android:textIsSelectable="true" android:textColor="@color/accent"
         android:textSize="13sp" android:fontFamily="sans" android:lineSpacingExtra="0dp"
         android:layout_width="match_parent" android:layout_height="wrap_content"/>
-    <TextView android:id="@+id/item_subtitle" android:textIsSelectable="true" android:textColor="@color/text_secondary"
+    <com.chikuwadon.hissidroidplus.SelectableResultTextView android:id="@+id/item_subtitle" android:textIsSelectable="true" android:textColor="@color/text_secondary"
         android:textSize="11sp" android:fontFamily="sans" android:layout_marginTop="1dp"
         android:layout_width="match_parent" android:layout_height="wrap_content"/>
-    <TextView android:id="@+id/item_body" android:textIsSelectable="true" android:textColor="@color/text_primary"
+    <com.chikuwadon.hissidroidplus.SelectableResultTextView android:id="@+id/item_body" android:textIsSelectable="true" android:textColor="@color/text_primary"
         android:textSize="14sp" android:fontFamily="sans" android:layout_marginTop="2dp"
         android:layout_width="match_parent" android:layout_height="wrap_content"/>
 </LinearLayout>
