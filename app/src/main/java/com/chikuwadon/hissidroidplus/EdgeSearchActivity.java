@@ -124,21 +124,37 @@ public final class EdgeSearchActivity extends Activity {
     @Override protected void onDestroy(){
         worker.shutdownNow();super.onDestroy();
     }
+    private static final class ResultRow {
+        final TextView title;
+        ResultRow(TextView title){this.title=title;}
+    }
     private final class ResultAdapter extends BaseAdapter {
         @Override public int getCount(){return items.size();}
         @Override public Object getItem(int n){return items.get(n);}
         @Override public long getItemId(int n){return n;}
         @Override public View getView(int position,View reuse,ViewGroup parent){
-            EdgeSearchResults.Item item=items.get(position);
-            LinearLayout box=new LinearLayout(EdgeSearchActivity.this);
-            box.setOrientation(LinearLayout.VERTICAL);
-            box.setPadding(dp(16),dp(12),dp(16),dp(12));
-            TextView title=text(item.title,14,getColor(R.color.text_primary));
-            title.setMaxLines(3);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            box.addView(title);
-            TextView extra=text("必死チェッカーを開く  ›",12,getColor(R.color.accent));
-            extra.setPadding(0,dp(5),0,0);
-            box.addView(extra);
+            LinearLayout box;
+            ResultRow row;
+            if(reuse instanceof LinearLayout && reuse.getTag() instanceof ResultRow){
+                box=(LinearLayout)reuse;
+                row=(ResultRow)box.getTag();
+            }else{
+                box=new LinearLayout(EdgeSearchActivity.this);
+                box.setOrientation(LinearLayout.VERTICAL);
+                box.setPadding(dp(16),dp(12),dp(16),dp(12));
+                TextView title=text("",14,getColor(R.color.text_primary));
+                title.setMaxLines(3);
+                title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                box.addView(title);
+                TextView extra=text("必死チェッカーを開く  ›",12,getColor(R.color.accent));
+                extra.setPadding(0,dp(5),0,0);
+                box.addView(extra);
+                row=new ResultRow(title);
+                box.setTag(row);
+            }
+            String title=items.get(position).title;
+            if(!android.text.TextUtils.equals(row.title.getText(),title))
+                row.title.setText(title);
             return box;
         }
     }
