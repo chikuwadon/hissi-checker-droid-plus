@@ -1,0 +1,33 @@
+name: Temporary private incremental security audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temporary-incremental-audit.yml'
+      - 'tools/incremental_security_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Scan reachable Git history and incremental Actions logs and artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/incremental_security_audit.py
+      - name: Upload category-only private audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-incremental-audit-summary
+          path: security-audit-report.json
+          if-no-files-found: warn
+          retention-days: 7
