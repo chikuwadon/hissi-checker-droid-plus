@@ -149,7 +149,7 @@ public final class ThemedMenu {
         panel.addView(title(a,heading));
         final AlertDialog[] holder={null};
         android.widget.CheckBox always=new android.widget.CheckBox(a);
-        always.setText("常時開く");
+        always.setText("次回から確認しない");
         always.setTextSize(14);
         always.setTextColor(a.getColor(R.color.text_primary));
         always.setButtonTintList(ColorStateList.valueOf(a.getColor(R.color.accent)));
