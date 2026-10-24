@@ -19,6 +19,7 @@ public final class SelectableResultTextView extends TextView {
     private long downTime;
     private float downX,downY;
     private Runnable pendingLongClick;
+    private int selectionRefreshGeneration;
 
     public SelectableResultTextView(Context context,AttributeSet attrs){
         super(context,attrs);
@@ -104,18 +105,22 @@ public final class SelectableResultTextView extends TextView {
     }
 
     /**
-     * Android's selectable TextView editor can lose its selection controllers
-     * when ListView detaches and later reuses a row. Refresh the editor state
-     * on reattachment and after binding different row content.
+     * ListView may recycle a selectable TextView before its editor controllers
+     * have a layout. Recreate those controllers after the row is attached and
+     * bound. Coalesce pending refreshes and never interrupt an active gesture.
      */
     void refreshSelectionAfterRebind(){
         clearPending();
         touchActive=false;
         selectionStarted=false;
-        if(isTextSelectable() && isEnabled()){
-            setEnabled(false);
-            setEnabled(true);
-        }
+        int generation=++selectionRefreshGeneration;
+        if(!isTextSelectable())return;
+        post(()->{
+            if(generation!=selectionRefreshGeneration ||
+                    !isAttachedToWindow() || touchActive || !isTextSelectable())return;
+            setTextIsSelectable(false);
+            setTextIsSelectable(true);
+        });
     }
 
     @Override protected void onAttachedToWindow(){
@@ -124,6 +129,7 @@ public final class SelectableResultTextView extends TextView {
     }
 
     @Override protected void onDetachedFromWindow(){
+        selectionRefreshGeneration++;
         touchActive=false;
         clearPending();
         super.onDetachedFromWindow();
