@@ -20,7 +20,7 @@ public final class ResultMenuContractTest {
         assertFalse(code.contains("performLongClick"));
         assertFalse(code.contains("beginTextSelection"));
         for(String id:new String[]{"item_title","item_subtitle","item_body"}){
-            assertTrue(layout.contains("android:id=\\\"@+id/"+id+"\\\" android:textIsSelectable=\\\"true\\\""));
+            assertTrue(layout.contains("android:id=\"@+id/"+id+"\" android:textIsSelectable=\"true\""));
         }
         // Selectable text consumes short taps, so forward taps to the
         // existing action menu instead of changing its behavior.
