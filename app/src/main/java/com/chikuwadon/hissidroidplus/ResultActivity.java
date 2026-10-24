@@ -484,7 +484,7 @@ public final class ResultActivity extends Activity {
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setLoadsImagesAutomatically(false);
         web.getSettings().setBlockNetworkImage(true);
-        final boolean[] completed={false};
+        final boolean[] completed={false},parsing={false};
         final String[] detail={firstError==null?"解析できるレスがありませんでした":firstError};
         android.webkit.CookieManager.getInstance().setAcceptCookie(true);
         web.setWebViewClient(new WebViewClient(){
@@ -516,35 +516,60 @@ public final class ResultActivity extends Activity {
                 for (int delay:delays) view.postDelayed(()->{
                     if(completed[0] || isFinishing() || isDestroyed()) return;
                     view.evaluateJavascript("(function(){return document.documentElement.outerHTML})()",json->{
-                        if(completed[0] || isFinishing() || isDestroyed()) return;
-                        try {
-                            String html=new JSONArray("["+json+"]").getString(0);
-                            CheckerResult original=EdgeAdapter.parse(html,query);
-                            CheckerResult found=verifyEdgeSearchDate()
-                                ?EdgeSearchValidation.matchingPosts(original,query.date,query.id):original;
-                            if(verifyEdgeSearchDate() && !original.posts.isEmpty() && found.posts.isEmpty()){
-                                completed[0]=true;
-                                cleanupWebView(view);
-                                showWrongDay();
-                                return;
-                            }
-                            if(found.posts.isEmpty()){
-                                String cause=EdgeAdapter.explainEmptyPage(html);
-                                // Keep a real HTTP status if we have one; it is more
-                                // informative than a generic structural failure.
-                                if(!detail[0].matches(".*HTTP.*\\d{3}.*") ||
-                                        !cause.contains("HTML構造未対応")) detail[0]=cause;
-                                edgeDiagnostic=detail[0]+" / HTML="+html.length()+"文字";
-                            } else {
-                                completed[0]=true;
-                                found.sourceUrl=query.url;
-                                result=found;
-                                rebuildIndexes();loading=false;adapter.notifyDataSetChanged();updateHeader();
-                                SearchHistory.record(ResultActivity.this,query,result);
-                                cleanupWebView(view);
-                            }
-                        } catch(Exception ex) {
-                            detail[0]="WebViewのHTML解析に失敗しました";
+                        if(completed[0] || parsing[0] || isFinishing() || isDestroyed())return;
+                        // A WebView DOM can exceed the size of the original response.
+                        if(json==null || json.length()>12*1024*1024){
+                            detail[0]="WebViewから取得したHTMLが大きすぎます";
+                            return;
+                        }
+                        parsing[0]=true;
+                        final boolean verify=verifyEdgeSearchDate();
+                        try{
+                            worker.execute(()->{
+                                try{
+                                    String html=new JSONArray("["+json+"]").getString(0);
+                                    CheckerResult original=EdgeAdapter.parse(html,query);
+                                    CheckerResult found=verify
+                                        ?EdgeSearchValidation.matchingPosts(original,query.date,query.id):original;
+                                    boolean wrongDay=verify && !original.posts.isEmpty() && found.posts.isEmpty();
+                                    String cause=found.posts.isEmpty()?
+                                        EdgeAdapter.explainEmptyPage(html):"";
+                                    int length=html.length();
+                                    runOnUiThread(()->{
+                                        parsing[0]=false;
+                                        if(completed[0] || isFinishing() || isDestroyed() || fallbackView!=view)return;
+                                        if(wrongDay){
+                                            completed[0]=true;
+                                            cleanupWebView(view);
+                                            showWrongDay();
+                                            return;
+                                        }
+                                        if(found.posts.isEmpty()){
+                                            // Preserve an actual HTTP error over a generic parse error.
+                                            if(!detail[0].matches(".*HTTP.*\\d{3}.*") ||
+                                                    !cause.contains("HTML構造未対応"))detail[0]=cause;
+                                            edgeDiagnostic=detail[0]+" / HTML="+length+"文字";
+                                        }else{
+                                            completed[0]=true;
+                                            found.sourceUrl=query.url;
+                                            result=found;
+                                            rebuildIndexes();
+                                            loading=false;
+                                            adapter.notifyDataSetChanged();
+                                            updateHeader();
+                                            SearchHistory.record(ResultActivity.this,query,result);
+                                            cleanupWebView(view);
+                                        }
+                                    });
+                                }catch(Exception ex){
+                                    runOnUiThread(()->{
+                                        parsing[0]=false;
+                                        if(!completed[0])detail[0]="WebViewのHTML解析に失敗しました";
+                                    });
+                                }
+                            });
+                        }catch(java.util.concurrent.RejectedExecutionException ignored){
+                            parsing[0]=false;
                         }
                     });
                 }, delay);
