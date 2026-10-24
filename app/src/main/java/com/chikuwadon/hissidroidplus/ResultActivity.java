@@ -95,10 +95,7 @@ public final class ResultActivity extends Activity {
             updateStats();
         });
         HttpTransport.setUserAgent(android.webkit.WebSettings.getDefaultUserAgent(this));
-        HttpTransport.setCookieJar(new HttpTransport.CookieJar(){
-            @Override public String read(String url){return android.webkit.CookieManager.getInstance().getCookie(url);}
-            @Override public void save(String url,String value){android.webkit.CookieManager.getInstance().setCookie(url,value);}
-        });
+        HttpTransport.enableWebViewCookies();
         applySystemInsets();
         findViewById(R.id.edge_analysis_link).setOnClickListener(v->openEdgeAnalysis());
         status=findViewById(R.id.status);
