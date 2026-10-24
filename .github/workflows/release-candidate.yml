@@ -162,19 +162,25 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Create source archive without Git history or third-party board snapshot
+      - name: Build allowlisted public source preview (private artifact only)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p export
-          git archive --format=zip --output=export/v1.0.0-source-preview.zip HEAD
-          unzip -Z1 export/v1.0.0-source-preview.zip | grep -Fxq LICENSE
-          unzip -Z1 export/v1.0.0-source-preview.zip | grep -Fxq app/src/main/assets/offline_boards.tsv
-          cp export/v1.0.0-source-preview.zip export/v1.0.0-source-preview-no-board-data.zip
-          zip -dq export/v1.0.0-source-preview-no-board-data.zip app/src/main/assets/offline_boards.tsv
-          ! unzip -Z1 export/v1.0.0-source-preview-no-board-data.zip | grep -Fq app/src/main/assets/offline_boards.tsv
-          ! unzip -Z1 export/v1.0.0-source-preview-no-board-data.zip | grep -Eq '(^|/)\.git/'
-          sha256sum export/*.zip > export/SHA256SUMS
+          python3 tools/create_public_source.py
+          zipfile=export/v1.0.0-public-source-preview.zip
+          test -s "$zipfile"
+          unzip -Z1 "$zipfile" | grep -Fxq LICENSE
+          unzip -Z1 "$zipfile" | grep -Fxq app/src/main/assets/offline_boards.tsv
+          unzip -Z1 "$zipfile" | grep -Fxq .github/workflows/public-ci.yml
+          if unzip -Z1 "$zipfile" | grep -Eq '^docs/(PUBLIC_|RELEASE_CANDIDATE_|REAL_DEVICE_|GITHUB_PUBLIC_|SIGNING|UI_POLICY)'; then
+            echo "::error::Private documentation unexpectedly selected."
+            exit 1
+          fi
+          if unzip -Z1 "$zipfile" | grep -Eq '^.github/workflows/(release-candidate|public-security-audit|build-debug-apk|generate-5ch-snapshot)'; then
+            echo "::error::Private workflow unexpectedly selected."
+            exit 1
+          fi
+          sha256sum "$zipfile"
       - name: Save private source snapshots
         uses: actions/upload-artifact@v4
         with:

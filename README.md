@@ -98,9 +98,9 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
 ## ライセンス
 
-独自制作したコードとアイコンには[MIT License](LICENSE)を適用します。第三者ライブラリや外部サービス由来データには、それぞれの利用条件が適用されます。
+本プロジェクトは[MIT License](LICENSE)で公開しています。詳しくは[ライセンス適用範囲](docs/LICENSING_SCOPE.md)をご覧ください。
 
-[第三者ライセンス](THIRD_PARTY_NOTICES.md) / [ライセンス適用範囲](docs/LICENSING_SCOPE.md)
+[第三者ライセンス](THIRD_PARTY_NOTICES.md)
 
 ## 変更履歴
 
@@ -108,5 +108,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
 ## 謝辞
 
-- 必死チェッカーdroid
-- [必死チェッカーdroid mod](https://github.com/Kdroidwin/Desperate-checker-droid-by-kdroidwin)
+本アプリの開発にあたり、以下の開発者の方々に感謝と敬意を表します。
+
+- 必死チェッカーdroid — sauza-sk 氏
+- [必死チェッカーdroid mod](https://github.com/Kdroidwin/Desperate-checker-droid-by-kdroidwin) — Kdroidwin 氏

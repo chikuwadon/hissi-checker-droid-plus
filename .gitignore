@@ -1,4 +1,4 @@
-# Android and Gradle build outputs
+# Android and Gradle
 .gradle/
 **/build/
 local.properties
@@ -14,7 +14,7 @@ captures/
 .DS_Store
 Thumbs.db
 
-# Sensitive local files
+# Local credentials and machine-specific settings
 *.jks
 *.keystore
 *.p12
@@ -24,7 +24,5 @@ google-services.json
 .env
 .env.*
 
-# Temporary source restoration outputs
-checksum.txt
-v014_delta.tar.xz
-*.tar.xz.b64
+# Generated archives
+export/

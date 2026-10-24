@@ -7,13 +7,15 @@
 ## 推奨公開方式
 
 1. Privateリポジトリは現状維持。**既存リポジトリのPublic化、mainへのforce push、履歴の破壊はしない。**
-2. 検証済みv1.0.0のコミットの作業ツリーだけを取り出し、`git archive` 等で履歴なしのソースアーカイブを用意。
-3. 公開対象のファイル、MITライセンスの適用範囲、5ch板メニュースナップショットの扱い、秘密情報、CIワークフローを再監査する。
+2. 検証済みv1.0.0の作業ツリーから `python3 tools/create_public_source.py` で許可したファイルのみを集め、Git履歴なしの公開用ZIPを作成。
+3. 公開対象の全ファイル、ライセンス、秘密情報、公開用CIを監査する。特にPrivate専用のQA・監査・署名・公開準備の文書とワークフローをZIPに含めないことを検証する。
 4. 安全が確認されたら**別の新規公開リポジトリ**へ初期コミットとしてインポート。元PrivateリポジトリをPublicには切り替えない。
 5. 公開初期コミット・タグと署名付きAPKのSHA-256を一致させ、正式Releaseを個別承認後に作成。
 
 ## 準備中の事項
 
-- 旧Git履歴を含まないソースアーカイブはPrivate GitHub Actionsのみに置き、正式公開操作には使用者の個別承認を必要とする。
-- 5ch板一覧データの再配布条件が確定しなければ、アーカイブから `offline_boards.tsv` を除外したバリエーションで公開可能。ただしアプリに同梱するリリースAPKの仕様を一致させて再検証する。
-- 新規リポジトリのURL・名称および公開操作は承認を得てから確定する。
+- 公開候補ZIPと監査用マニフェストはPrivate GitHub Actions成果物として扱う。生成だけでは公開しない。
+- 公開対象のドキュメントはREADME、CHANGELOG、LICENSE、PRIVACY、SECURITY、THIRD_PARTY_NOTICES、BOARD_MENU_SNAPSHOT、LICENSING_SCOPE、RELEASE_NOTESのみとする。
+- Private専用資料：PUBLIC_EXPORT_PLAN、PUBLIC_RELEASE_CHECKLIST、REAL_DEVICE_ACCEPTANCE、RELEASE_CANDIDATE_ACCEPTANCE、GITHUB_PUBLIC_SECURITY、SIGNING、UI_POLICY、およびPrivate QA用ワークフロー・監査スクリプトを含めない。
+- 公式メニュー由来のオフライン板一覧は開発者の選択に従って同梱する。元のGit履歴は公開しない。
+- 新規リポジトリのURL・名称および公開操作は別途承認を得てから決定する。
