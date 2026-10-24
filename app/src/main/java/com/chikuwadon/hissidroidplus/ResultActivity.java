@@ -660,6 +660,14 @@ public final class ResultActivity extends Activity {
                 label.length(),span.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return span;
     }
+    /** Keep the editor of a selected row intact while refreshing list rows. */
+    private static void bindResultText(TextView target,CharSequence content,boolean reused){
+        if(reused || !android.text.TextUtils.equals(target.getText(),content)){
+            target.setText(content);
+            ((SelectableResultTextView)target).refreshSelectionAfterRebind();
+        }
+    }
+
     private final class RowAdapter extends BaseAdapter {
         @Override public int getCount(){return tab==0?result.posts.size():tab==1?threadRows.size():result.names.size();}
         @Override public Object getItem(int pos){return pos;}
@@ -667,9 +675,13 @@ public final class ResultActivity extends Activity {
         @Override public View getView(int index,View convert,ViewGroup parent){
             View view=convert==null?LayoutInflater.from(ResultActivity.this).inflate(R.layout.item_row,parent,false):convert;
             TextView title=view.findViewById(R.id.item_title),subtitle=view.findViewById(R.id.item_subtitle),body=view.findViewById(R.id.item_body);
-            // Selectable TextViews consume touch events. Forward short taps to
-            // the existing row actions; their own long-press starts Android's
-            // native text selection with drag handles and the Copy menu.
+            // A recycled view may have stale TextView selection controllers.
+            int identity=tab*1000000+index;
+            boolean reused=!(view.getTag() instanceof Integer) ||
+                    ((Integer)view.getTag()).intValue()!=identity;
+            view.setTag(identity);
+            // Selectable text owns its long-press gesture; short taps retain
+            // the original row action menu.
             View.OnClickListener showActions=clicked->showEntry(index);
             title.setOnClickListener(showActions);
             subtitle.setOnClickListener(showActions);
@@ -678,19 +690,22 @@ public final class ResultActivity extends Activity {
                 CheckerResult.Post p=result.posts.get(index);
                 boolean sameThread=index>0 && PostIndex.threadKey(p.link).equals(PostIndex.threadKey(result.posts.get(index-1).link));
                 title.setVisibility(sameThread?View.GONE:View.VISIBLE);
-                title.setText(p.title);subtitle.setVisibility(View.VISIBLE);subtitle.setText(displayHeader(p));body.setText(p.body);
+                bindResultText(title,p.title,reused);
+                subtitle.setVisibility(View.VISIBLE);
+                bindResultText(subtitle,displayHeader(p),reused);
+                bindResultText(body,p.body,reused);
                 body.setVisibility(View.VISIBLE);
             } else if(tab==1){
                 title.setVisibility(View.VISIBLE);
                 Map.Entry<String,String> e=threadRows.get(index);
                 int count=threadCounts.getOrDefault(PostIndex.threadKey(e.getKey()),0);
-                title.setText(labelWithCount(e.getValue(),count));
-                subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
+                bindResultText(title,labelWithCount(e.getValue(),count),reused);
+                subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }else{
                 title.setVisibility(View.VISIBLE);
                 String name=result.names.get(index);
                 int count=nameCounts.getOrDefault(name,0);
-                title.setText(labelWithCount(name,count));
+                bindResultText(title,labelWithCount(name,count),reused);
                 subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }
             return view;
