@@ -70,6 +70,8 @@ public final class ResultActivity extends Activity {
     private TextView status;
     private ListView list;
     private RowAdapter adapter;
+    private TextView selectingText;
+    private int selectingTab=-1,selectingIndex=-1;
     private boolean loading=true;
     private boolean paging=false;
     private boolean noMorePages=false;
@@ -129,6 +131,7 @@ public final class ResultActivity extends Activity {
         });
         selectTab(0);
         list.setOnItemClickListener((parent,v,index,id)->showEntry(index));
+        list.setOnItemLongClickListener((parent,v,index,id)->beginTextSelection(v,index));
         list.setOnTouchListener(new View.OnTouchListener(){
             private float downX,downY;
             @Override public boolean onTouch(View view,android.view.MotionEvent event){
@@ -302,6 +305,7 @@ public final class ResultActivity extends Activity {
         summary.setText(label.toString());
     }
     private void selectTab(int index){
+        endTextSelection();
         positions[tab]=list.getFirstVisiblePosition();
         View first=list.getChildAt(0);
         offsets[tab]=first==null?0:first.getTop();
@@ -317,6 +321,52 @@ public final class ResultActivity extends Activity {
         adapter.notifyDataSetChanged();
         list.setSelectionFromTop(positions[tab],offsets[tab]);
     }
+    /** Long-press selects text inline; ordinary taps still open the row menu. */
+    private boolean beginTextSelection(View item,int index){
+        if(loading || query==null || index<0)return false;
+        if(tab==0 && index>=result.posts.size())return false;
+        if(tab==1 && index>=threadRows.size())return false;
+        if(tab==2 && index>=result.names.size())return false;
+        TextView target=item.findViewById(tab==0?R.id.item_body:R.id.item_title);
+        if(target==null || target.getVisibility()!=View.VISIBLE || target.length()==0)return false;
+        endTextSelection();
+        selectingText=target;
+        selectingTab=tab;
+        selectingIndex=index;
+        target.setTextIsSelectable(true);
+        // The framework provides drag handles and standard copy/select-all actions.
+        target.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback(){
+            @Override public boolean onCreateActionMode(android.view.ActionMode mode,Menu menu){
+                return true;
+            }
+            @Override public boolean onPrepareActionMode(android.view.ActionMode mode,Menu menu){
+                return false;
+            }
+            @Override public boolean onActionItemClicked(android.view.ActionMode mode,MenuItem item){
+                return false;
+            }
+            @Override public void onDestroyActionMode(android.view.ActionMode mode){
+                // Defer focus changes until the native text selection toolbar closes.
+                target.post(()->{
+                    if(selectingText==target)endTextSelection();
+                });
+            }
+        });
+        target.requestFocus();
+        target.post(()->{
+            if(selectingText==target && target.isAttachedToWindow())target.performLongClick();
+        });
+        return true;
+    }
+
+    private void endTextSelection(){
+        TextView old=selectingText;
+        selectingText=null;
+        selectingTab=-1;
+        selectingIndex=-1;
+        if(old!=null && old.isTextSelectable())old.setTextIsSelectable(false);
+    }
+
     private void showEntry(int i){
         if(loading || query==null) return;
         if(tab==0){
@@ -628,7 +678,7 @@ public final class ResultActivity extends Activity {
         }
         copy(b.toString(),false);
     }
-    @Override protected void onDestroy(){worker.shutdownNow();if(fallbackView!=null){fallbackView.stopLoading();if(fallbackView.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)fallbackView.getParent()).removeView(fallbackView);fallbackView.destroy();fallbackView=null;}super.onDestroy();}
+    @Override protected void onDestroy(){endTextSelection();worker.shutdownNow();if(fallbackView!=null){fallbackView.stopLoading();if(fallbackView.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)fallbackView.getParent()).removeView(fallbackView);fallbackView.destroy();fallbackView=null;}super.onDestroy();}
     /** Muted reference badge appears only in the UI, never in author aggregation or copied text. */
     private CharSequence displayHeader(CheckerResult.Post post){
         String header=PostFormatter.header(post);
@@ -667,6 +717,8 @@ public final class ResultActivity extends Activity {
         @Override public View getView(int index,View convert,ViewGroup parent){
             View view=convert==null?LayoutInflater.from(ResultActivity.this).inflate(R.layout.item_row,parent,false):convert;
             TextView title=view.findViewById(R.id.item_title),subtitle=view.findViewById(R.id.item_subtitle),body=view.findViewById(R.id.item_body);
+            if((selectingText==title || selectingText==subtitle || selectingText==body)
+                    && (tab!=selectingTab || index!=selectingIndex))endTextSelection();
             if(tab==0){
                 CheckerResult.Post p=result.posts.get(index);
                 boolean sameThread=index>0 && PostIndex.threadKey(p.link).equals(PostIndex.threadKey(result.posts.get(index-1).link));
