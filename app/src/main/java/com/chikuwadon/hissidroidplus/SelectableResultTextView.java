@@ -38,6 +38,7 @@ public final class SelectableResultTextView extends TextView {
 
     @Override public boolean performLongClick(){
         if(dispatchNativeLongClick || !touchActive)return super.performLongClick();
+        if(moved)return false;
         long elapsed=SystemClock.uptimeMillis()-downTime;
         long wait=selectionDelayMs(ViewConfiguration.getLongPressTimeout())-elapsed;
         if(wait<=0){
@@ -88,7 +89,8 @@ public final class SelectableResultTextView extends TextView {
                 // calling the registered click listener. Dispatch exactly once.
                 cancelLongPress();
                 setPressed(false);
-                return performClick() || true;
+                performClick();
+                return true;
             }
         }else if(action==MotionEvent.ACTION_CANCEL){
             touchActive=false;
