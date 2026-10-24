@@ -9,6 +9,11 @@ public final class AppSettings {
     private static final String FILE="checker_settings";
     public static final String THEME="theme";
     public static final String LINK_MODE="external_link_mode";
+    public static final String THREAD_OPEN_MODE="thread_open_mode";
+    public static final String THREAD_ASK="ask", THREAD_CHMATE="chmate",
+            THREAD_HAIAGARU="haiagaru", THREAD_OTHER="other", THREAD_BROWSER="browser";
+    public static final String[] THREAD_MODES={THREAD_ASK,THREAD_CHMATE,
+            THREAD_HAIAGARU,THREAD_OTHER,THREAD_BROWSER};
     public static final String THEME_DARK="dark", THEME_LIGHT="light", THEME_SYSTEM="system";
     public static final String MODE_CONNECTED="connected", MODE_STANDALONE="standalone";
     private AppSettings(){}
@@ -31,6 +36,19 @@ public final class AppSettings {
         activity.getWindow().getDecorView().setSystemUiVisibility(flags);
         activity.getWindow().setStatusBarColor(activity.getColor(R.color.surface));
         activity.getWindow().setNavigationBarColor(activity.getColor(R.color.surface));
+    }
+    public static String threadOpenMode(Context context){
+        String stored=prefs(context).getString(THREAD_OPEN_MODE,THREAD_ASK);
+        for(String mode:THREAD_MODES)if(mode.equals(stored))return mode;
+        return THREAD_ASK;
+    }
+    public static void setThreadOpenMode(Context context,String mode){
+        String validated=THREAD_ASK;
+        for(String candidate:THREAD_MODES)if(candidate.equals(mode)){
+            validated=candidate;
+            break;
+        }
+        prefs(context).edit().putString(THREAD_OPEN_MODE,validated).apply();
     }
     public static boolean standalone(Context context){
         return MODE_STANDALONE.equals(prefs(context).getString(LINK_MODE,MODE_CONNECTED));
