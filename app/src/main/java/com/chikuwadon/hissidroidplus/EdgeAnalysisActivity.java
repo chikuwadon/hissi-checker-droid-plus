@@ -176,34 +176,34 @@ public final class EdgeAnalysisActivity extends Activity {
                         runOnUiThread(()->{
                             parsingPage=false;
                             if(isFinishing()||isDestroyed()||requestedCycle!=cycle)return;
-                if(analysis.hasResult()){
-                    started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
-                    runButton.setVisibility(View.GONE);
-                    // Hide the redundant success notice so the analysis cards
-                    // start immediately below the toolbar.
-                    notice.setVisibility(View.GONE);
-                    entries.removeAllViews();
-                    for(EdgeAnalysis.Section section:analysis.sections)
-                        renderSection(section);
-                }else if(!started&&!refreshInProgress){
-                    entries.removeAllViews();
-                    if(refreshNeeded){
-                        showNotice("サイトの分析結果をまだ確認できません。再読み込みできます。");
-                        runButton.setText("分析結果を更新");
-                        runButton.setVisibility(View.VISIBLE);
-                        runButton.setEnabled(true);
-                    }else if(analysis.startAvailable){
-                        showNotice("まだ分析されていません。実行するとサイト側で分析が開始されます。");
-                        runButton.setText("分析を開始");
-                        runButton.setVisibility(View.VISIBLE);
-                        runButton.setEnabled(true);
-                    }else{
-                        runButton.setVisibility(View.GONE);
-                        if(lastHttpError==0)showNotice(analysis.hasStartButton?
-                                "サイト側の分析ボタンが利用できません。サイトで確認してください。":
-                                "分析結果または分析ボタンを確認できませんでした。サイトで確認してください。");
-                    }
-                }
+                            if(analysis.hasResult()){
+                                started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
+                                runButton.setVisibility(View.GONE);
+                                // Hide the redundant success notice so the analysis cards
+                                // start immediately below the toolbar.
+                                notice.setVisibility(View.GONE);
+                                entries.removeAllViews();
+                                for(EdgeAnalysis.Section section:analysis.sections)
+                                    renderSection(section);
+                            }else if(!started&&!refreshInProgress){
+                                entries.removeAllViews();
+                                if(refreshNeeded){
+                                    showNotice("サイトの分析結果をまだ確認できません。再読み込みできます。");
+                                    runButton.setText("分析結果を更新");
+                                    runButton.setVisibility(View.VISIBLE);
+                                    runButton.setEnabled(true);
+                                }else if(analysis.startAvailable){
+                                    showNotice("まだ分析されていません。実行するとサイト側で分析が開始されます。");
+                                    runButton.setText("分析を開始");
+                                    runButton.setVisibility(View.VISIBLE);
+                                    runButton.setEnabled(true);
+                                }else{
+                                    runButton.setVisibility(View.GONE);
+                                    if(lastHttpError==0)showNotice(analysis.hasStartButton?
+                                            "サイト側の分析ボタンが利用できません。サイトで確認してください。":
+                                            "分析結果または分析ボタンを確認できませんでした。サイトで確認してください。");
+                                }
+                            }
                         });
                     }catch(Exception failed){
                         runOnUiThread(()->{
