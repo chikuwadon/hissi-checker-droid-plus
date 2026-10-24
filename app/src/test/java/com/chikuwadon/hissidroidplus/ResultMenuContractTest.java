@@ -47,6 +47,24 @@ public final class ResultMenuContractTest {
         assertTrue(code.contains("clearPending()"));
     }
 
+    @Test public void selectionSurvivesRecycledRowsAndUnchangedData() throws Exception {
+        String activity=new String(Files.readAllBytes(Paths.get(
+                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
+                StandardCharsets.UTF_8);
+        String selectable=new String(Files.readAllBytes(Paths.get(
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                StandardCharsets.UTF_8);
+        assertTrue(activity.contains("view.setTag(identity)"));
+        assertTrue(activity.contains("android.text.TextUtils.equals(target.getText(),content)"));
+        assertTrue(activity.contains("refreshSelectionAfterRebind()"));
+        assertTrue(selectable.contains("onAttachedToWindow()"));
+        assertTrue(selectable.contains("onDetachedFromWindow()"));
+        assertTrue(selectable.contains("generation!=selectionRefreshGeneration"));
+        assertTrue(selectable.contains("!isAttachedToWindow() || touchActive"));
+        assertTrue(selectable.contains("setTextIsSelectable(false)"));
+        assertTrue(selectable.contains("setTextIsSelectable(true)"));
+    }
+
     @Test public void homeImmediatelyFollowsHistoryForBothSites() throws Exception {
         String code=new String(Files.readAllBytes(Paths.get(
                 "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
