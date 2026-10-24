@@ -3,6 +3,7 @@ package com.chikuwadon.hissidroidplus;
 import static org.junit.Assert.*;
 import org.junit.Test;
 import java.util.List;
+import java.util.Arrays;
 
 public final class ThreadOpenerTest {
     @Test public void validatedCandidatesRetainPostNumber(){
@@ -28,6 +29,22 @@ public final class ThreadOpenerTest {
         assertEquals("",ThreadOpener.validatedThreadUrl(
             "https://bbs.eddibb.cc/invalid"));
     }
+    @Test public void readerSelectionUsesInstalledApplicationsOnly(){
+        String mate="jp.co.airfront.android.a2chMate";
+        String haiagaru="jp.co.airfront.android.a2chMate.haiagaru";
+        assertEquals(Arrays.asList(mate,haiagaru),ThreadOpener.readerPackages(true,true));
+        assertEquals(Arrays.asList(mate),ThreadOpener.readerPackages(true,false));
+        assertEquals(Arrays.asList(haiagaru),ThreadOpener.readerPackages(false,true));
+        assertTrue(ThreadOpener.readerPackages(false,false).isEmpty());
+    }
+
+    @Test public void androidManifestQueriesBothKnownReaderPackages() throws Exception {
+        String manifest=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+            "src/main/AndroidManifest.xml")),java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(manifest.contains("android:name=\\\"jp.co.airfront.android.a2chMate\\\""));
+        assertTrue(manifest.contains("android:name=\\\"jp.co.airfront.android.a2chMate.haiagaru\\\""));
+    }
+
     @Test public void validatesWithoutUnknownHost(){
         assertTrue(ThreadOpener.chMateUrls("https://unknown.example/test/read.cgi/liveedge/1792741575/").isEmpty());
         assertTrue(ThreadOpener.chMateUrls("https://hissi.org/read.php/android/20261023/x.html").isEmpty());
