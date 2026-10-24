@@ -48,14 +48,7 @@ public final class EdgeSearchActivity extends Activity {
             searchUrl=EdgeSearchLink.searchUrl(board,date,id);
         }catch(Exception invalid){finish();return;}
         HttpTransport.setUserAgent(android.webkit.WebSettings.getDefaultUserAgent(this));
-        HttpTransport.setCookieJar(new HttpTransport.CookieJar(){
-            @Override public String read(String url){
-                return android.webkit.CookieManager.getInstance().getCookie(url);
-            }
-            @Override public void save(String url,String value){
-                android.webkit.CookieManager.getInstance().setCookie(url,value);
-            }
-        });
+        HttpTransport.enableWebViewCookies();
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(getColor(R.color.surface));
