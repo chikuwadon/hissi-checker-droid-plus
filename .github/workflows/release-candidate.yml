@@ -189,6 +189,56 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+  public-source-rebuild:
+    needs: private-clean-source-export
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: v1.0.0-clean-source-preview
+          path: public-preview
+      - name: Verify and unpack standalone public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          base=pathlib.Path('public-preview')
+          archive=base/'v1.0.0-public-source-preview.zip'
+          manifest=json.loads((base/'public-source-manifest.json').read_text())
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==manifest['sha256']
+          with zipfile.ZipFile(archive) as z:
+              listed=z.namelist()
+              assert len(listed)==len(set(listed))==len(manifest['files'])
+              assert all(not n.startswith('/') and '..' not in pathlib.PurePosixPath(n).parts for n in listed)
+              assert z.testzip() is None
+              expected={f['path']:f['sha256'] for f in manifest['files']}
+              assert set(listed)==set(expected)
+              for name in listed:
+                  assert hashlib.sha256(z.read(name)).hexdigest()==expected[name],name
+              z.extractall('public-src')
+          print('Validated history-free source archive and all per-file checksums')
+          PY
+          diff -qr app/src/main public-src/app/src/main
+          diff -qr app/src/test public-src/app/src/test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.8.2'
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Build standalone exported source without signing Secrets
+        run: gradle --no-daemon -p public-src :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+
   service-connectivity-probe:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
