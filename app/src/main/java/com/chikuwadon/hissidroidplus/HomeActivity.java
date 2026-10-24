@@ -169,11 +169,12 @@ public final class HomeActivity extends Activity {
     /** Toolbar overflow stays attached to ⋮ instead of opening a full modal list. */
     private void showSettings(View anchor){
         ThemedMenu.showOverflow(this,anchor,new String[]{
-            "検索履歴", "テーマ", "リンクの開き方", "このアプリについて"
+            "検索履歴", "テーマ", "スレの開き方", "リンクの開き方", "このアプリについて"
         },index->{
             if(index==0)startActivity(new Intent(this,HistoryActivity.class));
             else if(index==1)showThemePicker();
-            else if(index==2)showLinkModePicker();
+            else if(index==2)showThreadModePicker();
+            else if(index==3)showLinkModePicker();
             else ThemedMenu.showAbout(this);
         });
     }
@@ -185,6 +186,15 @@ public final class HomeActivity extends Activity {
         ThemedMenu.choose(this,"テーマ",labels,checked,index->{
             AppSettings.prefs(this).edit().putString(AppSettings.THEME,values[index]).apply();
             recreate();
+        });
+    }
+    private void showThreadModePicker(){
+        String[] labels={"毎回選択","ChMateで開く","Haiagaruで開く",
+                "他のアプリで開く","外部ブラウザで開く"};
+        String current=AppSettings.threadOpenMode(this);
+        int checked=java.util.Arrays.asList(AppSettings.THREAD_MODES).indexOf(current);
+        ThemedMenu.choose(this,"スレの開き方",labels,checked,index->{
+            AppSettings.setThreadOpenMode(this,AppSettings.THREAD_MODES[index]);
         });
     }
     private void showLinkModePicker(){

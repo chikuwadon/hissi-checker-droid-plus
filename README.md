@@ -5,7 +5,7 @@
 **Hissi Checker Droid Plus**
 
 [![Latest Release](https://img.shields.io/github/v/release/chikuwadon/hissi-checker-droid-plus?label=Release&color=0D9488&style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/latest)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.0/HissiCheckerDroidPlus-v1.0.0.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.1/HissiCheckerDroidPlus-v1.0.1.apk)
 
 </div>
 
@@ -24,7 +24,7 @@
 | 板一覧 | カテゴリ別の板選択、板のお気に入り、オフライン用板一覧 |
 | 検索結果 | 「レス」「スレ」「名前」の3タブ、タップ・左右スワイプによる切り替え |
 | 投稿情報 | 投稿件数、スレ別・名前別の件数、時間帯別の投稿グラフ |
-| レス操作 | スレを開く、全体コピー、本文コピー、追加コピー、リンクコピー |
+| レス操作 | タップで各種コピー・スレを開く、長押しでテキストの範囲選択とコピー |
 | 履歴 | 直近100件の検索履歴、お気に入り、並べ替え、複数選択削除 |
 | 外部連携 | ChMateなどの対応アプリやブラウザでスレッドを開く |
 | 表示設定 | ダーク / ライト / システムテーマ、コンパクトな一覧表示 |
@@ -53,7 +53,7 @@
 
 検索結果には次の3つのタブがあります。タップでも左右スワイプでも切り替えられます。
 
-- **レス**：投稿を一覧表示。レスをタップすると、スレを開く、全体コピー、本文コピー、追加コピー、リンクコピーを選べます。
+- **レス**：投稿を一覧表示。タップすると、スレを開く、全体コピー、本文コピー、追加コピー、リンクコピーを選べます。本文などを長押しすると、範囲を選択してコピーできます。
 - **スレ**：書き込みのあるスレッドをまとめて確認できます。
 - **名前**：投稿者名ごとに書き込みを確認できます。
 
@@ -73,14 +73,14 @@
 
 ## 外部アプリとの連携
 
-スレッドを開く際はChMateとの連携に対応しています。ChMateが利用できない場合は他の対応アプリを探し、必要に応じてブラウザで開きます。
+5chとエッヂのスレッドを、ChMateまたはHaiagaruパッチを適用したChMateで開けます。両方インストールされている場合は開くアプリを選択できます。選択画面の「次回から確認しない」をチェックすると、次回から5chとエッヂの両方に同じ設定が適用されます。片方のみの場合は直接起動します。
 
-ホーム画面右上のメニューでは、テーマやリンクの開き方を変更できます。実際の連携動作は、利用するアプリの対応状況によって異なります。
+ホーム画面右上のメニューにある「スレの開き方」から、「毎回選択」への切り替えや使用するアプリの変更ができます。「リンクの開き方」は別の設定です。Haiagaruのパッケージ名を標準設定から変更した場合、専用の選択肢には表示されません。
 
 ## 動作環境
 
 - Android 8.0以降
-- バージョン：1.0.0
+- バージョン：1.0.1
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意

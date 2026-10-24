@@ -95,10 +95,7 @@ public final class ResultActivity extends Activity {
             updateStats();
         });
         HttpTransport.setUserAgent(android.webkit.WebSettings.getDefaultUserAgent(this));
-        HttpTransport.setCookieJar(new HttpTransport.CookieJar(){
-            @Override public String read(String url){return android.webkit.CookieManager.getInstance().getCookie(url);}
-            @Override public void save(String url,String value){android.webkit.CookieManager.getInstance().setCookie(url,value);}
-        });
+        HttpTransport.enableWebViewCookies();
         applySystemInsets();
         findViewById(R.id.edge_analysis_link).setOnClickListener(v->openEdgeAnalysis());
         status=findViewById(R.id.status);
@@ -487,7 +484,7 @@ public final class ResultActivity extends Activity {
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setLoadsImagesAutomatically(false);
         web.getSettings().setBlockNetworkImage(true);
-        final boolean[] completed={false};
+        final boolean[] completed={false},parsing={false};
         final String[] detail={firstError==null?"解析できるレスがありませんでした":firstError};
         android.webkit.CookieManager.getInstance().setAcceptCookie(true);
         web.setWebViewClient(new WebViewClient(){
@@ -519,35 +516,60 @@ public final class ResultActivity extends Activity {
                 for (int delay:delays) view.postDelayed(()->{
                     if(completed[0] || isFinishing() || isDestroyed()) return;
                     view.evaluateJavascript("(function(){return document.documentElement.outerHTML})()",json->{
-                        if(completed[0] || isFinishing() || isDestroyed()) return;
-                        try {
-                            String html=new JSONArray("["+json+"]").getString(0);
-                            CheckerResult original=EdgeAdapter.parse(html,query);
-                            CheckerResult found=verifyEdgeSearchDate()
-                                ?EdgeSearchValidation.matchingPosts(original,query.date,query.id):original;
-                            if(verifyEdgeSearchDate() && !original.posts.isEmpty() && found.posts.isEmpty()){
-                                completed[0]=true;
-                                cleanupWebView(view);
-                                showWrongDay();
-                                return;
-                            }
-                            if(found.posts.isEmpty()){
-                                String cause=EdgeAdapter.explainEmptyPage(html);
-                                // Keep a real HTTP status if we have one; it is more
-                                // informative than a generic structural failure.
-                                if(!detail[0].matches(".*HTTP.*\\d{3}.*") ||
-                                        !cause.contains("HTML構造未対応")) detail[0]=cause;
-                                edgeDiagnostic=detail[0]+" / HTML="+html.length()+"文字";
-                            } else {
-                                completed[0]=true;
-                                found.sourceUrl=query.url;
-                                result=found;
-                                rebuildIndexes();loading=false;adapter.notifyDataSetChanged();updateHeader();
-                                SearchHistory.record(ResultActivity.this,query,result);
-                                cleanupWebView(view);
-                            }
-                        } catch(Exception ex) {
-                            detail[0]="WebViewのHTML解析に失敗しました";
+                        if(completed[0] || parsing[0] || isFinishing() || isDestroyed())return;
+                        // A WebView DOM can exceed the size of the original response.
+                        if(json==null || json.length()>12*1024*1024){
+                            detail[0]="WebViewから取得したHTMLが大きすぎます";
+                            return;
+                        }
+                        parsing[0]=true;
+                        final boolean verify=verifyEdgeSearchDate();
+                        try{
+                            worker.execute(()->{
+                                try{
+                                    String html=new JSONArray("["+json+"]").getString(0);
+                                    CheckerResult original=EdgeAdapter.parse(html,query);
+                                    CheckerResult found=verify
+                                        ?EdgeSearchValidation.matchingPosts(original,query.date,query.id):original;
+                                    boolean wrongDay=verify && !original.posts.isEmpty() && found.posts.isEmpty();
+                                    String cause=found.posts.isEmpty()?
+                                        EdgeAdapter.explainEmptyPage(html):"";
+                                    int length=html.length();
+                                    runOnUiThread(()->{
+                                        parsing[0]=false;
+                                        if(completed[0] || isFinishing() || isDestroyed() || fallbackView!=view)return;
+                                        if(wrongDay){
+                                            completed[0]=true;
+                                            cleanupWebView(view);
+                                            showWrongDay();
+                                            return;
+                                        }
+                                        if(found.posts.isEmpty()){
+                                            // Preserve an actual HTTP error over a generic parse error.
+                                            if(!detail[0].matches(".*HTTP.*\\d{3}.*") ||
+                                                    !cause.contains("HTML構造未対応"))detail[0]=cause;
+                                            edgeDiagnostic=detail[0]+" / HTML="+length+"文字";
+                                        }else{
+                                            completed[0]=true;
+                                            found.sourceUrl=query.url;
+                                            result=found;
+                                            rebuildIndexes();
+                                            loading=false;
+                                            adapter.notifyDataSetChanged();
+                                            updateHeader();
+                                            SearchHistory.record(ResultActivity.this,query,result);
+                                            cleanupWebView(view);
+                                        }
+                                    });
+                                }catch(Exception ex){
+                                    runOnUiThread(()->{
+                                        parsing[0]=false;
+                                        if(!completed[0])detail[0]="WebViewのHTML解析に失敗しました";
+                                    });
+                                }
+                            });
+                        }catch(java.util.concurrent.RejectedExecutionException ignored){
+                            parsing[0]=false;
                         }
                     });
                 }, delay);
@@ -660,6 +682,14 @@ public final class ResultActivity extends Activity {
                 label.length(),span.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return span;
     }
+    /** Keep the editor of a selected row intact while refreshing list rows. */
+    private static void bindResultText(TextView target,CharSequence content,boolean reused){
+        if(reused || !android.text.TextUtils.equals(target.getText(),content)){
+            target.setText(content);
+            ((SelectableResultTextView)target).refreshSelectionAfterRebind();
+        }
+    }
+
     private final class RowAdapter extends BaseAdapter {
         @Override public int getCount(){return tab==0?result.posts.size():tab==1?threadRows.size():result.names.size();}
         @Override public Object getItem(int pos){return pos;}
@@ -667,23 +697,37 @@ public final class ResultActivity extends Activity {
         @Override public View getView(int index,View convert,ViewGroup parent){
             View view=convert==null?LayoutInflater.from(ResultActivity.this).inflate(R.layout.item_row,parent,false):convert;
             TextView title=view.findViewById(R.id.item_title),subtitle=view.findViewById(R.id.item_subtitle),body=view.findViewById(R.id.item_body);
+            // A recycled view may have stale TextView selection controllers.
+            int identity=tab*1000000+index;
+            boolean reused=!(view.getTag() instanceof Integer) ||
+                    ((Integer)view.getTag()).intValue()!=identity;
+            view.setTag(identity);
+            // Selectable text owns its long-press gesture; short taps retain
+            // the original row action menu.
+            View.OnClickListener showActions=clicked->showEntry(index);
+            title.setOnClickListener(showActions);
+            subtitle.setOnClickListener(showActions);
+            body.setOnClickListener(showActions);
             if(tab==0){
                 CheckerResult.Post p=result.posts.get(index);
                 boolean sameThread=index>0 && PostIndex.threadKey(p.link).equals(PostIndex.threadKey(result.posts.get(index-1).link));
                 title.setVisibility(sameThread?View.GONE:View.VISIBLE);
-                title.setText(p.title);subtitle.setVisibility(View.VISIBLE);subtitle.setText(displayHeader(p));body.setText(p.body);
+                bindResultText(title,p.title,reused);
+                subtitle.setVisibility(View.VISIBLE);
+                bindResultText(subtitle,displayHeader(p),reused);
+                bindResultText(body,p.body,reused);
                 body.setVisibility(View.VISIBLE);
             } else if(tab==1){
                 title.setVisibility(View.VISIBLE);
                 Map.Entry<String,String> e=threadRows.get(index);
                 int count=threadCounts.getOrDefault(PostIndex.threadKey(e.getKey()),0);
-                title.setText(labelWithCount(e.getValue(),count));
-                subtitle.setText("");subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
+                bindResultText(title,labelWithCount(e.getValue(),count),reused);
+                subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }else{
                 title.setVisibility(View.VISIBLE);
                 String name=result.names.get(index);
                 int count=nameCounts.getOrDefault(name,0);
-                title.setText(labelWithCount(name,count));
+                bindResultText(title,labelWithCount(name,count),reused);
                 subtitle.setVisibility(View.GONE);body.setVisibility(View.GONE);
             }
             return view;

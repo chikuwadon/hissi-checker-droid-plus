@@ -31,6 +31,9 @@ public final class EdgeAnalysisActivity extends Activity {
     private LinearLayout entries;
     private TextView notice,runButton;
     private boolean loaded=false,started=false,refreshNeeded=false,refreshInProgress=false;
+    private final java.util.concurrent.ExecutorService parserWorker=
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private boolean parsingPage;
     private int cycle=0;
     private int lastHttpError=0;
 
@@ -156,42 +159,62 @@ public final class EdgeAnalysisActivity extends Activity {
         notice.setText(value);
     }
     private void inspectPage(){
-        if(web==null || isFinishing()||isDestroyed())return;
+        if(web==null || isFinishing()||isDestroyed() || parsingPage)return;
+        parsingPage=true;
+        final int requestedCycle=cycle;
         web.evaluateJavascript("(function(){return document.documentElement.outerHTML})()",value->{
-            if(value==null||value.equals("null")||isFinishing()||isDestroyed())return;
-            try {
-                String html=new JSONArray("["+value+"]").getString(0);
-                EdgeAnalysis analysis=EdgeAnalysis.parse(html);
-                if(analysis.hasResult()){
-                    started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
-                    runButton.setVisibility(View.GONE);
-                    // Hide the redundant success notice so the analysis cards
-                    // start immediately below the toolbar.
-                    notice.setVisibility(View.GONE);
-                    entries.removeAllViews();
-                    for(EdgeAnalysis.Section section:analysis.sections)
-                        renderSection(section);
-                }else if(!started&&!refreshInProgress){
-                    entries.removeAllViews();
-                    if(refreshNeeded){
-                        showNotice("サイトの分析結果をまだ確認できません。再読み込みできます。");
-                        runButton.setText("分析結果を更新");
-                        runButton.setVisibility(View.VISIBLE);
-                        runButton.setEnabled(true);
-                    }else if(analysis.startAvailable){
-                        showNotice("まだ分析されていません。実行するとサイト側で分析が開始されます。");
-                        runButton.setText("分析を開始");
-                        runButton.setVisibility(View.VISIBLE);
-                        runButton.setEnabled(true);
-                    }else{
-                        runButton.setVisibility(View.GONE);
-                        if(lastHttpError==0)showNotice(analysis.hasStartButton?
-                                "サイト側の分析ボタンが利用できません。サイトで確認してください。":
-                                "分析結果または分析ボタンを確認できませんでした。サイトで確認してください。");
+            if(value==null||value.equals("null")||value.length()>12*1024*1024 ||
+                    isFinishing()||isDestroyed()){
+                parsingPage=false;
+                return;
+            }
+            try{
+                parserWorker.execute(()->{
+                    try{
+                        String html=new JSONArray("["+value+"]").getString(0);
+                        EdgeAnalysis analysis=EdgeAnalysis.parse(html);
+                        runOnUiThread(()->{
+                            parsingPage=false;
+                            if(isFinishing()||isDestroyed()||requestedCycle!=cycle)return;
+                            if(analysis.hasResult()){
+                                started=false;refreshNeeded=false;refreshInProgress=false;cycle++;
+                                runButton.setVisibility(View.GONE);
+                                // Hide the redundant success notice so the analysis cards
+                                // start immediately below the toolbar.
+                                notice.setVisibility(View.GONE);
+                                entries.removeAllViews();
+                                for(EdgeAnalysis.Section section:analysis.sections)
+                                    renderSection(section);
+                            }else if(!started&&!refreshInProgress){
+                                entries.removeAllViews();
+                                if(refreshNeeded){
+                                    showNotice("サイトの分析結果をまだ確認できません。再読み込みできます。");
+                                    runButton.setText("分析結果を更新");
+                                    runButton.setVisibility(View.VISIBLE);
+                                    runButton.setEnabled(true);
+                                }else if(analysis.startAvailable){
+                                    showNotice("まだ分析されていません。実行するとサイト側で分析が開始されます。");
+                                    runButton.setText("分析を開始");
+                                    runButton.setVisibility(View.VISIBLE);
+                                    runButton.setEnabled(true);
+                                }else{
+                                    runButton.setVisibility(View.GONE);
+                                    if(lastHttpError==0)showNotice(analysis.hasStartButton?
+                                            "サイト側の分析ボタンが利用できません。サイトで確認してください。":
+                                            "分析結果または分析ボタンを確認できませんでした。サイトで確認してください。");
+                                }
+                            }
+                        });
+                    }catch(Exception failed){
+                        runOnUiThread(()->{
+                            parsingPage=false;
+                            if(!isFinishing()&&!isDestroyed()&&!started)
+                                showNotice("分析情報を読み取れません。サイトで確認してください。");
+                        });
                     }
-                }
-            }catch(Exception failed){
-                if(!started)showNotice("分析情報を読み取れません。サイトで確認してください。");
+                });
+            }catch(java.util.concurrent.RejectedExecutionException ignored){
+                parsingPage=false;
             }
         });
     }
@@ -383,6 +406,7 @@ public final class EdgeAnalysisActivity extends Activity {
     }
     @Override protected void onDestroy(){
         cycle++;
+        parserWorker.shutdownNow();
         if(web!=null){
             web.stopLoading();
             web.setWebViewClient(null);

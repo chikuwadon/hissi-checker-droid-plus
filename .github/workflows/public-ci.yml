@@ -26,3 +26,32 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - name: Unit tests, lint and debug build
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      # Sign only the maintainer's own PR, never forks or bot contributions.
+      # The QA APK is non-debuggable and uses the release certificate for in-place upgrades.
+      - name: Build signed QA APK
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
+        env:
+          HISSI_KEYSTORE_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
+          HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$HISSI_KEYSTORE_B64" || -z "$HISSI_KEYSTORE_PASSWORD" ]]; then
+            echo "QA signing is unavailable: required secrets are not configured."
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/hissi-qa-signing.p12"
+          printf '%s' "$HISSI_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          HISSI_KEYSTORE_PATH="$KEYSTORE" HISSI_KEYSTORE_PASSWORD="$HISSI_KEYSTORE_PASSWORD" \
+            gradle --no-daemon :app:assembleRelease
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
+            app/build/outputs/apk/release/app-release.apk
+      - name: Upload signed QA APK
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hissi-checker-droid-plus-v1.0.1-signed
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
