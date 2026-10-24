@@ -21,6 +21,7 @@ import java.util.Set;
 /** Discover non-ChMate reader activities through URL filters without a package allowlist. */
 final class ExternalThreadApps {
     private static final String MATE="jp.co.airfront.android.a2chMate";
+    private static final String HAIAGARU="jp.co.airfront.android.a2chMate.haiagaru";
     private ExternalThreadApps(){}
 
     static final class Handler {
@@ -56,7 +57,8 @@ final class ExternalThreadApps {
                 ActivityInfo ai=info.activityInfo;
                 if(ai==null||!ai.exported||ai.packageName==null||ai.name==null)continue;
                 String pkg=ai.packageName;
-                if(pkg.equals(ownPackage)||pkg.equals(MATE)||pkg.equals("android")||
+                if(pkg.equals(ownPackage)||pkg.equals(MATE)||pkg.equals(HAIAGARU)||
+                        pkg.equals("android")||
                         pkg.equals("com.android.internal.app")||genericWeb.contains(pkg)||
                         BrowserLauncher.isKnownBrowserPackage(pkg))continue;
                 readers.putIfAbsent(pkg,new Handler(pkg,ai.name,url));
