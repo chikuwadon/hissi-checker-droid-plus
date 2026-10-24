@@ -4,6 +4,9 @@
 
 **Hissi Checker Droid Plus**
 
+[![Latest Release](https://img.shields.io/github/v/release/chikuwadon/hissi-checker-droid-plus?label=Release&color=0D9488&style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.0/HissiCheckerDroidPlus-v1.0.0.apk)
+
 </div>
 
 ## 概要
