@@ -1,4 +1,10 @@
+<div align="center">
+
 # 必死チェッカーdroid +
+
+**Hissi Checker Droid Plus**
+
+</div>
 
 5chとエッヂのID別書き込みを検索・閲覧できるAndroidアプリです。レスの一覧表示や投稿状況の集計、検索履歴、お気に入り、掲示板アプリとの連携に対応しています。
 
