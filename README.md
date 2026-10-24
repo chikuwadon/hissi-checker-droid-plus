@@ -6,7 +6,11 @@
 
 </div>
 
+## 概要
+
 5chとエッヂのID別書き込みを検索・閲覧できるAndroidアプリです。レスの一覧表示や投稿状況の集計、検索履歴、お気に入り、掲示板アプリとの連携に対応しています。
+
+オリジナルの「必死チェッカーdroid」v1.5を参考に、新たに開発したアプリです。
 
 ## 主な機能
 
@@ -84,7 +88,7 @@
 
 不具合・改善要望はGitHub Issuesで受け付けています。報告にはAndroidとアプリのバージョン、再現手順などをご記載ください。個人情報やCookieなどの情報は公開しないでください。
 
-## 開発・ライセンス
+## 開発
 
 本アプリはJavaで開発しています。ソースからビルドする場合は、JDK 17、Android SDK 36、Gradle 9.8.2が必要です（Gradle Wrapperは同梱していません）。
 
@@ -92,6 +96,17 @@
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
+## ライセンス
+
 独自制作したコードとアイコンには[MIT License](LICENSE)を適用します。第三者ライブラリや外部サービス由来データには、それぞれの利用条件が適用されます。
 
-[変更履歴](CHANGELOG.md) / [第三者ライセンス](THIRD_PARTY_NOTICES.md) / [ライセンス適用範囲](docs/LICENSING_SCOPE.md) / [セキュリティについて](SECURITY.md)
+[第三者ライセンス](THIRD_PARTY_NOTICES.md) / [ライセンス適用範囲](docs/LICENSING_SCOPE.md)
+
+## 変更履歴
+
+[CHANGELOG.md](CHANGELOG.md)をご覧ください。
+
+## 謝辞
+
+- 必死チェッカーdroid
+- [必死チェッカーdroid mod](https://github.com/Kdroidwin/Desperate-checker-droid-by-kdroidwin)
