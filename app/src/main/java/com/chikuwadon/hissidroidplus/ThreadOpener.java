@@ -19,6 +19,8 @@ import java.util.regex.Pattern;
 /** Direct ChMate handoff using exported Activities verified by ADB on 2026-10-23. */
 public final class ThreadOpener {
     private static final String MATE="jp.co.airfront.android.a2chMate";
+    // Default package when Haiagaru's "Change ChMate package name" patch is enabled.
+    private static final String HAIAGARU="jp.co.airfront.android.a2chMate.haiagaru";
     // Verified by "adb shell am start -W -a android.intent.action.VIEW -n <component> -d <thread>".
     private static final String RES_LIST="jp.syoboi.a2chMate.activity.ResListActivity";
     private static final String OPEN_URL="app.morphe.extension.chmate.OpenUrlActivity";
@@ -48,11 +50,28 @@ public final class ThreadOpener {
     }
 
     static boolean isMateInstalled(PackageManager pm){
+        return isReaderInstalled(pm,MATE);
+    }
+
+    private static boolean isReaderInstalled(PackageManager pm,String pkg){
         try{
-            pm.getPackageInfo(MATE,0);
+            pm.getPackageInfo(pkg,0);
             return true;
         }catch(PackageManager.NameNotFoundException noApp){return false;}
-        catch(RuntimeException notVisible){return true;}
+        // Both known package names are declared in AndroidManifest <queries>.
+        catch(RuntimeException notVisible){return false;}
+    }
+
+    /** Visible reader choices, in stable UI order. */
+    static List<String> readerPackages(boolean mateInstalled,boolean haiagaruInstalled){
+        List<String> packages=new ArrayList<>();
+        if(mateInstalled)packages.add(MATE);
+        if(haiagaruInstalled)packages.add(HAIAGARU);
+        return packages;
+    }
+
+    private static String readerLabel(String pkg){
+        return HAIAGARU.equals(pkg)?"Haiagaru":"ChMate";
     }
 
     static Intent viewIntent(String url,String pkg){
@@ -69,9 +88,9 @@ public final class ThreadOpener {
     }
 
     /** Explicit component bypasses domain filters, unlike setPackage() alone. */
-    private static Intent directThreadIntent(String url,String activityClass){
+    private static Intent directThreadIntent(String url,String pkg,String activityClass){
         return new Intent(Intent.ACTION_VIEW,Uri.parse(url))
-                .setClassName(MATE,activityClass);
+                .setClassName(pkg,activityClass);
     }
 
     private static boolean launch(Activity activity,Intent intent){
@@ -79,20 +98,35 @@ public final class ThreadOpener {
         catch(ActivityNotFoundException|SecurityException error){return false;}
     }
 
-    private static boolean copyAndLaunchMate(Activity activity,String url){
+    private static boolean copyAndLaunchReader(Activity activity,String url,String pkg){
         try{
+            Intent launchIntent=activity.getPackageManager().getLaunchIntentForPackage(pkg);
+            if(launchIntent==null)return false;
             ClipboardManager clipboard=(ClipboardManager)
                     activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if(clipboard==null)return false;
             clipboard.setPrimaryClip(ClipData.newPlainText("スレッドURL",url));
-            Intent mate=activity.getPackageManager().getLaunchIntentForPackage(MATE);
-            if(mate==null)return false;
-            activity.startActivity(mate);
+            activity.startActivity(launchIntent);
             Toast.makeText(activity,
-                    "URLをコピーしました。ChMateの「URLを指定して開く」に貼り付けてください",
+                    "URLをコピーしました。"+readerLabel(pkg)+"の「URLを指定して開く」に貼り付けてください",
                     Toast.LENGTH_LONG).show();
             return true;
         }catch(RuntimeException error){return false;}
+    }
+
+    private static void openInReader(Activity activity,String url,String pkg){
+        // Haiagaru keeps ChMate's Activity class names when changing its package.
+        if(launch(activity,directThreadIntent(url,pkg,RES_LIST)))return;
+        if(launch(activity,directThreadIntent(url,pkg,OPEN_URL)))return;
+        String label=readerLabel(pkg);
+        ThemedMenu.choose(activity,"スレッドを開く",
+            new String[]{"URLをコピーして"+label+"を開く","他のアプリで開く","外部ブラウザで開く"},
+            -1,which->{
+                if(which==0 && !copyAndLaunchReader(activity,url,pkg))
+                    Toast.makeText(activity,label+"を起動できませんでした",Toast.LENGTH_LONG).show();
+                else if(which==1)ExternalThreadApps.open(activity,url);
+                else if(which==2)BrowserLauncher.open(activity,url);
+            });
     }
 
     public static void open(Activity activity,String raw,boolean edge){
@@ -110,23 +144,23 @@ public final class ThreadOpener {
         }
         // normalized already equals the validated canonical form.
         PackageManager pm=activity.getPackageManager();
-        if(!isMateInstalled(pm)){
+        List<String> readers=readerPackages(
+            isMateInstalled(pm),isReaderInstalled(pm,HAIAGARU));
+        if(readers.isEmpty()){
             ExternalThreadApps.open(activity,normalized);
             return;
         }
-        // adb confirmed both explicit Activities can open this exact
-        // test/read.cgi URL, while the implicit and package-only VIEW failed.
-        // Prefer ChMate's ordinary ResListActivity, which is also present in
-        // the unmodified application. The Morphe extension is a fallback.
-        if(launch(activity,directThreadIntent(normalized,RES_LIST)))return;
-        if(launch(activity,directThreadIntent(normalized,OPEN_URL)))return;
+        if(readers.size()==1){
+            openInReader(activity,normalized,readers.get(0));
+            return;
+        }
+        // If ChMate and Haiagaru coexist, never silently prefer one.
         ThemedMenu.choose(activity,"スレッドを開く",
-            new String[]{"URLをコピーしてChMateを開く","外部ブラウザで開く"},-1,which->{
-                if(which==0&&!copyAndLaunchMate(activity,normalized)){
-                    Toast.makeText(activity,"ChMateを起動できませんでした",Toast.LENGTH_LONG).show();
-                }else if(which==1){
-                    BrowserLauncher.open(activity,normalized);
-                }
+            new String[]{"ChMateで開く","Haiagaruで開く",
+                "他のアプリで開く","外部ブラウザで開く"},-1,which->{
+                if(which<readers.size())openInReader(activity,normalized,readers.get(which));
+                else if(which==readers.size())ExternalThreadApps.open(activity,normalized);
+                else BrowserLauncher.open(activity,normalized);
             });
     }
 }
