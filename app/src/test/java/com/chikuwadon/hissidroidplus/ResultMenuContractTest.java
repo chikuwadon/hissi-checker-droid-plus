@@ -8,17 +8,27 @@ import org.junit.Test;
 
 /** Keep the entry visible for both 5ch and Edge without changing menu offsets. */
 public final class ResultMenuContractTest {
-    @Test public void nativeTextSelectionStartsOnLongPressWithoutChangingTapAction() throws Exception {
+    @Test public void selectionIsEnabledBeforeTheLongPressGesture() throws Exception {
         String code=new String(Files.readAllBytes(Paths.get(
                 "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
                 StandardCharsets.UTF_8);
+        String layout=new String(Files.readAllBytes(Paths.get(
+                "src/main/res/layout/item_row.xml")),StandardCharsets.UTF_8);
+        // Native TextViews must receive the original gesture, rather than
+        // a synthetic second long-click after ListView has consumed it.
+        assertFalse(code.contains("setOnItemLongClickListener"));
+        assertFalse(code.contains("performLongClick"));
+        assertFalse(code.contains("beginTextSelection"));
+        for(String id:new String[]{"item_title","item_subtitle","item_body"}){
+            assertTrue(layout.contains("android:id=\\\"@+id/"+id+"\\\" android:textIsSelectable=\\\"true\\\""));
+        }
+        // Selectable text consumes short taps, so forward taps to the
+        // existing action menu instead of changing its behavior.
         assertTrue(code.contains("list.setOnItemClickListener((parent,v,index,id)->showEntry(index))"));
-        assertTrue(code.contains("list.setOnItemLongClickListener((parent,v,index,id)->beginTextSelection(v,index))"));
-        assertTrue(code.contains("target.setTextIsSelectable(true)"));
-        assertTrue(code.contains("target.performLongClick()"));
-        assertTrue(code.contains("onDestroyActionMode"));
-        assertTrue(code.contains("endTextSelection()"));
-        assertTrue(code.contains("tab==0?R.id.item_body:R.id.item_title"));
+        assertTrue(code.contains("View.OnClickListener showActions=clicked->showEntry(index)"));
+        assertTrue(code.contains("title.setOnClickListener(showActions)"));
+        assertTrue(code.contains("subtitle.setOnClickListener(showActions)"));
+        assertTrue(code.contains("body.setOnClickListener(showActions)"));
     }
 
     @Test public void homeImmediatelyFollowsHistoryForBothSites() throws Exception {
