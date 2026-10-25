@@ -55,6 +55,45 @@ public class CheckerQueryTest {
         assertEquals(CheckerQuery.Site.HISSI,q.site);
         assertEquals("news4vip",q.board);
     }
+    @Test public void usesRealSourceDomainRatherThanBoardName(){
+        CheckerQuery edge=CheckerQuery.fromExternalPayload(
+                "https://bbs.eddibb.cc/test/read.cgi/anotherboard/1761342000/5",
+                null,"anotherboard","20261025","Example123");
+        assertEquals(CheckerQuery.Site.EDGE,edge.site);
+        assertEquals("anotherboard",edge.board);
+        assertEquals("",edge.url);
+
+        // Even a board called "liveedge" cannot override an actual 5ch URL.
+        CheckerQuery five=CheckerQuery.fromExternalPayload(
+                "https://example.5ch.net/test/read.cgi/liveedge/1761342000/5",
+                null,"liveedge","20261025","Example123");
+        assertEquals(CheckerQuery.Site.HISSI,five.site);
+        assertEquals("liveedge",five.board);
+    }
+    @Test public void edgeDomainOverridesLegacyBoardHeuristicsInSharedText(){
+        String post="https://bbs.eddibb.cc/test/read.cgi/anotherboard/1761342000/1\\n"+
+                "2026/10/25(日) 06:11:31.090 ID:Example123";
+        CheckerQuery q=CheckerQuery.fromExternalPayload(null,post,null,null,null);
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("anotherboard",q.board);
+        assertEquals("Example123",q.id);
+    }
+    @Test public void sourceDomainMustMatchExactly(){
+        assertNull(CheckerQuery.sourceFromThreadUrl(
+                "https://bbs.eddibb.cc.evil.example/test/read.cgi/liveedge/1761342000/1"));
+        assertNull(CheckerQuery.sourceFromThreadUrl(
+                "https://bbs.eddibb.cc:8443/test/read.cgi/liveedge/1761342000/1"));
+        assertNull(CheckerQuery.sourceFromThreadUrl(
+                "javascript:https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1"));
+        assertEquals(CheckerQuery.Site.EDGE,CheckerQuery.sourceFromThreadUrl(
+                "https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1"));
+    }
+    @Test public void known5chSourceOverridesLegacyBoardHeuristicInText(){
+        String post="https://example.5ch.net/test/read.cgi/liveedge/1761342000/1\\n"+
+                "2026/10/25(日) 06:11:31.090 ID:Example123";
+        CheckerQuery q=CheckerQuery.fromSharedText(post);
+        assertEquals(CheckerQuery.Site.HISSI,q.site);
+    }
     @Test(expected=IllegalArgumentException.class) public void rejectsFakeDomain() {
         CheckerQuery.parseUrl("https://kyodemo.net.invalid/sdemo/b/e_e_liveedge/?hi=x&key=1792649855&date=20261022");
     }
