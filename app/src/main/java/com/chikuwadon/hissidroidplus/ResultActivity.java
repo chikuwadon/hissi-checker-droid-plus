@@ -110,16 +110,16 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
             boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
             String[] labels=edge
-                    ? new String[]{"検索履歴","ホーム画面に戻る","書き込み分析",
+                    ? new String[]{"ホーム画面に戻る","検索履歴","書き込み分析",
                         "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
                         "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"}
-                    : new String[]{"検索履歴","ホーム画面に戻る",
+                    : new String[]{"ホーム画面に戻る","検索履歴",
                         "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
                         "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which<0||which>=labels.length)return;
-                if(which==0){startActivity(new Intent(this,HistoryActivity.class));return;}
-                if(which==1){openHome();return;}
+                if(which==0){openHome();return;}
+                if(which==1){startActivity(new Intent(this,HistoryActivity.class));return;}
                 if(edge&&which==2){openEdgeAnalysis();return;}
                 switch(which-(edge?3:2)){
                     case 0:openExternalBrowser(resultUrl());break;
