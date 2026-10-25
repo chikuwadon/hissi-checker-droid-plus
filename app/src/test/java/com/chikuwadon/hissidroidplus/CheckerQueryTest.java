@@ -25,7 +25,7 @@ public class CheckerQueryTest {
         assertEquals("news4vip",q.board);
     }
     @Test public void parsesEdgePostSharedByChMateOrHaiagaru(){
-        String shared="https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1\\n"+
+        String shared="https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1\n"+
                 "1 (1) エッヂの名無しさん 2026/10/25(日) 06:11:31.090 ID:K/wziC9v9";
         CheckerQuery q=CheckerQuery.fromSharedText(shared);
         assertEquals(CheckerQuery.Site.EDGE,q.site);
@@ -44,13 +44,13 @@ public class CheckerQueryTest {
     }
     @Test public void domainlessEdgePostIsNotConvertedInto5chSearch(){
         CheckerQuery q=CheckerQuery.fromSharedText(
-                "read.cgi/liveedge/1761342000/2\\n2026/10/25(日) 06:12 ID:M9NT8Y9PE");
+                "read.cgi/liveedge/1761342000/2\n2026/10/25(日) 06:12 ID:M9NT8Y9PE");
         assertEquals(CheckerQuery.Site.EDGE,q.site);
         assertEquals("M9NT8Y9PE",q.id);
     }
     @Test public void preservesOrdinary5chPostShare(){
         CheckerQuery q=CheckerQuery.fromSharedText(
-                "https://example.5ch.net/test/read.cgi/news4vip/1761342000/1\\n"+
+                "https://example.5ch.net/test/read.cgi/news4vip/1761342000/1\n"+
                 "2026/10/25(日) 06:11 ID:Example42");
         assertEquals(CheckerQuery.Site.HISSI,q.site);
         assertEquals("news4vip",q.board);
@@ -71,7 +71,7 @@ public class CheckerQueryTest {
         assertEquals("liveedge",five.board);
     }
     @Test public void edgeDomainOverridesLegacyBoardHeuristicsInSharedText(){
-        String post="https://bbs.eddibb.cc/test/read.cgi/anotherboard/1761342000/1\\n"+
+        String post="https://bbs.eddibb.cc/test/read.cgi/anotherboard/1761342000/1\n"+
                 "2026/10/25(日) 06:11:31.090 ID:Example123";
         CheckerQuery q=CheckerQuery.fromExternalPayload(null,post,null,null,null);
         assertEquals(CheckerQuery.Site.EDGE,q.site);
@@ -89,7 +89,7 @@ public class CheckerQueryTest {
                 "https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1"));
     }
     @Test public void known5chSourceOverridesLegacyBoardHeuristicInText(){
-        String post="https://example.5ch.net/test/read.cgi/liveedge/1761342000/1\\n"+
+        String post="https://example.5ch.net/test/read.cgi/liveedge/1761342000/1\n"+
                 "2026/10/25(日) 06:11:31.090 ID:Example123";
         CheckerQuery q=CheckerQuery.fromSharedText(post);
         assertEquals(CheckerQuery.Site.HISSI,q.site);
