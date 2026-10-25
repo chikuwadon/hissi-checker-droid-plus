@@ -49,7 +49,7 @@ public final class ResultActivity extends Activity {
     public static final String EXTRA_VERIFY_EDGE_SEARCH_DATE="verify_edge_search_date";
     private boolean verifyEdgeSearchDate(){
         return query!=null && query.site==CheckerQuery.Site.EDGE &&
-                getIntent().getBooleanExtra(EXTRA_VERIFY_EDGE_SEARCH_DATE,false);
+                (inboundEdgeSearch || getIntent().getBooleanExtra(EXTRA_VERIFY_EDGE_SEARCH_DATE,false));
     }
     private void showWrongDay(){
         loading=false;
@@ -60,6 +60,7 @@ public final class ResultActivity extends Activity {
 
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private CheckerQuery query;
+    private boolean inboundEdgeSearch;
     private CheckerResult result=new CheckerResult();
     private List<Map.Entry<String,String>> threadRows=new ArrayList<>();
     private Map<String,Integer> threadCounts=new java.util.LinkedHashMap<>();
@@ -151,16 +152,34 @@ public final class ResultActivity extends Activity {
         });
         try {query=extract(getIntent());}
         catch(Exception e){showError(e.getMessage());return;}
+        inboundEdgeSearch=query.site==CheckerQuery.Site.EDGE && query.url.isEmpty();
         status.setText(query.site==CheckerQuery.Site.EDGE?"エッヂ / 取得中…":"5ch / 取得中…");
         worker.execute(()->{
             try{
-                CheckerResult parsed=query.site==CheckerQuery.Site.EDGE?new EdgeAdapter().load(query):new HissiAdapter().load(query);
+                CheckerQuery resolved=query;
+                if(inboundEdgeSearch){
+                    resolved=EdgeInboundSearch.resolve(query.board,query.date,query.id);
+                    if(resolved==null){
+                        runOnUiThread(()->{
+                            if(isFinishing()||isDestroyed())return;
+                            loading=false;
+                            showMessage("該当する投稿が見つかりませんでした",
+                                "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
+                                "閉じる",this::exitResults,null,null);
+                        });
+                        return;
+                    }
+                }
+                final CheckerQuery target=resolved;
+                CheckerResult parsed=target.site==CheckerQuery.Site.EDGE
+                        ?new EdgeAdapter().load(target):new HissiAdapter().load(target);
                 boolean wrongDay=verifyEdgeSearchDate() && !parsed.posts.isEmpty();
                 CheckerResult received=wrongDay
-                        ?EdgeSearchValidation.matchingPosts(parsed,query.date,query.id):parsed;
+                        ?EdgeSearchValidation.matchingPosts(parsed,target.date,target.id):parsed;
                 boolean rejected=wrongDay && received.posts.isEmpty();
                 runOnUiThread(()->{
                     if(isFinishing()||isDestroyed())return;
+                    query=target;
                     if(rejected){showWrongDay();return;}
                     if(query.site==CheckerQuery.Site.EDGE && received.posts.isEmpty()){
                         edgeDiagnostic=received.diagnostic;
@@ -175,7 +194,12 @@ public final class ResultActivity extends Activity {
                 });
             }catch(Exception e){runOnUiThread(()->{
                 if(isFinishing()||isDestroyed())return;
-                if(query.site==CheckerQuery.Site.EDGE)loadEdgeWithWebView(
+                if(inboundEdgeSearch && query.url.isEmpty()){
+                    loading=false;
+                    showMessage("エッヂのID検索に失敗しました",
+                        e.getMessage()==null?"検索結果を取得できませんでした":e.getMessage(),
+                        "閉じる",this::exitResults,null,null);
+                }else if(query.site==CheckerQuery.Site.EDGE)loadEdgeWithWebView(
                     (e.getMessage()==null?"通信失敗":e.getMessage())+" / "+HttpTransport.lastDiagnostic());
                 else showError(e.getMessage());
             });}
@@ -257,7 +281,14 @@ public final class ResultActivity extends Activity {
             if(shared!=null)url=shared.toString();
         }
         if(url!=null)return CheckerQuery.fromSharedText(url);
-        return CheckerQuery.hissi(incoming.getStringExtra("board"),incoming.getStringExtra("date"),incoming.getStringExtra("id"));
+        String board=incoming.getStringExtra("board");
+        String date=incoming.getStringExtra("date");
+        String id=incoming.getStringExtra("id");
+        // ChMate and Haiagaru's legacy checker action has no URL/site extra.
+        // The known Edge board must never be forwarded to 5ch/hissi.org.
+        if(CheckerQuery.isKnownEdgeBoard(board))
+            return CheckerQuery.edgeSearch(board,date,id);
+        return CheckerQuery.hissi(board,date,id);
     }
     private void updateHeader(){
         String source=query.site==CheckerQuery.Site.EDGE?"エッヂ":"5ch";
