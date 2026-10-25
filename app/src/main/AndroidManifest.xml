@@ -30,6 +30,13 @@
                 <data android:host="www.hissi.org" />
                 <data android:pathPrefix="/read.php/" />
             </intent-filter>
+        </activity>
+        <!-- Before Android 15, intent filters cannot match query parameters.
+             Keep the previous link handler, but redirect non-ID URLs to the browser. -->
+        <activity-alias android:name=".LegacyEdgeLinkActivity"
+            android:targetActivity=".ResultActivity"
+            android:exported="true"
+            android:enabled="@bool/enable_legacy_edge_links">
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -39,7 +46,36 @@
                 <data android:host="kyodemo.net" />
                 <data android:pathPrefix="/sdemo/b/e_e_" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <!-- Android 15+ understands uri-relative-filter-group. A deliberately
+             nonmatching legacy path avoids accidentally claiming other pages. -->
+        <activity-alias android:name=".FilteredEdgeLinkActivity"
+            android:targetActivity=".ResultActivity"
+            android:exported="true"
+            android:enabled="@bool/enable_filtered_edge_links">
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.kyodemo.net"
+                    android:path="/__not_a_checker_page__" />
+                <data android:scheme="https" android:host="kyodemo.net"
+                    android:path="/__not_a_checker_page__" />
+                <!-- Kyodemo's site-wide ID index: ?bs=hi&k=id%3A... -->
+                <uri-relative-filter-group android:allow="true">
+                    <data android:pathPrefix="/sdemo/b/e_e_" />
+                    <data android:query="bs=hi" />
+                    <data android:queryPrefix="k=id:" />
+                </uri-relative-filter-group>
+                <!-- Previously supported thread-scoped ID checker pages. -->
+                <uri-relative-filter-group android:allow="true">
+                    <data android:pathPrefix="/sdemo/b/e_e_" />
+                    <data android:queryPrefix="hi=" />
+                    <data android:queryPrefix="key=" />
+                    <data android:queryPrefix="date=" />
+                </uri-relative-filter-group>
+            </intent-filter>
+        </activity-alias>
         <activity android:name=".HomeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
