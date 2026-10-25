@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Eq '^ *versionCode = 35 *$' app/build.gradle
-          grep -Eq "^ *versionName = '1.0.1' *$" app/build.gradle
+          grep -Eq "^ *versionName = '1.0.2' *$" app/build.gradle
           test -f docs/RELEASE_NOTES_v1.0.2.md
           if [[ -z "$HISSI_KEYSTORE_B64" || -z "$HISSI_KEYSTORE_PASSWORD" ]]; then
             echo "Release signing secrets are unavailable" >&2
