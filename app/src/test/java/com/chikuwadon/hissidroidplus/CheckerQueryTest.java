@@ -24,6 +24,37 @@ public class CheckerQueryTest {
         assertEquals("AbC123",q.id);
         assertEquals("news4vip",q.board);
     }
+    @Test public void parsesEdgePostSharedByChMateOrHaiagaru(){
+        String shared="https://bbs.eddibb.cc/test/read.cgi/liveedge/1761342000/1\\n"+
+                "1 (1) エッヂの名無しさん 2026/10/25(日) 06:11:31.090 ID:K/wziC9v9";
+        CheckerQuery q=CheckerQuery.fromSharedText(shared);
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("liveedge",q.board);
+        assertEquals("20261025",q.date);
+        assertEquals("K/wziC9v9",q.id);
+        assertEquals("",q.url);
+    }
+    @Test public void routesLegacyChMateExtrasFromKnownEdgeBoard(){
+        CheckerQuery q=CheckerQuery.edgeSearch("liveedge","20261025","ID: K/wziC9v9");
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("K/wziC9v9",q.id);
+        assertEquals("",q.url);
+        assertTrue(CheckerQuery.isKnownEdgeBoard("liveedge"));
+        assertFalse(CheckerQuery.isKnownEdgeBoard("news4vip"));
+    }
+    @Test public void domainlessEdgePostIsNotConvertedInto5chSearch(){
+        CheckerQuery q=CheckerQuery.fromSharedText(
+                "read.cgi/liveedge/1761342000/2\\n2026/10/25(日) 06:12 ID:M9NT8Y9PE");
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("M9NT8Y9PE",q.id);
+    }
+    @Test public void preservesOrdinary5chPostShare(){
+        CheckerQuery q=CheckerQuery.fromSharedText(
+                "https://example.5ch.net/test/read.cgi/news4vip/1761342000/1\\n"+
+                "2026/10/25(日) 06:11 ID:Example42");
+        assertEquals(CheckerQuery.Site.HISSI,q.site);
+        assertEquals("news4vip",q.board);
+    }
     @Test(expected=IllegalArgumentException.class) public void rejectsFakeDomain() {
         CheckerQuery.parseUrl("https://kyodemo.net.invalid/sdemo/b/e_e_liveedge/?hi=x&key=1792649855&date=20261022");
     }
