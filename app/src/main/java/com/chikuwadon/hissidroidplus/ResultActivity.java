@@ -280,20 +280,13 @@ public final class ResultActivity extends Activity {
         else finish();
     }
     private CheckerQuery extract(Intent incoming){
-        String url=incoming.getDataString();
-        if(url==null&&Intent.ACTION_SEND.equals(incoming.getAction())){
-            CharSequence shared=incoming.getCharSequenceExtra(Intent.EXTRA_TEXT);
-            if(shared!=null)url=shared.toString();
-        }
-        if(url!=null)return CheckerQuery.fromSharedText(url);
-        String board=incoming.getStringExtra("board");
-        String date=incoming.getStringExtra("date");
-        String id=incoming.getStringExtra("id");
-        // ChMate and Haiagaru's legacy checker action has no URL/site extra.
-        // The known Edge board must never be forwarded to 5ch/hissi.org.
-        if(CheckerQuery.isKnownEdgeBoard(board))
-            return CheckerQuery.edgeSearch(board,date,id);
-        return CheckerQuery.hissi(board,date,id);
+        CharSequence shared=incoming.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        return CheckerQuery.fromExternalPayload(
+            incoming.getDataString(),
+            shared==null?null:shared.toString(),
+            incoming.getStringExtra("board"),
+            incoming.getStringExtra("date"),
+            incoming.getStringExtra("id"));
     }
     private void updateHeader(){
         String source=query.site==CheckerQuery.Site.EDGE?"エッヂ":"5ch";
