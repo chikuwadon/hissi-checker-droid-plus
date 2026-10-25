@@ -71,9 +71,17 @@ public final class ResultMenuContractTest {
                 StandardCharsets.UTF_8);
         String adjacent="\"検索履歴\",\"ホーム画面に戻る\"";
         assertEquals(2,code.split(java.util.regex.Pattern.quote(adjacent),-1).length-1);
-        assertTrue(code.contains("else if(which==1)openHome();"));
-        assertTrue(code.contains("if(edge&&which==2)openEdgeAnalysis();"));
-        assertTrue(code.contains("else if(action==2)openExternalBrowser("));
+        assertTrue(code.contains("if(which==1){openHome();return;}"));
+        assertTrue(code.contains("if(edge&&which==2){openEdgeAnalysis();return;}"));
+        assertTrue(code.contains("switch(which-(edge?3:2))"));
+        assertTrue(code.contains("case 1:copyResultUrl();break;"));
+        assertTrue(code.contains("case 2:copySearchedId();break;"));
+        assertTrue(code.contains("case 3:copyWrittenThreads();break;"));
+        assertTrue(code.contains("case 4:copyAllVisible();break;"));
+        String order="\"URLをコピー\",\"IDをコピー\",";
+        assertEquals(2,code.split(java.util.regex.Pattern.quote(order),-1).length-1);
+        String listOrder="\"IDをコピー\",\\n";
+        assertTrue(code.contains("\"書き込みスレをコピー\",\"表示中のレスをすべてコピー\""));
         assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK|"));
         assertTrue(code.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP"));
     }
