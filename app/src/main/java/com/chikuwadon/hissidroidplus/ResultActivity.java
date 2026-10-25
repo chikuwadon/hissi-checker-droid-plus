@@ -155,8 +155,8 @@ public final class ResultActivity extends Activity {
         inboundEdgeSearch=query.site==CheckerQuery.Site.EDGE && query.url.isEmpty();
         status.setText(query.site==CheckerQuery.Site.EDGE?"エッヂ / 取得中…":"5ch / 取得中…");
         worker.execute(()->{
+            CheckerQuery resolved=query;
             try{
-                CheckerQuery resolved=query;
                 if(inboundEdgeSearch){
                     resolved=EdgeInboundSearch.resolve(query.board,query.date,query.id);
                     if(resolved==null){
@@ -192,17 +192,22 @@ public final class ResultActivity extends Activity {
                         showEmpty();
                     }
                 });
-            }catch(Exception e){runOnUiThread(()->{
-                if(isFinishing()||isDestroyed())return;
-                if(inboundEdgeSearch && query.url.isEmpty()){
-                    loading=false;
-                    showMessage("エッヂのID検索に失敗しました",
-                        e.getMessage()==null?"検索結果を取得できませんでした":e.getMessage(),
-                        "閉じる",this::exitResults,null,null);
-                }else if(query.site==CheckerQuery.Site.EDGE)loadEdgeWithWebView(
-                    (e.getMessage()==null?"通信失敗":e.getMessage())+" / "+HttpTransport.lastDiagnostic());
-                else showError(e.getMessage());
-            });}
+            }catch(Exception e){
+                final CheckerQuery lastResolved=resolved;
+                runOnUiThread(()->{
+                    if(isFinishing()||isDestroyed())return;
+                    if(inboundEdgeSearch && lastResolved.url.isEmpty()){
+                        loading=false;
+                        showMessage("エッヂのID検索に失敗しました",
+                            e.getMessage()==null?"検索結果を取得できませんでした":e.getMessage(),
+                            "閉じる",this::exitResults,null,null);
+                    }else if(lastResolved.site==CheckerQuery.Site.EDGE){
+                        query=lastResolved;
+                        loadEdgeWithWebView((e.getMessage()==null?"通信失敗":e.getMessage())+
+                            " / "+HttpTransport.lastDiagnostic());
+                    }else showError(e.getMessage());
+                });
+            }
         });
     }
     private void loadNextPage() {
