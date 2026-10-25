@@ -4,6 +4,29 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 
 public class CheckerQueryTest {
+    @Test public void acceptsKyodemoIndexUrlFromChMate(){
+        String url="https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=hi&k=id%3ATxxLmfrCk";
+        CheckerQuery q=CheckerQuery.parseUrl(url);
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("liveedge",q.board);
+        assertEquals("TxxLmfrCk",q.id);
+        assertEquals("",q.key);
+        assertEquals("",q.date);
+        assertEquals(url,q.url);
+        assertEquals(q.url,CheckerQuery.fromExternalPayload(url,null,null,null,null).url);
+    }
+    @Test public void indexUrlSupportsEncodedIdCharacters(){
+        CheckerQuery q=CheckerQuery.parseUrl(
+            "https://kyodemo.net/sdemo/b/e_e_liveedge/?bs=hi&k=id%3AAb%2B%2F12");
+        assertEquals("Ab+/12",q.id);
+        assertTrue(q.url.contains("id%3AAb%2B%2F12"));
+    }
+    @Test(expected=IllegalArgumentException.class) public void indexUrlRejectsUnknownSearchMode(){
+        CheckerQuery.parseUrl("https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=other&k=id%3ATxxLmfrCk");
+    }
+    @Test(expected=IllegalArgumentException.class) public void indexUrlRejectsFakeHost(){
+        CheckerQuery.parseUrl("https://www.kyodemo.net.evil.example/sdemo/b/e_e_liveedge/?bs=hi&k=id%3ATxxLmfrCk");
+    }
     @Test public void parsesEdgeSample() {
         CheckerQuery q=CheckerQuery.parseUrl("https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=Ar7vkh7JR&key=1792649855&date=20261022");
         assertEquals(CheckerQuery.Site.EDGE,q.site);
