@@ -84,6 +84,7 @@ public final class ResultActivity extends Activity {
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        if (redirectNonCheckerWebLink()) return;
         if (routeStandaloneLinkToOwnTask()) return;
         setContentView(R.layout.activity_results);
         AppTitle.apply(findViewById(R.id.toolbar_title));
@@ -245,6 +246,30 @@ public final class ResultActivity extends Activity {
                 });
             }
         });
+    }
+
+    /**
+     * Older Android versions cannot restrict App Links by query parameters.
+     * Keep non-ID kyodemo pages in a browser without showing an error page or
+     * triggering standalone-task routing.
+     */
+    private boolean redirectNonCheckerWebLink(){
+        Intent intent=getIntent();
+        if(intent==null || !Intent.ACTION_VIEW.equals(intent.getAction()) ||
+                intent.getData()==null)return false;
+        String url=intent.getDataString();
+        try{
+            java.net.URI uri=java.net.URI.create(url);
+            String host=uri.getHost();
+            if(host==null || (!host.equalsIgnoreCase("kyodemo.net") &&
+                    !host.equalsIgnoreCase("www.kyodemo.net")))return false;
+            CheckerQuery.parseUrl(url);
+            return false;
+        }catch(IllegalArgumentException invalid){
+            BrowserLauncher.open(this,url);
+            finish();
+            return true;
+        }
     }
 
     /**
