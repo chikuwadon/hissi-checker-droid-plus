@@ -78,7 +78,13 @@ public final class BrowserLauncher {
             Intent chooser=Intent.createChooser(base,"ブラウザで開く");
             if(Build.VERSION.SDK_INT>=29)
                 chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,
-                        new ComponentName[]{new ComponentName(activity,ResultActivity.class)});
+                        new ComponentName[]{
+                            new ComponentName(activity,ResultActivity.class),
+                            new ComponentName(activity.getPackageName(),
+                                    activity.getPackageName()+".LegacyEdgeLinkActivity"),
+                            new ComponentName(activity.getPackageName(),
+                                    activity.getPackageName()+".FilteredEdgeLinkActivity")
+                        });
             activity.startActivity(chooser);
             return true;
         }catch(Exception ignored){}
