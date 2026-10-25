@@ -126,6 +126,30 @@ public final class CheckerQuery {
         return null;
     }
 
+    /**
+     * Android Intent bridge shared by ChMate and Haiagaru.
+     * Prefer the source URI when provided, fall back to content and finally
+     * legacy board/date/ID extras when no source information is available.
+     */
+    public static CheckerQuery fromExternalPayload(String data,String shared,
+                                                    String board,String date,String id){
+        if(data!=null && !data.trim().isEmpty()){
+            Site origin=sourceFromThreadUrl(data.trim());
+            if(origin==Site.EDGE)return edgeSearch(board,date,id);
+            if(origin==Site.HISSI)return hissi(board,date,id);
+            return fromSharedText(data);
+        }
+        if(shared!=null && !shared.trim().isEmpty()){
+            Site origin=sourceFromThreadUrl(shared.trim());
+            if(origin==Site.EDGE)return edgeSearch(board,date,id);
+            if(origin==Site.HISSI)return hissi(board,date,id);
+            return fromSharedText(shared);
+        }
+        // No URL, so a host-based decision is impossible. Compatibility only.
+        if(isKnownEdgeBoard(board))return edgeSearch(board,date,id);
+        return hissi(board,date,id);
+    }
+
     /** Match the share text emitted by conventional bulletin board readers. */
     public static CheckerQuery fromSharedText(String shared) {
         if(shared==null||shared.isEmpty()) throw new IllegalArgumentException("共有データがありません");
