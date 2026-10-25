@@ -22,6 +22,8 @@ public final class CheckerResult {
     public String rank="";
     public String sourceUrl="";
     public String diagnostic="";
+    /** Optional copy-ready thread summary supplied by the source site. */
+    public String sourceThreadSummary="";
     public int reportedPostCount=-1;
     public int[] hourlyCounts;
     public int referencedCount=-1;
