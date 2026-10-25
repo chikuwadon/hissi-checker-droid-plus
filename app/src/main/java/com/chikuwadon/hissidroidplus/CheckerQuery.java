@@ -71,6 +71,15 @@ public final class CheckerQuery {
         if ((host.equalsIgnoreCase("kyodemo.net")||host.equalsIgnoreCase("www.kyodemo.net")) && "https".equals(uri.getScheme())) {
             Matcher match=EDGE_PATH.matcher(path);
             if(!match.matches())throw new IllegalArgumentException("エッヂ用のURLではありません");
+            // The site's own ID-index links use bs=hi&k=id%3A<id>.
+            // They are valid Edge checker searches but carry no thread key.
+            String bs=arg(uri.getRawQuery(),"bs"),search=arg(uri.getRawQuery(),"k");
+            if("hi".equals(bs) && search!=null && search.matches("(?i)id:[A-Za-z0-9+./_-]{1,64}")){
+                String searchedId=search.substring(3);
+                String canonicalSearch="https://www.kyodemo.net/sdemo/b/e_e_"+
+                        match.group(1)+"/?bs=hi&k="+enc("id:"+searchedId);
+                return new CheckerQuery(Site.EDGE,match.group(1),searchedId,"","",canonicalSearch);
+            }
             String id=arg(uri.getRawQuery(),"hi"),key=arg(uri.getRawQuery(),"key"),date=arg(uri.getRawQuery(),"date");
             if(id==null||!id.matches("[A-Za-z0-9+./_-]{1,64}")||key==null||!key.matches("\\d{10,20}"))throw new IllegalArgumentException("hiまたはkeyが不正です");
             checkDate(date);
