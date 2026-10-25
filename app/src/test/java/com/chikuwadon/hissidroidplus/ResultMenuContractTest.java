@@ -65,13 +65,14 @@ public final class ResultMenuContractTest {
         assertTrue(selectable.contains("setTextIsSelectable(true)"));
     }
 
-    @Test public void homeImmediatelyFollowsHistoryForBothSites() throws Exception {
+    @Test public void homePrecedesHistoryForBothSites() throws Exception {
         String code=new String(Files.readAllBytes(Paths.get(
                 "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
                 StandardCharsets.UTF_8);
-        String adjacent="\"検索履歴\",\"ホーム画面に戻る\"";
+        String adjacent="\"ホーム画面に戻る\",\"検索履歴\"";
         assertEquals(2,code.split(java.util.regex.Pattern.quote(adjacent),-1).length-1);
-        assertTrue(code.contains("if(which==1){openHome();return;}"));
+        assertTrue(code.contains("if(which==0){openHome();return;}"));
+        assertTrue(code.contains("if(which==1){startActivity(new Intent(this,HistoryActivity.class));return;}"));
         assertTrue(code.contains("if(edge&&which==2){openEdgeAnalysis();return;}"));
         assertTrue(code.contains("switch(which-(edge?3:2))"));
         assertTrue(code.contains("case 1:copyResultUrl();break;"));
