@@ -109,19 +109,24 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
             boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
             String[] labels=edge
-                    ? new String[]{"検索履歴","ホーム画面に戻る","書き込み分析","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"}
-                    : new String[]{"検索履歴","ホーム画面に戻る","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+                    ? new String[]{"検索履歴","ホーム画面に戻る","書き込み分析",
+                        "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
+                        "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"}
+                    : new String[]{"検索履歴","ホーム画面に戻る",
+                        "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
+                        "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which<0||which>=labels.length)return;
-                if(which==0)startActivity(new Intent(this,HistoryActivity.class));
-                else if(which==1)openHome();
-                else {
-                    int action=edge?which-1:which;
-                    if(edge&&which==2)openEdgeAnalysis();
-                    else if(action==2)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                    else if(action==3)copySearchedId();
-                    else if(action==4)copyAllVisible();
-                    else exitResults();
+                if(which==0){startActivity(new Intent(this,HistoryActivity.class));return;}
+                if(which==1){openHome();return;}
+                if(edge&&which==2){openEdgeAnalysis();return;}
+                switch(which-(edge?3:2)){
+                    case 0:openExternalBrowser(resultUrl());break;
+                    case 1:copyResultUrl();break;
+                    case 2:copySearchedId();break;
+                    case 3:copyWrittenThreads();break;
+                    case 4:copyAllVisible();break;
+                    default:exitResults();break;
                 }
             });
         });
@@ -660,6 +665,27 @@ public final class ResultActivity extends Activity {
         if(item.getItemId()==1){copyAllVisible();return true;}
         if(item.getItemId()==2){openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);return true;}
         return super.onOptionsItemSelected(item);
+    }
+    private String resultUrl(){
+        if(!result.sourceUrl.isEmpty())return result.sourceUrl;
+        if(query==null)return "";
+        if(!query.url.isEmpty())return query.url;
+        if(query.site==CheckerQuery.Site.HISSI && !query.date.isEmpty() &&
+                !query.id.isEmpty())return HissiAdapter.resultUrl(query.board,query.date,query.id);
+        return "";
+    }
+    private void copyResultUrl(){
+        String url=resultUrl();
+        if(url.isEmpty()){Toast.makeText(this,"URLがありません",Toast.LENGTH_SHORT).show();return;}
+        copy(url,false);
+    }
+    private void copyWrittenThreads(){
+        String value=ThreadSummaryFormatter.format(query,result);
+        if(value.isEmpty()){
+            Toast.makeText(this,"書き込みスレがありません",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        copy(value,false);
     }
     private void copySearchedId(){
         String id=query==null?"":query.id;
