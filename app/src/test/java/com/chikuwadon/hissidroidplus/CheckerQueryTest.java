@@ -27,6 +27,14 @@ public class CheckerQueryTest {
     @Test(expected=IllegalArgumentException.class) public void indexUrlRejectsFakeHost(){
         CheckerQuery.parseUrl("https://www.kyodemo.net.evil.example/sdemo/b/e_e_liveedge/?bs=hi&k=id%3ATxxLmfrCk");
     }
+    @Test(expected=IllegalArgumentException.class)
+    public void rejectNonIdKyodemoSearch(){
+        CheckerQuery.parseUrl("https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k=keyword");
+    }
+    @Test(expected=IllegalArgumentException.class)
+    public void rejectKyodemoThreadLink(){
+        CheckerQuery.parseUrl("https://www.kyodemo.net/sdemo/r/e_e_liveedge/1792777155/");
+    }
     @Test public void parsesEdgeSample() {
         CheckerQuery q=CheckerQuery.parseUrl("https://www.kyodemo.net/sdemo/b/e_e_liveedge/?hi=Ar7vkh7JR&key=1792649855&date=20261022");
         assertEquals(CheckerQuery.Site.EDGE,q.site);
