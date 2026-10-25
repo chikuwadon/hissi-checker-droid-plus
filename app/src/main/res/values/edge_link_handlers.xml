@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Legacy Android cannot filter URL query parameters in the manifest. -->
+    <bool name="enable_legacy_edge_links">true</bool>
+    <bool name="enable_filtered_edge_links">false</bool>
+</resources>

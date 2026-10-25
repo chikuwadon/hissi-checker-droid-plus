@@ -5,7 +5,7 @@
 **Hissi Checker Droid Plus**
 
 [![Latest Release](https://img.shields.io/github/v/release/chikuwadon/hissi-checker-droid-plus?label=Release&color=0D9488&style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/latest)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.1/HissiCheckerDroidPlus-v1.0.1.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.2/HissiCheckerDroidPlus-v1.0.2.apk)
 
 </div>
 
@@ -26,7 +26,7 @@
 | 投稿情報 | 投稿件数、スレ別・名前別の件数、時間帯別の投稿グラフ |
 | レス操作 | タップで各種コピー・スレを開く、長押しでテキストの範囲選択とコピー |
 | 履歴 | 直近100件の検索履歴、お気に入り、並べ替え、複数選択削除 |
-| 外部連携 | ChMateなどの対応アプリやブラウザでスレッドを開く |
+| 外部連携 | ChMate・Haiagaruなどの対応アプリやブラウザでスレッドを開く、エッヂのID検索リンクをアプリで受け取る |
 | 表示設定 | ダーク / ライト / システムテーマ、コンパクトな一覧表示 |
 
 ## 使い方
@@ -47,7 +47,7 @@
 
 日付指定ありでは、投稿日時とIDを確認し、条件に合うレスを表示します。日付指定なしでは、検索サイトが返した候補スレッドの結果を開きます。サイトの検索対象すべてを網羅するものではありません。
 
-必死チェッカーのURLが分かっている場合は、ホーム画面下部の入力欄から直接開くこともできます。
+必死チェッカーのURLが分かっている場合は、ホーム画面下部の入力欄から直接開くこともできます。ChMate / HaiagaruからエッヂのID検索を開く操作にも対応しています。一般検索ページやスレッドページは対象外です。
 
 ### 検索結果を見る
 
@@ -59,7 +59,7 @@
 
 投稿件数や時間帯別のグラフなども表示できます。表示内容は検索先から取得できた情報によって異なります。
 
-右上メニューからは、検索履歴、ホーム画面へ戻る、外部ブラウザで開く、IDのコピーなどを利用できます。エッヂでは、サイトが提供する書き込み分析も確認できます。
+右上メニューからは、ホーム画面へ戻る、検索履歴、外部ブラウザで開く、URL・ID・書き込みスレのコピー、表示中のレスの一括コピーなどを利用できます。エッヂでは、サイトが提供する書き込み分析も確認できます。
 
 ### 履歴とお気に入り
 
@@ -80,7 +80,7 @@
 ## 動作環境
 
 - Android 8.0以降
-- バージョン：1.0.1
+- バージョン：1.0.2
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意

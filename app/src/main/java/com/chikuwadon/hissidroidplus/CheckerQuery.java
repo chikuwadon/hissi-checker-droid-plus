@@ -38,6 +38,23 @@ public final class CheckerQuery {
         if(cleaned.isEmpty()) throw new IllegalArgumentException("IDが不正です");
         return new CheckerQuery(Site.HISSI,board,cleaned,date,"","");
     }
+    /** Edge searches received from an external client lack a checker page key. */
+    public static CheckerQuery edgeSearch(String board,String date,String id){
+        if(board==null || !BOARD.matcher(board).matches())
+            throw new IllegalArgumentException("エッヂの板名が不正です");
+        checkDate(date);
+        if(id==null)throw new IllegalArgumentException("エッヂのIDが不正です");
+        String cleaned=id.trim().replaceFirst("(?i)^ID\\s*[:：]\\s*","").trim();
+        if(!cleaned.matches("[A-Za-z0-9+./_-]{1,64}"))
+            throw new IllegalArgumentException("エッヂのIDが不正です");
+        return new CheckerQuery(Site.EDGE,board,cleaned,date,"","");
+    }
+
+    /** Only unambiguous Edge board IDs are inferred from legacy extras. */
+    public static boolean isKnownEdgeBoard(String board){
+        return "liveedge".equalsIgnoreCase(board);
+    }
+
     public static CheckerQuery parseUrl(String input) {
         if(input==null)throw new IllegalArgumentException("URLがありません");
         String url=findUrl(input);
@@ -54,6 +71,15 @@ public final class CheckerQuery {
         if ((host.equalsIgnoreCase("kyodemo.net")||host.equalsIgnoreCase("www.kyodemo.net")) && "https".equals(uri.getScheme())) {
             Matcher match=EDGE_PATH.matcher(path);
             if(!match.matches())throw new IllegalArgumentException("エッヂ用のURLではありません");
+            // The site's own ID-index links use bs=hi&k=id%3A<id>.
+            // They are valid Edge checker searches but carry no thread key.
+            String bs=arg(uri.getRawQuery(),"bs"),search=arg(uri.getRawQuery(),"k");
+            if("hi".equals(bs) && search!=null && search.matches("(?i)id:[A-Za-z0-9+./_-]{1,64}")){
+                String searchedId=search.substring(3);
+                String canonicalSearch="https://www.kyodemo.net/sdemo/b/e_e_"+
+                        match.group(1)+"/?bs=hi&k="+enc("id:"+searchedId);
+                return new CheckerQuery(Site.EDGE,match.group(1),searchedId,"","",canonicalSearch);
+            }
             String id=arg(uri.getRawQuery(),"hi"),key=arg(uri.getRawQuery(),"key"),date=arg(uri.getRawQuery(),"date");
             if(id==null||!id.matches("[A-Za-z0-9+./_-]{1,64}")||key==null||!key.matches("\\d{10,20}"))throw new IllegalArgumentException("hiまたはkeyが不正です");
             checkDate(date);
@@ -65,18 +91,96 @@ public final class CheckerQuery {
         }
         throw new IllegalArgumentException("未対応のURLです");
     }
+    /** Identify the originating service by the URL's real host, never board name. */
+    static Site sourceFromThreadUrl(String url){
+        if(url==null)return null;
+        try{
+            URI uri=URI.create(url.replaceAll("[.,。]+$",""));
+            if(!"http".equalsIgnoreCase(uri.getScheme()) &&
+                    !"https".equalsIgnoreCase(uri.getScheme()))return null;
+            if(uri.getRawUserInfo()!=null || uri.getPort()!=-1)return null;
+            String host=uri.getHost(),path=uri.getPath();
+            if(host==null||path==null)return null;
+            if(host.equalsIgnoreCase("bbs.eddibb.cc") &&
+                    path.matches("^/(?:test/read\\.cgi/)?[A-Za-z0-9_]+/[0-9]{10,20}(?:/.*)?$"))
+                return Site.EDGE;
+            if((host.equalsIgnoreCase("kyodemo.net")||
+                    host.equalsIgnoreCase("www.kyodemo.net")) &&
+                    path.matches("^/sdemo/r/e_e_[A-Za-z0-9_]+/[0-9]{10,20}(?:/.*)?$"))
+                return Site.EDGE;
+            String lower=host.toLowerCase(Locale.ROOT);
+            if((lower.equals("5ch.net")||lower.endsWith(".5ch.net")||
+                    lower.equals("2ch.net")||lower.endsWith(".2ch.net")||
+                    lower.equals("bbspink.com")||lower.endsWith(".bbspink.com")) &&
+                    path.matches("^/test/read\\.cgi/[A-Za-z0-9_]+/[0-9]{10,20}(?:/.*)?$"))
+                return Site.HISSI;
+        }catch(IllegalArgumentException ignored){}
+        return null;
+    }
+
+    private static Site sourceFromShare(String text,String board){
+        Matcher urls=Pattern.compile("https?://[^\\s<>'\\\"）]+",Pattern.CASE_INSENSITIVE)
+                .matcher(text.replace("&amp;","&"));
+        while(urls.find()){
+            String url=urls.group();
+            Site site=sourceFromThreadUrl(url);
+            if(site==null)continue;
+            // Only accept a source whose URL actually contains the parsed board.
+            try{
+                String path=URI.create(url).getPath();
+                if(site==Site.EDGE && path.contains("/e_e_"+board+"/"))return site;
+                if(path.contains("/"+board+"/"))return site;
+            }catch(IllegalArgumentException ignored){}
+        }
+        return null;
+    }
+
+    /**
+     * Android Intent bridge shared by ChMate and Haiagaru.
+     * Prefer the source URI when provided, fall back to content and finally
+     * legacy board/date/ID extras when no source information is available.
+     */
+    public static CheckerQuery fromExternalPayload(String data,String shared,
+                                                    String board,String date,String id){
+        if(data!=null && !data.trim().isEmpty()){
+            Site origin=sourceFromThreadUrl(data.trim());
+            if(origin==Site.EDGE)return edgeSearch(board,date,id);
+            if(origin==Site.HISSI)return hissi(board,date,id);
+            return fromSharedText(data);
+        }
+        if(shared!=null && !shared.trim().isEmpty()){
+            Site origin=sourceFromThreadUrl(shared.trim());
+            if(origin==Site.EDGE)return edgeSearch(board,date,id);
+            if(origin==Site.HISSI)return hissi(board,date,id);
+            return fromSharedText(shared);
+        }
+        // No URL, so a host-based decision is impossible. Compatibility only.
+        if(isKnownEdgeBoard(board))return edgeSearch(board,date,id);
+        return hissi(board,date,id);
+    }
+
     /** Match the share text emitted by conventional bulletin board readers. */
     public static CheckerQuery fromSharedText(String shared) {
         if(shared==null||shared.isEmpty()) throw new IllegalArgumentException("共有データがありません");
-        if(shared.contains("kyodemo.net/sdemo/")||shared.contains("hissi.org/read.php/"))return parseUrl(shared);
+        if(shared.contains("kyodemo.net/sdemo/b/")||shared.contains("hissi.org/read.php/"))
+            return parseUrl(shared);
         Matcher board=SHARED_BOARD.matcher(shared);
         Matcher date=SHARED_DATE.matcher(shared);
         Matcher id=SHARED_ID.matcher(shared);
-        if(!board.find()||!date.find()||!id.find())throw new IllegalArgumentException("板・日付・IDを共有テキストから取得できません");
+        if(!board.find()||!date.find()||!id.find())
+            throw new IllegalArgumentException("板・日付・IDを共有テキストから取得できません");
         String normalized=String.format(Locale.ROOT,"%s%02d%02d",date.group(1),
                 Integer.parseInt(date.group(2)),Integer.parseInt(date.group(3)));
+        Site source=sourceFromShare(shared,board.group(1));
+        if(source==Site.EDGE)return edgeSearch(board.group(1),normalized,id.group(1));
+        if(source==Site.HISSI)return hissi(board.group(1),normalized,id.group(1));
+        // Legacy payloads sometimes omit the host entirely. This remains a
+        // compatibility fallback, not the primary identification method.
+        if(isKnownEdgeBoard(board.group(1)))
+            return edgeSearch(board.group(1),normalized,id.group(1));
         return hissi(board.group(1),normalized,id.group(1));
     }
+
     private static String findUrl(String shared) {
         Matcher m=Pattern.compile("https?://[^\\s<>'\\\"）]+",Pattern.CASE_INSENSITIVE).matcher(shared.replace("&amp;","&"));
         if(!m.find())throw new IllegalArgumentException("URLが見つかりません");

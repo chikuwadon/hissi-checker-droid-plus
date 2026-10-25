@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only matching ID checker links are advertised on Android 15+. -->
+    <bool name="enable_legacy_edge_links">false</bool>
+    <bool name="enable_filtered_edge_links">true</bool>
+</resources>

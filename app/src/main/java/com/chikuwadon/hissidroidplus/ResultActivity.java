@@ -49,7 +49,7 @@ public final class ResultActivity extends Activity {
     public static final String EXTRA_VERIFY_EDGE_SEARCH_DATE="verify_edge_search_date";
     private boolean verifyEdgeSearchDate(){
         return query!=null && query.site==CheckerQuery.Site.EDGE &&
-                getIntent().getBooleanExtra(EXTRA_VERIFY_EDGE_SEARCH_DATE,false);
+                (inboundEdgeSearch || getIntent().getBooleanExtra(EXTRA_VERIFY_EDGE_SEARCH_DATE,false));
     }
     private void showWrongDay(){
         loading=false;
@@ -60,6 +60,7 @@ public final class ResultActivity extends Activity {
 
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private CheckerQuery query;
+    private boolean inboundEdgeSearch;
     private CheckerResult result=new CheckerResult();
     private List<Map.Entry<String,String>> threadRows=new ArrayList<>();
     private Map<String,Integer> threadCounts=new java.util.LinkedHashMap<>();
@@ -83,6 +84,7 @@ public final class ResultActivity extends Activity {
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        if (redirectNonCheckerWebLink()) return;
         if (routeStandaloneLinkToOwnTask()) return;
         setContentView(R.layout.activity_results);
         AppTitle.apply(findViewById(R.id.toolbar_title));
@@ -108,19 +110,24 @@ public final class ResultActivity extends Activity {
         findViewById(R.id.toolbar_more).setOnClickListener(v -> {
             boolean edge=query!=null && query.site==CheckerQuery.Site.EDGE;
             String[] labels=edge
-                    ? new String[]{"検索履歴","ホーム画面に戻る","書き込み分析","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"}
-                    : new String[]{"検索履歴","ホーム画面に戻る","検索結果を外部ブラウザで開く","IDをコピー","表示中のレスをすべてコピー","閉じる"};
+                    ? new String[]{"ホーム画面に戻る","検索履歴","書き込み分析",
+                        "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
+                        "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"}
+                    : new String[]{"ホーム画面に戻る","検索履歴",
+                        "検索結果を外部ブラウザで開く","URLをコピー","IDをコピー",
+                        "書き込みスレをコピー","表示中のレスをすべてコピー","閉じる"};
             ThemedMenu.showOverflow(this,v,labels,which -> {
                 if(which<0||which>=labels.length)return;
-                if(which==0)startActivity(new Intent(this,HistoryActivity.class));
-                else if(which==1)openHome();
-                else {
-                    int action=edge?which-1:which;
-                    if(edge&&which==2)openEdgeAnalysis();
-                    else if(action==2)openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);
-                    else if(action==3)copySearchedId();
-                    else if(action==4)copyAllVisible();
-                    else exitResults();
+                if(which==0){openHome();return;}
+                if(which==1){startActivity(new Intent(this,HistoryActivity.class));return;}
+                if(edge&&which==2){openEdgeAnalysis();return;}
+                switch(which-(edge?3:2)){
+                    case 0:openExternalBrowser(resultUrl());break;
+                    case 1:copyResultUrl();break;
+                    case 2:copySearchedId();break;
+                    case 3:copyWrittenThreads();break;
+                    case 4:copyAllVisible();break;
+                    default:exitResults();break;
                 }
             });
         });
@@ -151,16 +158,34 @@ public final class ResultActivity extends Activity {
         });
         try {query=extract(getIntent());}
         catch(Exception e){showError(e.getMessage());return;}
+        inboundEdgeSearch=query.site==CheckerQuery.Site.EDGE && query.url.isEmpty();
         status.setText(query.site==CheckerQuery.Site.EDGE?"エッヂ / 取得中…":"5ch / 取得中…");
         worker.execute(()->{
+            CheckerQuery resolved=query;
             try{
-                CheckerResult parsed=query.site==CheckerQuery.Site.EDGE?new EdgeAdapter().load(query):new HissiAdapter().load(query);
+                if(inboundEdgeSearch){
+                    resolved=EdgeInboundSearch.resolve(query.board,query.date,query.id);
+                    if(resolved==null){
+                        runOnUiThread(()->{
+                            if(isFinishing()||isDestroyed())return;
+                            loading=false;
+                            showMessage("該当する投稿が見つかりませんでした",
+                                "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
+                                "閉じる",this::exitResults,null,null);
+                        });
+                        return;
+                    }
+                }
+                final CheckerQuery target=resolved;
+                CheckerResult parsed=target.site==CheckerQuery.Site.EDGE
+                        ?new EdgeAdapter().load(target):new HissiAdapter().load(target);
                 boolean wrongDay=verifyEdgeSearchDate() && !parsed.posts.isEmpty();
                 CheckerResult received=wrongDay
-                        ?EdgeSearchValidation.matchingPosts(parsed,query.date,query.id):parsed;
+                        ?EdgeSearchValidation.matchingPosts(parsed,target.date,target.id):parsed;
                 boolean rejected=wrongDay && received.posts.isEmpty();
                 runOnUiThread(()->{
                     if(isFinishing()||isDestroyed())return;
+                    query=target;
                     if(rejected){showWrongDay();return;}
                     if(query.site==CheckerQuery.Site.EDGE && received.posts.isEmpty()){
                         edgeDiagnostic=received.diagnostic;
@@ -173,12 +198,22 @@ public final class ResultActivity extends Activity {
                         showEmpty();
                     }
                 });
-            }catch(Exception e){runOnUiThread(()->{
-                if(isFinishing()||isDestroyed())return;
-                if(query.site==CheckerQuery.Site.EDGE)loadEdgeWithWebView(
-                    (e.getMessage()==null?"通信失敗":e.getMessage())+" / "+HttpTransport.lastDiagnostic());
-                else showError(e.getMessage());
-            });}
+            }catch(Exception e){
+                final CheckerQuery lastResolved=resolved;
+                runOnUiThread(()->{
+                    if(isFinishing()||isDestroyed())return;
+                    if(inboundEdgeSearch && lastResolved.url.isEmpty()){
+                        loading=false;
+                        showMessage("エッヂのID検索に失敗しました",
+                            e.getMessage()==null?"検索結果を取得できませんでした":e.getMessage(),
+                            "閉じる",this::exitResults,null,null);
+                    }else if(lastResolved.site==CheckerQuery.Site.EDGE){
+                        query=lastResolved;
+                        loadEdgeWithWebView((e.getMessage()==null?"通信失敗":e.getMessage())+
+                            " / "+HttpTransport.lastDiagnostic());
+                    }else showError(e.getMessage());
+                });
+            }
         });
     }
     private void loadNextPage() {
@@ -211,6 +246,30 @@ public final class ResultActivity extends Activity {
                 });
             }
         });
+    }
+
+    /**
+     * Older Android versions cannot restrict App Links by query parameters.
+     * Keep non-ID kyodemo pages in a browser without showing an error page or
+     * triggering standalone-task routing.
+     */
+    private boolean redirectNonCheckerWebLink(){
+        Intent intent=getIntent();
+        if(intent==null || !Intent.ACTION_VIEW.equals(intent.getAction()) ||
+                intent.getData()==null)return false;
+        String url=intent.getDataString();
+        try{
+            java.net.URI uri=java.net.URI.create(url);
+            String host=uri.getHost();
+            if(host==null || (!host.equalsIgnoreCase("kyodemo.net") &&
+                    !host.equalsIgnoreCase("www.kyodemo.net")))return false;
+            CheckerQuery.parseUrl(url);
+            return false;
+        }catch(IllegalArgumentException invalid){
+            BrowserLauncher.open(this,url);
+            finish();
+            return true;
+        }
     }
 
     /**
@@ -251,13 +310,13 @@ public final class ResultActivity extends Activity {
         else finish();
     }
     private CheckerQuery extract(Intent incoming){
-        String url=incoming.getDataString();
-        if(url==null&&Intent.ACTION_SEND.equals(incoming.getAction())){
-            CharSequence shared=incoming.getCharSequenceExtra(Intent.EXTRA_TEXT);
-            if(shared!=null)url=shared.toString();
-        }
-        if(url!=null)return CheckerQuery.fromSharedText(url);
-        return CheckerQuery.hissi(incoming.getStringExtra("board"),incoming.getStringExtra("date"),incoming.getStringExtra("id"));
+        CharSequence shared=incoming.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        return CheckerQuery.fromExternalPayload(
+            incoming.getDataString(),
+            shared==null?null:shared.toString(),
+            incoming.getStringExtra("board"),
+            incoming.getStringExtra("date"),
+            incoming.getStringExtra("id"));
     }
     private void updateHeader(){
         String source=query.site==CheckerQuery.Site.EDGE?"エッヂ":"5ch";
@@ -631,6 +690,27 @@ public final class ResultActivity extends Activity {
         if(item.getItemId()==1){copyAllVisible();return true;}
         if(item.getItemId()==2){openExternalBrowser(result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl);return true;}
         return super.onOptionsItemSelected(item);
+    }
+    private String resultUrl(){
+        if(!result.sourceUrl.isEmpty())return result.sourceUrl;
+        if(query==null)return "";
+        if(!query.url.isEmpty())return query.url;
+        if(query.site==CheckerQuery.Site.HISSI && !query.date.isEmpty() &&
+                !query.id.isEmpty())return HissiAdapter.resultUrl(query.board,query.date,query.id);
+        return "";
+    }
+    private void copyResultUrl(){
+        String url=resultUrl();
+        if(url.isEmpty()){Toast.makeText(this,"URLがありません",Toast.LENGTH_SHORT).show();return;}
+        copy(url,false);
+    }
+    private void copyWrittenThreads(){
+        String value=ThreadSummaryFormatter.format(query,result);
+        if(value.isEmpty()){
+            Toast.makeText(this,"書き込みスレがありません",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        copy(value,false);
     }
     private void copySearchedId(){
         String id=query==null?"":query.id;

@@ -1,4 +1,4 @@
-# 必死チェッカーdroid + v1.0.1
+# v1.0.1
 
 ## ✨ 新機能
 
@@ -20,11 +20,3 @@
 - エッヂの検索結果取得と書き込み分析の処理を最適化し、画面操作への影響を軽減しました。
 - 通信処理とメモリ管理を見直し、動作の安定性を向上させました。
 - 不要な内部処理を整理し、アプリ全体のパフォーマンスを改善しました。
-
-## 動作環境
-
-Android 8.0以降に対応しています。
-
-検索結果や書き込み分析の取得は外部サイトの状態に依存し、アクセス制限や仕様変更によって一部利用できない場合があります。
-
-[詳しい使い方](https://github.com/chikuwadon/hissi-checker-droid-plus/blob/v1.0.1/README.md) / [変更履歴](https://github.com/chikuwadon/hissi-checker-droid-plus/blob/v1.0.1/CHANGELOG.md)

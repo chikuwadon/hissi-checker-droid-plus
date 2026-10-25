@@ -1,0 +1,93 @@
+name: Publish v1.0.2
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Only the explicit, authorized release merge may trigger publishing.
+    if: >-
+      ${{ github.repository == 'chikuwadon/hissi-checker-droid-plus' &&
+          startsWith(github.event.head_commit.message, 'release: v1.0.2') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.8.2'
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Verify stable version, test, lint and build signed APK
+        shell: bash
+        env:
+          HISSI_KEYSTORE_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
+          HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          grep -Eq '^ *versionCode = 35 *$' app/build.gradle
+          grep -Eq "^ *versionName = '1.0.2' *$" app/build.gradle
+          test -f docs/RELEASE_NOTES_v1.0.2.md
+          if [[ -z "$HISSI_KEYSTORE_B64" || -z "$HISSI_KEYSTORE_PASSWORD" ]]; then
+            echo "Release signing secrets are unavailable" >&2
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/hissi-release-signing.p12"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$HISSI_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          HISSI_KEYSTORE_PATH="$KEYSTORE" HISSI_KEYSTORE_PASSWORD="$HISSI_KEYSTORE_PASSWORD" \
+            gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          mv "$APK" HissiCheckerDroidPlus-v1.0.2.apk
+      - name: Verify signing identity against v1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download v1.0.1 --pattern 'HissiCheckerDroidPlus-v1.0.1.apk' --dir "$RUNNER_TEMP"
+          SIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          previous=$("$SIGNER" verify --print-certs "$RUNNER_TEMP/HissiCheckerDroidPlus-v1.0.1.apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          current=$("$SIGNER" verify --print-certs HissiCheckerDroidPlus-v1.0.2.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if [[ -z "$previous" || -z "$current" || "$previous" != "$current" ]]; then
+            echo "Release signing certificate does not match v1.0.1" >&2
+            exit 1
+          fi
+          echo "Signing certificate matches the published v1.0.1 APK"
+      - name: Create v1.0.2 tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.2 >/dev/null 2>&1; then
+            echo "Release v1.0.2 already exists; refusing to overwrite" >&2
+            exit 1
+          fi
+          git fetch --tags
+          if git rev-parse --verify refs/tags/v1.0.2 >/dev/null 2>&1; then
+            if [[ "$(git rev-list -n 1 v1.0.2)" != "$GITHUB_SHA" ]]; then
+              echo "Tag v1.0.2 refers to another commit; refusing to move" >&2
+              exit 1
+            fi
+          else
+            git tag v1.0.2 "$GITHUB_SHA"
+            git push origin refs/tags/v1.0.2
+          fi
+          gh release create v1.0.2 HissiCheckerDroidPlus-v1.0.2.apk \
+            --verify-tag --title "v1.0.2" \
+            --notes-file docs/RELEASE_NOTES_v1.0.2.md --latest
