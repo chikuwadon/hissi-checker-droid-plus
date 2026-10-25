@@ -40,6 +40,9 @@ public final class ThreadSummaryFormatter {
             if(!found.isEmpty()){id=found.substring(3);break;}
         }
         String url=result.sourceUrl.isEmpty()?(query==null?"":query.url):result.sourceUrl;
+        if(url.isEmpty() && query!=null && query.site==CheckerQuery.Site.HISSI &&
+                !query.date.isEmpty() && !query.id.isEmpty())
+            url=HissiAdapter.resultUrl(query.board,query.date,query.id);
         StringBuilder b=new StringBuilder();
         if(date!=null && date.matches("\\d{8}"))
             b.append("日付: ").append(date,0,4).append('/').append(date,4,6)
