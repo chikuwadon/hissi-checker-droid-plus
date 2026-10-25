@@ -81,6 +81,9 @@ public final class EdgeAdapter {
         Element summary=doc.selectFirst("textarea#copy-mess");
         if(summary!=null){
             String info=summary.val();
+            if(info.length()<=100000 && info.contains("書き込みスレッド一覧") &&
+                    info.contains("ID:"))
+                result.sourceThreadSummary=info.trim();
             Matcher match=SUMMARY.matcher(info);
             while(match.find()){
                 int n;
