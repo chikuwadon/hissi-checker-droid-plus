@@ -38,6 +38,23 @@ public final class CheckerQuery {
         if(cleaned.isEmpty()) throw new IllegalArgumentException("IDが不正です");
         return new CheckerQuery(Site.HISSI,board,cleaned,date,"","");
     }
+    /** Edge searches received from an external client lack a checker page key. */
+    public static CheckerQuery edgeSearch(String board,String date,String id){
+        if(board==null || !BOARD.matcher(board).matches())
+            throw new IllegalArgumentException("エッヂの板名が不正です");
+        checkDate(date);
+        if(id==null)throw new IllegalArgumentException("エッヂのIDが不正です");
+        String cleaned=id.trim().replaceFirst("(?i)^ID\\s*[:：]\\s*","").trim();
+        if(!cleaned.matches("[A-Za-z0-9+./_-]{1,64}"))
+            throw new IllegalArgumentException("エッヂのIDが不正です");
+        return new CheckerQuery(Site.EDGE,board,cleaned,date,"","");
+    }
+
+    /** Only unambiguous Edge board IDs are inferred from legacy extras. */
+    public static boolean isKnownEdgeBoard(String board){
+        return "liveedge".equalsIgnoreCase(board);
+    }
+
     public static CheckerQuery parseUrl(String input) {
         if(input==null)throw new IllegalArgumentException("URLがありません");
         String url=findUrl(input);
@@ -68,15 +85,41 @@ public final class CheckerQuery {
     /** Match the share text emitted by conventional bulletin board readers. */
     public static CheckerQuery fromSharedText(String shared) {
         if(shared==null||shared.isEmpty()) throw new IllegalArgumentException("共有データがありません");
-        if(shared.contains("kyodemo.net/sdemo/")||shared.contains("hissi.org/read.php/"))return parseUrl(shared);
+        // Explicit checker pages carry a validated canonical URL.
+        if(shared.contains("kyodemo.net/sdemo/b/")||shared.contains("hissi.org/read.php/"))
+            return parseUrl(shared);
         Matcher board=SHARED_BOARD.matcher(shared);
         Matcher date=SHARED_DATE.matcher(shared);
         Matcher id=SHARED_ID.matcher(shared);
         if(!board.find()||!date.find()||!id.find())throw new IllegalArgumentException("板・日付・IDを共有テキストから取得できません");
         String normalized=String.format(Locale.ROOT,"%s%02d%02d",date.group(1),
                 Integer.parseInt(date.group(2)),Integer.parseInt(date.group(3)));
+        // ChMate/Haiagaru share Edge posts using a thread link plus a
+        // post header. Do not silently send these IDs to 5ch/hissi.org.
+        if(isEdgePostShare(shared))return edgeSearch(board.group(1),normalized,id.group(1));
         return hissi(board.group(1),normalized,id.group(1));
     }
+    private static boolean isEdgePostShare(String shared){
+        Matcher url=Pattern.compile("https?://[^\\s<>'\\\"）]+",Pattern.CASE_INSENSITIVE)
+                .matcher(shared);
+        while(url.find()){
+            try{
+                URI parsed=URI.create(url.group().replaceAll("[.,。]+$",""));
+                String host=parsed.getHost(),path=parsed.getPath();
+                if(host==null||path==null||parsed.getRawUserInfo()!=null||parsed.getPort()!=-1)
+                    continue;
+                if(host.equalsIgnoreCase("bbs.eddibb.cc") &&
+                        path.matches("^/(?:test/read\\.cgi/)?[A-Za-z0-9_]+/[0-9]{10,20}(?:/.*)?$"))
+                    return true;
+                if((host.equalsIgnoreCase("kyodemo.net")||
+                        host.equalsIgnoreCase("www.kyodemo.net")) &&
+                        path.matches("^/sdemo/r/e_e_[A-Za-z0-9_]+/[0-9]{10,20}(?:/.*)?$"))
+                    return true;
+            }catch(IllegalArgumentException ignored){}
+        }
+        return false;
+    }
+
     private static String findUrl(String shared) {
         Matcher m=Pattern.compile("https?://[^\\s<>'\\\"）]+",Pattern.CASE_INSENSITIVE).matcher(shared.replace("&amp;","&"));
         if(!m.find())throw new IllegalArgumentException("URLが見つかりません");
