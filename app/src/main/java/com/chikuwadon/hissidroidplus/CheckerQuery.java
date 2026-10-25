@@ -96,7 +96,8 @@ public final class CheckerQuery {
                 Integer.parseInt(date.group(2)),Integer.parseInt(date.group(3)));
         // ChMate/Haiagaru share Edge posts using a thread link plus a
         // post header. Do not silently send these IDs to 5ch/hissi.org.
-        if(isEdgePostShare(shared))return edgeSearch(board.group(1),normalized,id.group(1));
+        if(isEdgePostShare(shared)||isKnownEdgeBoard(board.group(1)))
+            return edgeSearch(board.group(1),normalized,id.group(1));
         return hissi(board.group(1),normalized,id.group(1));
     }
     private static boolean isEdgePostShare(String shared){
