@@ -49,7 +49,7 @@ jobs:
             app/build/outputs/apk/release/app-release.apk
       - name: Upload signed QA APK
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hissi-checker-droid-plus-v1.0.2-release-candidate-signed
           path: app/build/outputs/apk/release/app-release.apk
