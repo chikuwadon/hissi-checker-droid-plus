@@ -19,7 +19,7 @@ jobs:
       - uses: android-actions/setup-android@v4
         with:
           packages: ''
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '9.8.2'
       - name: Install Android SDK
