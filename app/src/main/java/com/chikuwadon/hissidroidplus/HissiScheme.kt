@@ -54,6 +54,10 @@ class HissiScheme private constructor(
             } catch (e: IllegalArgumentException) {
                 throw IllegalArgumentException("IDのエンコードが不正です", e)
             }
+            // Do not let the legacy search normalizer trim away encoded controls.
+            if (id.any { it.isISOControl() }) {
+                throw IllegalArgumentException("IDに制御文字を含めることはできません")
+            }
             val site = when {
                 host == "bbs.eddibb.cc" || host == "eddibb.cc" ||
                     host == "kyodemo.net" || host == "www.kyodemo.net" ->
