@@ -50,6 +50,7 @@ public final class HomeActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private boolean busy;
+    private boolean finishAfterDeepLink;
     private List<BoardMenu.Category> boardGroups;
     private String boardSource="";
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppSettings.themeContext(base));}
@@ -165,7 +166,47 @@ public final class HomeActivity extends Activity {
                     });
             });
         });
+        handleHissiScheme();
     }
+    /** ChMate custom URL: hissi:{host}/{board}/{id}[?date=YYYYMMDD]. */
+    private void handleHissiScheme(){
+        Intent inbound=getIntent();
+        if(inbound==null || !Intent.ACTION_VIEW.equals(inbound.getAction()) ||
+                inbound.getData()==null ||
+                !"hissi".equalsIgnoreCase(inbound.getData().getScheme()))return;
+        try {
+            HissiScheme request=HissiScheme.parse(inbound.getDataString());
+            if(request.site==CheckerQuery.Site.EDGE){
+                edgeBoard.setText(request.board);
+                edgeId.setText(request.id);
+                boolean anyDate=request.date.isEmpty();
+                edgeAnyDate.setChecked(anyDate);
+                finishAfterDeepLink=true;
+                String day=anyDate
+                    ?LocalDate.now(ZoneId.of("Asia/Tokyo")).format(DateTimeFormatter.BASIC_ISO_DATE)
+                    :request.date;
+                openEdgeDirect(request.board,day,request.id,anyDate);
+            }else{
+                board.setText(request.board);
+                id.setText(request.id);
+                if(request.date.isEmpty()){
+                    hissiAnyDate.setChecked(true);
+                    finishAfterDeepLink=true;
+                    searchHissiRecent(request.board,request.id);
+                }else{
+                    hissiAnyDate.setChecked(false);
+                    startActivity(new Intent(this,ResultActivity.class)
+                        .putExtra("board",request.board)
+                        .putExtra("date",request.date)
+                        .putExtra("id",request.id));
+                    finish();
+                }
+            }
+        }catch(IllegalArgumentException badLink){
+            Toast.makeText(this,badLink.getMessage(),Toast.LENGTH_LONG).show();
+        }
+    }
+
     /** Toolbar overflow stays attached to ⋮ instead of opening a full modal list. */
     private void showSettings(View anchor){
         ThemedMenu.showOverflow(this,anchor,new String[]{
@@ -235,6 +276,7 @@ public final class HomeActivity extends Activity {
                     Intent next=new Intent(this,ResultActivity.class);
                     next.putExtra("board",code);next.putExtra("date",found.day);next.putExtra("id",user);
                     startActivity(next);
+                    if(finishAfterDeepLink)finish();
                 }else if(found.error!=null){
                     Toast.makeText(this,"検索を完了できませんでした（"+
                         found.checkedDays+"日目）: "+found.error,Toast.LENGTH_LONG).show();
@@ -294,6 +336,7 @@ public final class HomeActivity extends Activity {
                         startActivity(new Intent(this,ResultActivity.class)
                             .setData(android.net.Uri.parse(ready.checkerUrl))
                             .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE,!anyDate));
+                        if(finishAfterDeepLink)finish();
                     }else{
                         Toast.makeText(this,noMatches
                             ?"指定した日付・IDに一致する投稿はありません"
