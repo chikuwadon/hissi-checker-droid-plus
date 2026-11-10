@@ -34,7 +34,7 @@ jobs:
       # Sign only the maintainer's own PR, never forks or bot contributions.
       # The QA APK is non-debuggable and uses the release certificate for in-place upgrades.
       - name: Build signed QA APK
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
+        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         env:
           HISSI_KEYSTORE_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
           HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
@@ -53,7 +53,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
             app/build/outputs/apk/release/app-release.apk
       - name: Upload signed QA APK
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
+        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         uses: actions/upload-artifact@v7
         with:
           name: hissi-checker-droid-plus-v1.0.3-dev.1-signed
