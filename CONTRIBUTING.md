@@ -4,7 +4,7 @@ Pull RequestsやIssueでの改善提案を歓迎します。
 
 ## 開発環境
 
-- Android SDK Platform 36 / Build Tools 36.0.0
+- Android SDK Platform 37.0 / Build Tools 36.0.0（compileSdk 37、targetSdk 36）
 - JDK 17
 - Gradle 9.9.0
 - Android Gradle Plugin 9.5.1 (組み込みKotlin対応)
