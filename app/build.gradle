@@ -1,7 +1,8 @@
 plugins { id 'com.android.application' }
 android {
   namespace = 'com.chikuwadon.hissidroidplus'
-  compileSdk = 36
+  // Compile against Android 17 (API 37); target 36 until behavior regression tests.
+  compileSdk = 37
   defaultConfig {
     applicationId = 'com.chikuwadon.hissidroidplus'
     minSdk = 26
