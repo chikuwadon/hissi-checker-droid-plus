@@ -23,7 +23,12 @@ jobs:
         with:
           gradle-version: '9.9.0'
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+          # API 37.0 may install under android-37.0 while AGP expects android-37.
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
       - name: Unit tests, lint and debug build
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
       # Sign only the maintainer's own PR, never forks or bot contributions.
