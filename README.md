@@ -77,6 +77,18 @@
 
 ホーム画面右上のメニューにある「スレの開き方」から、「毎回選択」への切り替えや使用するアプリの変更ができます。「リンクの開き方」は別の設定です。Haiagaruのパッケージ名を標準設定から変更した場合、専用の選択肢には表示されません。
 
+### ChMateのカスタムURL連携（開発版）
+
+v1.0.3-dev系では、ChMate/Haiagaruの「ID長押し」から直接検索するためのカスタムURLを追加しています。
+
+```text
+必死チェッカーdroid+ hissi:{$host}/{$bbs}/{$Iid}
+```
+
+ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを本アプリで開けます。5chのリンクは当日から過去6日までの直近7日検索、エッヂは日付指定なしのID検索になります。`?date=YYYYMMDD`を末尾に付けた場合はその日付を検索します。
+
+既存のURL共有と通常のID検索は変更しません。対応するホスト以外からのリンクは検索しません。正式版v1.0.2にはまだ含まれていません。
+
 ## 動作環境
 
 - Android 8.0以降
@@ -93,7 +105,7 @@
 
 ## 開発
 
-本アプリはJavaで開発しています。ソースからビルドする場合は、JDK 17、Android SDK 36、Gradle 9.8.2が必要です（Gradle Wrapperは同梱していません）。
+本アプリはJavaからKotlinへ段階的に移行中です。ソースからビルドする場合は、JDK 17、Android SDK 36、Android Gradle Plugin 9.5.1、Gradle 9.9.0が必要です（Gradle Wrapperは同梱していません）。
 
 ```bash
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
@@ -107,7 +119,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
 ## 変更履歴
 
-[CHANGELOG.md](CHANGELOG.md)をご覧ください。
+[CHANGELOG.md](CHANGELOG.md)をご覧ください。Pull Requestの手順は[CONTRIBUTING.md](CONTRIBUTING.md)を参照してください。
 
 ## 謝辞
 
