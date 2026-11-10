@@ -56,7 +56,7 @@ public final class BoardMenuSourceContractTest {
         assertTrue(home.contains("bbsmenu_5ch.html"));
         assertTrue(home.contains("fetchOfficialMenu()"));
         String code=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/BoardMenu.java")),StandardCharsets.UTF_8);
+                "src/main/java/com/chikuwadon/hissidroidplus/BoardMenu.kt")),StandardCharsets.UTF_8);
         assertTrue(code.contains("https://menu.5ch.io/bbsmenu.json"));
         assertTrue(code.contains("https://menu.5ch.io/bbsmenu.html"));
     }
