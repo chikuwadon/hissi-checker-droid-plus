@@ -65,12 +65,12 @@ class HissiScheme private constructor(
                 else -> throw IllegalArgumentException("未対応の掲示板ホストです")
             }
             // Validate before any network or Activity routing occurs.
-            if (site == CheckerQuery.Site.EDGE) {
+            val validated = if (site == CheckerQuery.Site.EDGE) {
                 CheckerQuery.edgeSearch(board, if (date.isEmpty()) "20260101" else date, id)
             } else {
                 CheckerQuery.hissi(board, if (date.isEmpty()) "20260101" else date, id)
             }
-            return HissiScheme(site, board, id, date)
+            return HissiScheme(site, validated.board, validated.id, date)
         }
     }
 }
