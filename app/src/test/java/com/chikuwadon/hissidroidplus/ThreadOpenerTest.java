@@ -68,7 +68,7 @@ public final class ThreadOpenerTest {
             "src/main/java/com/chikuwadon/hissidroidplus/AppSettings.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String opener=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String home=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
             "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.java")),
