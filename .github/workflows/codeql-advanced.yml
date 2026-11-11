@@ -1,0 +1,71 @@
+name: CodeQL (Java/Kotlin, Python, Actions)
+on:
+  push:
+    branches: [security/codeql-kotlin-manual-20261111]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  java-kotlin:
+    name: Analyze Java and Kotlin (manual Gradle 9.9)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v5.0.2
+        with:
+          gradle-version: '9.9.0'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+      - name: Initialize CodeQL for Kotlin and Java
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: manual
+      - name: Compile Kotlin app and Java unit tests
+        shell: bash
+        run: gradle --no-daemon --no-build-cache --rerun-tasks :app:assembleDebug :app:testDebugUnitTest
+      - name: Analyze compiled source (dry run; no CodeQL upload while default setup is enabled)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:java-kotlin
+          upload: never
+          upload-database: false
+
+  scripts:
+    name: Analyze ${{ matrix.language }} (dry run)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+      - name: Analyze source (dry run; no CodeQL upload while default setup is enabled)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+          upload: never
+          upload-database: false
