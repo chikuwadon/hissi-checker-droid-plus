@@ -44,8 +44,8 @@ public final class SecurityAndPerformanceContractTest {
             StandardCharsets.UTF_8);
     }
     @Test public void httpCookieBridgeDoesNotCaptureAnActivity() throws Exception {
-        String transport=code("HttpTransport.java");
-        assertTrue(transport.contains("static final CookieJar WEBVIEW_COOKIES"));
+        String transport=code("HttpTransport.kt");
+        assertTrue(transport.contains("private val WEBVIEW_COOKIES: CookieJar"));
         assertTrue(transport.contains("enableWebViewCookies()"));
         for(String file:new String[]{"ResultActivity.java"}){
             String source=code(file);
