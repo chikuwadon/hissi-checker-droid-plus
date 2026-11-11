@@ -1,0 +1,29 @@
+name: Verify Actions Lockfile
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile:
+    name: Verify workflow dependency lockfile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install official actions-lock extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-actions-lock
+      - name: Verify locked dependencies and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh actions-lock --verify
