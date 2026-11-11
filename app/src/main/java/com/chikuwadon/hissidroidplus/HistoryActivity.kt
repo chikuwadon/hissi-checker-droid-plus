@@ -317,7 +317,7 @@ class HistoryActivity : Activity() {
                 val row = LinearLayout(this@HistoryActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(dp(10), dp(6), dp(6), dp(6))
-                    minHeight = dp(64)
+                    minimumHeight = dp(64)
                 }
                 val number = text("", 12, getColor(R.color.text_secondary)).apply {
                     gravity = Gravity.CENTER
