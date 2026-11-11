@@ -102,8 +102,8 @@ class HissiAdapter {
 
         /** Canonicalize known Hissi result pages to working HTTP before loading. */
         @JvmStatic
-        fun httpFallbackUrl(url: String): String =
-            try {
+        fun httpFallbackUrl(url: String): String {
+            return try {
                 val uri = URI(url)
                 if (!uri.scheme.equals("https", true) ||
                     !(uri.host.equals("hissi.org", true) ||
@@ -116,6 +116,7 @@ class HissiAdapter {
             } catch (_: Exception) {
                 ""
             }
+        }
 
         @JvmStatic
         fun parse(html: String?, base: String): CheckerResult {
