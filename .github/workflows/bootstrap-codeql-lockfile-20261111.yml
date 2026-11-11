@@ -1,0 +1,33 @@
+name: Bootstrap CodeQL Action Lockfile (temporary)
+on:
+  push:
+    branches: [security/codeql-kotlin-manual-20261111]
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install official Actions lock tool
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-actions-lock
+      - name: Generate and verify updated lockfile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/bootstrap-codeql-lockfile-20261111.yml
+          gh actions-lock
+          gh actions-lock --verify
+          tar czf "$RUNNER_TEMP/codeql-locked-files.tar.gz" .github/workflows/actions.lock .github/workflows/codeql-advanced.yml
+      - name: Export generated files
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: codeql-updated-actions-lock
+          path: ${{ runner.temp }}/codeql-locked-files.tar.gz
+          retention-days: 1
+          if-no-files-found: error
