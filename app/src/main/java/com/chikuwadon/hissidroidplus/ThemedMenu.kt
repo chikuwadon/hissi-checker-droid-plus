@@ -80,7 +80,7 @@ object ThemedMenu {
         popup.elevation = dp(a, 10).toFloat()
         items.forEachIndexed { index, value ->
             val row = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
-                minHeight = dp(a, 48)
+                minimumHeight = dp(a, 48)
                 setPadding(dp(a, 15), dp(a, 10), dp(a, 12), dp(a, 10))
                 isSingleLine = false
             }
@@ -114,7 +114,7 @@ object ThemedMenu {
         val close = text(a, "閉じる", 14, a.getColor(R.color.accent)).apply {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             setPadding(dp(a, 10), dp(a, 3), dp(a, 12), dp(a, 3))
-            minHeight = dp(a, 46)
+            minimumHeight = dp(a, 46)
         }
         applyTouch(a, close)
         panel.addView(close)
@@ -133,7 +133,7 @@ object ThemedMenu {
         labels.forEachIndexed { index, value ->
             val row = LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(a, 48)
+                minimumHeight = dp(a, 48)
             }
             applyTouch(a, row)
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
@@ -167,12 +167,12 @@ object ThemedMenu {
             setTextColor(a.getColor(R.color.text_primary))
             buttonTintList = ColorStateList.valueOf(a.getColor(R.color.accent))
             setPadding(dp(a, 10), 0, dp(a, 8), 0)
-            minHeight = dp(a, 48)
+            minimumHeight = dp(a, 48)
         }
         labels.forEachIndexed { index, value ->
             val row = LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(a, 48)
+                minimumHeight = dp(a, 48)
             }
             applyTouch(a, row)
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
@@ -216,7 +216,7 @@ object ThemedMenu {
         val holder = arrayOfNulls<AlertDialog>(1)
         val cancel = text(a, "キャンセル", 14, a.getColor(R.color.text_secondary)).apply {
             gravity = Gravity.CENTER
-            minHeight = dp(a, 48)
+            minimumHeight = dp(a, 48)
             setPadding(dp(a, 14), 0, dp(a, 14), 0)
         }
         applyTouch(a, cancel)
@@ -224,7 +224,7 @@ object ThemedMenu {
         cancel.setOnClickListener { holder[0]?.dismiss() }
         val apply = text(a, affirmative, 14, a.getColor(R.color.accent)).apply {
             gravity = Gravity.CENTER
-            minHeight = dp(a, 48)
+            minimumHeight = dp(a, 48)
             setPadding(dp(a, 14), 0, dp(a, 14), 0)
         }
         applyTouch(a, apply)
@@ -253,7 +253,7 @@ object ThemedMenu {
     private fun aboutLink(a: Activity, panel: LinearLayout, label: String, uri: String) {
         val link = text(a, label + "  ↗", 13, a.getColor(R.color.accent)).apply {
             setPadding(dp(a, 8), dp(a, 7), dp(a, 8), dp(a, 7))
-            minHeight = dp(a, 42)
+            minimumHeight = dp(a, 42)
         }
         applyTouch(a, link)
         panel.addView(link)
