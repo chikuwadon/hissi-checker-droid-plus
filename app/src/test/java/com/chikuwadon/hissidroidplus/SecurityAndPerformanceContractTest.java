@@ -47,9 +47,9 @@ public final class SecurityAndPerformanceContractTest {
         String transport=code("HttpTransport.kt");
         assertTrue(transport.contains("private val WEBVIEW_COOKIES: CookieJar"));
         assertTrue(transport.contains("enableWebViewCookies()"));
-        for(String file:new String[]{"ResultActivity.java"}){
+        for(String file:new String[]{"ResultActivity.kt"}){
             String source=code(file);
-            assertTrue(source.contains("HttpTransport.enableWebViewCookies();"));
+            assertTrue(source.contains("HttpTransport.enableWebViewCookies()"));
             assertFalse(source.contains("HttpTransport.setCookieJar(new"));
         }
     }
@@ -76,11 +76,11 @@ public final class SecurityAndPerformanceContractTest {
         assertFalse(manifest.contains("android:debuggable=\"true\""));
     }
     @Test public void fallbackHtmlParsingDoesNotBlockMainThread() throws Exception {
-        String activity=code("ResultActivity.java");
-        assertTrue(activity.contains("worker.execute(()->{"));
-        assertTrue(activity.contains("EdgeAdapter.parse(html,query)"));
-        assertTrue(activity.contains("parsing[0]=true"));
-        assertTrue(activity.contains("json.length()>12*1024*1024"));
-        assertTrue(activity.contains("runOnUiThread(()->{"));
+        String activity=code("ResultActivity.kt");
+        assertTrue(activity.contains("worker.execute {"));
+        assertTrue(activity.contains("EdgeAdapter.parse(html, request)"));
+        assertTrue(activity.contains("parsing[0] = true"));
+        assertTrue(activity.contains("json.length > 12 * 1024 * 1024"));
+        assertTrue(activity.contains("runOnUiThread {"));
     }
 }
