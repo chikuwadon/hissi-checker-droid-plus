@@ -6,16 +6,19 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.junit.Test;
 
-/** Keep the entry visible for both 5ch and Edge without changing menu offsets. */
+/** Preserve result actions, text selection and menu ordering across Kotlin migration. */
 public final class ResultMenuContractTest {
+    private static String activity() throws Exception {
+        return new String(Files.readAllBytes(Paths.get(
+            "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.kt")),
+            StandardCharsets.UTF_8);
+    }
+
     @Test public void selectionIsEnabledBeforeTheLongPressGesture() throws Exception {
-        String code=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
-                StandardCharsets.UTF_8);
+        String code=activity();
         String layout=new String(Files.readAllBytes(Paths.get(
-                "src/main/res/layout/item_row.xml")),StandardCharsets.UTF_8);
-        // Native TextViews must receive the original gesture, rather than
-        // a synthetic second long-click after ListView has consumed it.
+            "src/main/res/layout/item_row.xml")),StandardCharsets.UTF_8);
+        // Native selectable TextViews receive the gesture directly.
         assertFalse(code.contains("setOnItemLongClickListener"));
         assertFalse(code.contains("performLongClick"));
         assertFalse(code.contains("beginTextSelection"));
@@ -23,11 +26,10 @@ public final class ResultMenuContractTest {
             assertTrue(layout.contains("android:id=\"@+id/"+id+"\" android:textIsSelectable=\"true\""));
         }
         assertEquals(3,layout.split(java.util.regex.Pattern.quote(
-                "<com.chikuwadon.hissidroidplus.SelectableResultTextView"),-1).length-1);
-        // Selectable text consumes short taps, so forward taps to the
-        // existing action menu instead of changing its behavior.
-        assertTrue(code.contains("list.setOnItemClickListener((parent,v,index,id)->showEntry(index))"));
-        assertTrue(code.contains("View.OnClickListener showActions=clicked->showEntry(index)"));
+            "<com.chikuwadon.hissidroidplus.SelectableResultTextView"),-1).length-1);
+        assertTrue(code.contains(
+            "list.setOnItemClickListener { _, _, index, _ -> showEntry(index) }"));
+        assertTrue(code.contains("val showActions = View.OnClickListener { showEntry(index) }"));
         assertTrue(code.contains("title.setOnClickListener(showActions)"));
         assertTrue(code.contains("subtitle.setOnClickListener(showActions)"));
         assertTrue(code.contains("body.setOnClickListener(showActions)"));
@@ -37,10 +39,10 @@ public final class ResultMenuContractTest {
         assertEquals(700,SelectableResultTextView.selectionDelayMs(500));
         assertEquals(950,SelectableResultTextView.selectionDelayMs(800));
         String code=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.kt")),
                 StandardCharsets.UTF_8);
         assertTrue(code.contains("MotionEvent.obtain(event)"));
-        assertTrue(code.contains("cancel.setAction(MotionEvent.ACTION_CANCEL)"));
+        assertTrue(code.contains("cancel.action = MotionEvent.ACTION_CANCEL"));
         assertTrue(code.contains("performClick()"));
         assertTrue(code.contains("MotionEvent.ACTION_CANCEL"));
         assertTrue(code.contains("touchSlop"));
@@ -48,42 +50,40 @@ public final class ResultMenuContractTest {
     }
 
     @Test public void selectionSurvivesRecycledRowsAndUnchangedData() throws Exception {
-        String activity=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
-                StandardCharsets.UTF_8);
+        String code=activity();
         String selectable=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.kt")),
                 StandardCharsets.UTF_8);
-        assertTrue(activity.contains("view.setTag(identity)"));
-        assertTrue(activity.contains("android.text.TextUtils.equals(target.getText(),content)"));
-        assertTrue(activity.contains("refreshSelectionAfterRebind()"));
+        assertTrue(code.contains("view.tag = identity"));
+        assertTrue(code.contains("!TextUtils.equals(target.text, content)"));
+        assertTrue(code.contains("refreshSelectionAfterRebind()"));
         assertTrue(selectable.contains("onAttachedToWindow()"));
         assertTrue(selectable.contains("onDetachedFromWindow()"));
-        assertTrue(selectable.contains("generation!=selectionRefreshGeneration"));
-        assertTrue(selectable.contains("!isAttachedToWindow() || touchActive"));
+        assertTrue(selectable.contains("generation != selectionRefreshGeneration"));
+        assertTrue(selectable.contains("!isAttachedToWindow || touchActive"));
         assertTrue(selectable.contains("setTextIsSelectable(false)"));
         assertTrue(selectable.contains("setTextIsSelectable(true)"));
     }
 
     @Test public void homePrecedesHistoryForBothSites() throws Exception {
-        String code=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
-                StandardCharsets.UTF_8);
-        String adjacent="\"ホーム画面に戻る\",\"検索履歴\"";
+        String code=activity();
+        String adjacent="\"ホーム画面に戻る\", \"検索履歴\"";
         assertEquals(2,code.split(java.util.regex.Pattern.quote(adjacent),-1).length-1);
-        assertTrue(code.contains("if(which==0){openHome();return;}"));
-        assertTrue(code.contains("if(which==1){startActivity(new Intent(this,HistoryActivity.class));return;}"));
-        assertTrue(code.contains("if(edge&&which==2){openEdgeAnalysis();return;}"));
-        assertTrue(code.contains("switch(which-(edge?3:2))"));
-        assertTrue(code.contains("case 1:copyResultUrl();break;"));
-        assertTrue(code.contains("case 2:copySearchedId();break;"));
-        assertTrue(code.contains("case 3:copyWrittenThreads();break;"));
-        assertTrue(code.contains("case 4:copyAllVisible();break;"));
-        String order="\"URLをコピー\",\"IDをコピー\",";
+        assertTrue(code.contains("which == 0 -> openHome()"));
+        assertTrue(code.contains(
+            "which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))"));
+        assertTrue(code.contains("edge && which == 2 -> openEdgeAnalysis()"));
+        assertTrue(code.contains("when (which - if (edge) 3 else 2)"));
+        assertTrue(code.contains("1 -> copyResultUrl()"));
+        assertTrue(code.contains("2 -> copySearchedId()"));
+        assertTrue(code.contains("3 -> copyWrittenThreads()"));
+        assertTrue(code.contains("4 -> copyAllVisible()"));
+        String order="\"URLをコピー\", \"IDをコピー\",";
         assertEquals(2,code.split(java.util.regex.Pattern.quote(order),-1).length-1);
-        String listOrder="\"IDをコピー\",\\n";
-        assertTrue(code.contains("\"書き込みスレをコピー\",\"表示中のレスをすべてコピー\""));
-        assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK|"));
-        assertTrue(code.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP"));
+        assertTrue(code.contains(
+            "\"書き込みスレをコピー\", \"表示中のレスをすべてコピー\""));
+        assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK or"));
+        assertTrue(code.contains(
+            "Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"));
     }
 }

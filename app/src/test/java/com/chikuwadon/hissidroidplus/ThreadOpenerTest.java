@@ -65,13 +65,13 @@ public final class ThreadOpenerTest {
 
     @Test public void threadPreferencesAreSharedAndHaveManualReset() throws Exception {
         String settings=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/AppSettings.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/AppSettings.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String opener=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String home=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(settings.contains("THREAD_OPEN_MODE"));
         assertTrue(opener.contains("AppSettings.threadOpenMode(activity)"));

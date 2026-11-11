@@ -44,28 +44,28 @@ public final class SecurityAndPerformanceContractTest {
             StandardCharsets.UTF_8);
     }
     @Test public void httpCookieBridgeDoesNotCaptureAnActivity() throws Exception {
-        String transport=code("HttpTransport.java");
-        assertTrue(transport.contains("static final CookieJar WEBVIEW_COOKIES"));
+        String transport=code("HttpTransport.kt");
+        assertTrue(transport.contains("private val WEBVIEW_COOKIES: CookieJar"));
         assertTrue(transport.contains("enableWebViewCookies()"));
-        for(String file:new String[]{"ResultActivity.java"}){
+        for(String file:new String[]{"ResultActivity.kt"}){
             String source=code(file);
-            assertTrue(source.contains("HttpTransport.enableWebViewCookies();"));
+            assertTrue(source.contains("HttpTransport.enableWebViewCookies()"));
             assertFalse(source.contains("HttpTransport.setCookieJar(new"));
         }
     }
     @Test public void historyAvoidsRecreatingRowsAndFavoriteReads() throws Exception {
-        String history=code("HistoryActivity.java");
-        assertTrue(history.contains("convert.getTag() instanceof HistoryRow"));
+        String history=code("HistoryActivity.kt");
+        assertTrue(history.contains("convert.tag is HistoryRow"));
         assertTrue(history.contains("favoriteUrls.contains(entry.url)"));
         assertTrue(history.contains("favoriteUrls.clear()"));
-        assertTrue(history.contains("List<SearchHistory.Entry> favorites=SearchHistory.favorites(this)"));
+        assertTrue(history.contains("val favorites = SearchHistory.favorites(this)"));
         assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
     }
     @Test public void analysisHtmlParsingUsesWorkerAndDropsStaleResponses() throws Exception {
-        String source=code("EdgeAnalysisActivity.java");
-        assertTrue(source.contains("parserWorker.execute(()->{"));
+        String source=code("EdgeAnalysisActivity.kt");
+        assertTrue(source.contains("parserWorker.execute {"));
         assertTrue(source.contains("EdgeAnalysis.parse(html)"));
-        assertTrue(source.contains("requestedCycle!=cycle"));
+        assertTrue(source.contains("requestedCycle != cycle"));
         assertTrue(source.contains("parserWorker.shutdownNow()"));
     }
     @Test public void manifestDeclaresOnlyInternetPermission() throws Exception {
@@ -76,11 +76,11 @@ public final class SecurityAndPerformanceContractTest {
         assertFalse(manifest.contains("android:debuggable=\"true\""));
     }
     @Test public void fallbackHtmlParsingDoesNotBlockMainThread() throws Exception {
-        String activity=code("ResultActivity.java");
-        assertTrue(activity.contains("worker.execute(()->{"));
-        assertTrue(activity.contains("EdgeAdapter.parse(html,query)"));
-        assertTrue(activity.contains("parsing[0]=true"));
-        assertTrue(activity.contains("json.length()>12*1024*1024"));
-        assertTrue(activity.contains("runOnUiThread(()->{"));
+        String activity=code("ResultActivity.kt");
+        assertTrue(activity.contains("worker.execute {"));
+        assertTrue(activity.contains("EdgeAdapter.parse(html, request)"));
+        assertTrue(activity.contains("parsing[0] = true"));
+        assertTrue(activity.contains("json.length > 12 * 1024 * 1024"));
+        assertTrue(activity.contains("runOnUiThread {"));
     }
 }
