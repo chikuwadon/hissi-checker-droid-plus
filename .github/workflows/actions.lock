@@ -3,6 +3,12 @@
 # Docs: https://gh.io/actions-lockfile
 version: 'v0.0.3'
 workflows:
+    '.github/workflows/codeql-advanced.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'actions/setup-java@v6.1.0'
+        - 'android-actions/setup-android@v4.0.4'
+        - 'github/codeql-action@v4.39.3'
+        - 'gradle/actions@v5.0.2'
     '.github/workflows/public-ci.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-java@v6.1.0'
@@ -57,6 +63,11 @@ dependencies:
         commit: 'sha1-be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd'
         owner_id: 69522701
         repo_id: 286780795
+    'github/codeql-action@v4.39.3':
+        ref: 'v4.39.3'
+        commit: 'sha1-33d7b85da1a04171e211befe2c739303b9a4c066'
+        owner_id: 9919
+        repo_id: 259445878
     'gradle/actions@v5.0.2':
         ref: 'v5.0.2'
         commit: 'sha1-0723195856401067f7a2779048b490ace7a47d7c'
