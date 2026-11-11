@@ -63,6 +63,7 @@ class HissiScheme private constructor(
                     host == "kyodemo.net" || host == "www.kyodemo.net" ->
                     CheckerQuery.Site.EDGE
                 host == "5ch.net" || host.endsWith(".5ch.net") ||
+                    host == "5ch.io" || host.endsWith(".5ch.io") ||
                     host == "2ch.net" || host.endsWith(".2ch.net") ||
                     host == "bbspink.com" || host.endsWith(".bbspink.com") ->
                     CheckerQuery.Site.HISSI
