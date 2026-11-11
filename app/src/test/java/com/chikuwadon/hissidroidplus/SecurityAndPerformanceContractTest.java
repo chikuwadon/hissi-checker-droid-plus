@@ -62,10 +62,10 @@ public final class SecurityAndPerformanceContractTest {
         assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
     }
     @Test public void analysisHtmlParsingUsesWorkerAndDropsStaleResponses() throws Exception {
-        String source=code("EdgeAnalysisActivity.java");
-        assertTrue(source.contains("parserWorker.execute(()->{"));
+        String source=code("EdgeAnalysisActivity.kt");
+        assertTrue(source.contains("parserWorker.execute {"));
         assertTrue(source.contains("EdgeAnalysis.parse(html)"));
-        assertTrue(source.contains("requestedCycle!=cycle"));
+        assertTrue(source.contains("requestedCycle != cycle"));
         assertTrue(source.contains("parserWorker.shutdownNow()"));
     }
     @Test public void manifestDeclaresOnlyInternetPermission() throws Exception {
