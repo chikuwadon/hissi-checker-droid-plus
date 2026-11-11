@@ -71,7 +71,7 @@ public final class ThreadOpenerTest {
             "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String home=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(settings.contains("THREAD_OPEN_MODE"));
         assertTrue(opener.contains("AppSettings.threadOpenMode(activity)"));
