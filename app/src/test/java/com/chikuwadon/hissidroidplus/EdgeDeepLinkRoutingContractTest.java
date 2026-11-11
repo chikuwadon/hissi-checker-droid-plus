@@ -38,11 +38,11 @@ public final class EdgeDeepLinkRoutingContractTest {
 
     @Test public void oldAndroidRoutesNonCheckerUrlsToBrowserWithoutOpeningResultUi()throws Exception{
         String activity=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.kt")),
                 StandardCharsets.UTF_8);
-        assertTrue(activity.contains("if (redirectNonCheckerWebLink()) return;"));
+        assertTrue(activity.contains("if (redirectNonCheckerWebLink()) return"));
         assertTrue(activity.contains("CheckerQuery.parseUrl(url)"));
-        assertTrue(activity.contains("BrowserLauncher.open(this,url)"));
-        assertTrue(activity.contains("finish();"));
+        assertTrue(activity.contains("BrowserLauncher.open(this, url)"));
+        assertTrue(activity.contains("finish()"));
     }
 }
