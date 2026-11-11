@@ -35,7 +35,7 @@ jobs:
             ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
           fi
       - name: Initialize CodeQL for Kotlin and Java
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@v4.39.3
         with:
           languages: java-kotlin
           build-mode: manual
@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: gradle --no-daemon --no-build-cache --rerun-tasks :app:assembleDebug :app:testDebugUnitTest
       - name: Analyze compiled source (dry run; no CodeQL upload while default setup is enabled)
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v4.39.3
         with:
           category: /language:java-kotlin
           upload: never
@@ -60,11 +60,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@v4.39.3
         with:
           languages: ${{ matrix.language }}
       - name: Analyze source (dry run; no CodeQL upload while default setup is enabled)
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v4.39.3
         with:
           category: /language:${{ matrix.language }}
           upload: never
