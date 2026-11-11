@@ -14,6 +14,9 @@ public final class HissiSchemeTest {
         assertEquals("news4vip",q.board);
         assertEquals("AbC123",q.id);
         assertEquals("",q.date);
+        HissiScheme alternative=HissiScheme.parse("hissi:egg.5ch.io/android/AbC123");
+        assertEquals(CheckerQuery.Site.HISSI,alternative.site);
+        assertEquals("android",alternative.board);
     }
     @Test public void recognizesEdgeFromHostRatherThanBoardName(){
         HissiScheme q=HissiScheme.parse("hissi:bbs.eddibb.cc/testboard/K%2Fwzi%2BC9v9");
