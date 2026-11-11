@@ -8,7 +8,7 @@ Pull RequestsやIssueでの改善提案を歓迎します。
 - JDK 17
 - Gradle 9.9.0
 - Android Gradle Plugin 9.5.1 (組み込みKotlin対応)
-- ソースコードはJavaからKotlinへの段階的移行中です。
+- アプリ本体のソースコードはKotlinへ移行済みです（単体テストの一部はJava）。
 
 `gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`
 
