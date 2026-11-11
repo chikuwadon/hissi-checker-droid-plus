@@ -4,8 +4,8 @@
 
 **Hissi Checker Droid Plus**
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.0.2-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.2)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.2/HissiCheckerDroidPlus-v1.0.2.apk)
+[![Latest Release](https://img.shields.io/badge/Release-v1.0.3-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.3)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.3/HissiCheckerDroidPlus-v1.0.3.apk)
 
 </div>
 
@@ -77,9 +77,9 @@
 
 ホーム画面右上のメニューにある「スレの開き方」から、「毎回選択」への切り替えや使用するアプリの変更ができます。「リンクの開き方」は別の設定です。Haiagaruのパッケージ名を標準設定から変更した場合、専用の選択肢には表示されません。
 
-### ChMateのカスタムURL連携（開発版）
+### ChMateのカスタムURL連携
 
-v1.0.3-dev系では、ChMate/Haiagaruの「ID長押し」から直接検索するためのカスタムURLを追加しています。
+v1.0.3では、ChMate/Haiagaruの「ID長押し」から直接検索するためのカスタムURLに対応しています。
 
 ```text
 必死チェッカーdroid+ hissi:{$host}/{$bbs}/{$Iid}
@@ -87,12 +87,12 @@ v1.0.3-dev系では、ChMate/Haiagaruの「ID長押し」から直接検索す�
 
 ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを本アプリで開けます。5chのリンクは当日から過去6日までの直近7日検索、エッヂは日付指定なしのID検索になります。`?date=YYYYMMDD`を末尾に付けた場合はその日付を検索します。
 
-既存のURL共有と通常のID検索は変更しません。対応するホスト以外からのリンクは検索しません。正式版v1.0.2にはまだ含まれていません。
+既存のURL共有と通常のID検索は変更しません。対応するホスト以外からのリンクは検索しません。
 
 ## 動作環境
 
 - Android 8.0以降
-- バージョン：1.0.2
+- バージョン：1.0.3
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意
