@@ -37,10 +37,10 @@ public final class ResultMenuContractTest {
         assertEquals(700,SelectableResultTextView.selectionDelayMs(500));
         assertEquals(950,SelectableResultTextView.selectionDelayMs(800));
         String code=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.kt")),
                 StandardCharsets.UTF_8);
         assertTrue(code.contains("MotionEvent.obtain(event)"));
-        assertTrue(code.contains("cancel.setAction(MotionEvent.ACTION_CANCEL)"));
+        assertTrue(code.contains("cancel.action = MotionEvent.ACTION_CANCEL"));
         assertTrue(code.contains("performClick()"));
         assertTrue(code.contains("MotionEvent.ACTION_CANCEL"));
         assertTrue(code.contains("touchSlop"));
@@ -52,15 +52,15 @@ public final class ResultMenuContractTest {
                 "src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.java")),
                 StandardCharsets.UTF_8);
         String selectable=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/SelectableResultTextView.kt")),
                 StandardCharsets.UTF_8);
         assertTrue(activity.contains("view.setTag(identity)"));
         assertTrue(activity.contains("android.text.TextUtils.equals(target.getText(),content)"));
         assertTrue(activity.contains("refreshSelectionAfterRebind()"));
         assertTrue(selectable.contains("onAttachedToWindow()"));
         assertTrue(selectable.contains("onDetachedFromWindow()"));
-        assertTrue(selectable.contains("generation!=selectionRefreshGeneration"));
-        assertTrue(selectable.contains("!isAttachedToWindow() || touchActive"));
+        assertTrue(selectable.contains("generation != selectionRefreshGeneration"));
+        assertTrue(selectable.contains("!isAttachedToWindow || touchActive"));
         assertTrue(selectable.contains("setTextIsSelectable(false)"));
         assertTrue(selectable.contains("setTextIsSelectable(true)"));
     }
