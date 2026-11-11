@@ -50,7 +50,7 @@ public final class BoardMenuSourceContractTest {
     }
     @Test public void noLegacyResourceOrDownloaderRemains() throws Exception {
         String home=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.java")),StandardCharsets.UTF_8);
+                "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.kt")),StandardCharsets.UTF_8);
         assertTrue(home.contains("offline_boards.tsv"));
         assertTrue(home.contains("bbsmenu_5ch.json"));
         assertTrue(home.contains("bbsmenu_5ch.html"));
