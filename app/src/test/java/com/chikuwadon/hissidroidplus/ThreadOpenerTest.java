@@ -65,7 +65,7 @@ public final class ThreadOpenerTest {
 
     @Test public void threadPreferencesAreSharedAndHaveManualReset() throws Exception {
         String settings=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/AppSettings.java")),
+            "src/main/java/com/chikuwadon/hissidroidplus/AppSettings.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         String opener=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
             "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.java")),
