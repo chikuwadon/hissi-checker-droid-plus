@@ -25,3 +25,19 @@ Android 8.0以降をサポートしています。新しい機能で既存の5ch
 PRのCIはforkからの投稿でも署名鍵なしで実行します。署名済みQA APKの生成は管理者自身のPRに限定しています。外部PRへの秘密情報提供は行いません。
 
 既存のリリースタグや署名済みAPKの変更、正式Releaseの公開はメンテナーが別途行います。
+
+## GitHub Actions Workflow Lockfiles
+
+`.github/workflows/actions.lock` は、GitHub公式の `gh actions-lock` によって生成します。**手作業では編集しないでください。**
+
+ワークフローの `uses:` を追加・変更した場合は、リポジトリのルートで以下を実行し、ワークフロー変更とロックファイルを同じPRに含めてください。
+
+```bash
+gh extension install github/gh-actions-lock
+gh actions-lock
+gh actions-lock --verify
+```
+
+PRでは `Verify Actions Lockfile` が依存関係の固定内容を検証します。DependabotのGitHub Actions更新PRでも、登録済みワークフローのロックファイルが更新されます。
+
+ロックファイルに記録されたActionのコミット変更は、マージ前に差分を確認してください。
