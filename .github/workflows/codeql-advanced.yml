@@ -1,7 +1,11 @@
 name: CodeQL (Java/Kotlin, Python, Actions)
 on:
   push:
-    branches: [security/codeql-kotlin-manual-20261111]
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -42,15 +46,15 @@ jobs:
       - name: Compile Kotlin app and Java unit tests
         shell: bash
         run: gradle --no-daemon --no-build-cache --rerun-tasks :app:assembleDebug :app:testDebugUnitTest
-      - name: Analyze compiled source (dry run; no CodeQL upload while default setup is enabled)
+      - name: Analyze compiled Kotlin and Java source
         uses: github/codeql-action/analyze@v4.39.3
         with:
           category: /language:java-kotlin
-          upload: never
+          upload: always
           upload-database: false
 
   scripts:
-    name: Analyze ${{ matrix.language }} (dry run)
+    name: Analyze ${{ matrix.language }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -63,9 +67,9 @@ jobs:
         uses: github/codeql-action/init@v4.39.3
         with:
           languages: ${{ matrix.language }}
-      - name: Analyze source (dry run; no CodeQL upload while default setup is enabled)
+      - name: Analyze source
         uses: github/codeql-action/analyze@v4.39.3
         with:
           category: /language:${{ matrix.language }}
-          upload: never
+          upload: always
           upload-database: false
