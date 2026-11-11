@@ -59,10 +59,10 @@ public final class HissiSchemeTest {
         assertTrue(xml.contains("android:name=\".HomeActivity\" android:exported=\"true\""));
         assertTrue(xml.contains("android.intent.category.BROWSABLE"));
         String home=new String(Files.readAllBytes(Paths.get(
-                "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.java")),
+                "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.kt")),
                 StandardCharsets.UTF_8);
-        assertTrue(home.contains("HissiScheme.parse(inbound.getDataString())"));
-        assertTrue(home.contains("searchHissiRecent(request.board,request.id)"));
-        assertTrue(home.contains("openEdgeDirect(request.board,day,request.id,anyDate)"));
+        assertTrue(home.contains("HissiScheme.parse(inbound.dataString)"));
+        assertTrue(home.contains("searchHissiRecent(request.board, request.id)"));
+        assertTrue(home.contains("openEdgeDirect(request.board, day, request.id, anyDate)"));
     }
 }
