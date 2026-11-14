@@ -1,0 +1,30 @@
+name: Diagnose Security Alert Access (temporary)
+on:
+  push:
+    branches: [security/upgrade-deps-alerts-20261115]
+permissions:
+  contents: read
+  security-events: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Inspect accessible security alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for category in dependabot/alerts code-scanning/alerts secret-scanning/alerts; do
+            echo "Category: $category"
+            if payload="$(gh api "repos/${GITHUB_REPOSITORY}/$category?state=open&per_page=100" 2>/dev/null)"; then
+              echo "$payload" | jq -r '
+                "Visible alerts: \(length)",
+                (.[] | if has("dependency") then "GHSA=\(.security_advisory.ghsa_id) package=\(.dependency.package.name) severity=\(.security_advisory.severity) fix=\(.security_vulnerability.first_patched_version.identifier // "n/a")"
+                elif has("rule") then "rule=\(.rule.id) severity=\(.rule.security_severity_level // .rule.severity) file=\(.most_recent_instance.location.path // "n/a")"
+                else "type=other" end)'
+            else
+              echo "Not accessible with the workflow GITHUB_TOKEN"
+            fi
+          done
