@@ -8,6 +8,21 @@ buildscript {
     gradlePluginPortal()
   }
   configurations.classpath {
+    // Adjust the requested transitive version as well as the selected version.
+    // This test distinguishes original POM metadata from the resolved classpath.
+    resolutionStrategy.eachDependency { dep ->
+      def patched = [
+        'org.bouncycastle:bcprov-jdk18on': '1.86',
+        'org.bouncycastle:bcpkix-jdk18on': '1.86',
+        'org.bouncycastle:bcutil-jdk18on': '1.86',
+        'com.google.guava:guava': '33.7.2-jre',
+        'org.apache.commons:commons-lang3': '3.18.0',
+        'org.apache.httpcomponents:httpclient': '4.5.14'
+      ][dep.requested.group + ':' + dep.requested.name]
+      if (patched != null) {
+        dep.useVersion(patched)
+      }
+    }
     resolutionStrategy.force(
       'org.bouncycastle:bcprov-jdk18on:1.86',
       'org.bouncycastle:bcpkix-jdk18on:1.86',
