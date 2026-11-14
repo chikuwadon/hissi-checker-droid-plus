@@ -31,6 +31,12 @@ jobs:
           if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
             ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
           fi
+      - name: Verify selected AGP buildscript dependency versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon buildEnvironment > "$RUNNER_TEMP/gradle-build-environment.txt"
+          python3 tools/verify_gradle_buildscript_dependencies.py "$RUNNER_TEMP/gradle-build-environment.txt"
       - name: Unit tests, lint and debug build
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
       # Sign only the maintainer's own PR, never forks or bot contributions.
