@@ -1,13 +1,33 @@
-// Temporary security constraints for vulnerable transitive AGP build-time
-// dependencies. Remove when an AGP stable release includes patched versions.
-// CVE-2021-33813 (JDOM2), CVE-2024-29371 (jose4j).
+// AGP 9.5.1's published metadata includes vulnerable build-time libraries.
+// Exclude those transitive modules from its classpath and explicitly depend on
+// patched replacements. This affects the Gradle build only, not the APK.
+// Revisit when AGP publishes corrected dependency versions.
 buildscript {
-  configurations.classpath {
-    resolutionStrategy.force(
-      'org.jdom:jdom2:2.0.6.1',
-      'org.bitbucket.b_c:jose4j:0.9.6'
-    )
+  repositories {
+    google()
+    mavenCentral()
+    gradlePluginPortal()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle:9.5.1') {
+      exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
+      exclude group: 'org.bouncycastle', module: 'bcpkix-jdk18on'
+      exclude group: 'org.bouncycastle', module: 'bcutil-jdk18on'
+      exclude group: 'com.google.guava', module: 'guava'
+      exclude group: 'org.apache.commons', module: 'commons-lang3'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'org.jetbrains.kotlin', module: 'kotlin-gradle-plugin'
+      exclude group: 'org.jdom', module: 'jdom2'
+      exclude group: 'org.bitbucket.b_c', module: 'jose4j'
+    }
+    classpath 'org.bouncycastle:bcprov-jdk18on:1.86'
+    classpath 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    classpath 'org.bouncycastle:bcutil-jdk18on:1.86'
+    classpath 'com.google.guava:guava:33.7.2-jre'
+    classpath 'org.apache.commons:commons-lang3:3.18.0'
+    classpath 'org.apache.httpcomponents:httpclient:4.5.14'
+    classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'
+    classpath 'org.jdom:jdom2:2.0.6.1'
+    classpath 'org.bitbucket.b_c:jose4j:0.9.6'
   }
 }
-
-plugins { id 'com.android.application' version '9.5.1' apply false }
