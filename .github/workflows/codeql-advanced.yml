@@ -30,7 +30,7 @@ jobs:
           packages: ''
       - uses: gradle/actions/setup-gradle@v6.4.1
         with:
-          gradle-version: '9.9.0'
+          gradle-version: '9.9.1'
       - name: Install Android SDK
         shell: bash
         run: |
