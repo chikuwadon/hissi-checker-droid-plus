@@ -1,1 +1,13 @@
+// Temporary security constraints for vulnerable transitive AGP build-time
+// dependencies. Remove when an AGP stable release includes patched versions.
+// CVE-2021-33813 (JDOM2), CVE-2024-29371 (jose4j).
+buildscript {
+  configurations.classpath {
+    resolutionStrategy.force(
+      'org.jdom:jdom2:2.0.6.1',
+      'org.bitbucket.b_c:jose4j:0.9.6'
+    )
+  }
+}
+
 plugins { id 'com.android.application' version '9.5.1' apply false }
