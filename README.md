@@ -105,7 +105,7 @@ ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを
 
 ## 開発
 
-アプリ本体のソースコードはKotlinへの移行を完了しています（単体テストの一部はJava）。ソースからビルドする場合は、JDK 17、Android SDK 37.0（compileSdk 37、targetSdk 36）、Android Gradle Plugin 9.5.1、Gradle 9.9.0が必要です（Gradle Wrapperは同梱していません）。
+アプリ本体のソースコードはKotlinへの移行を完了しています（単体テストの一部はJava）。ソースからビルドする場合は、JDK 17、Android SDK 37.0（compileSdk 37、targetSdk 36）、Android Gradle Plugin 9.5.1、Gradle 9.9.1が必要です（Gradle Wrapperは同梱していません）。
 
 ```bash
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug

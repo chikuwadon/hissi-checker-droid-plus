@@ -6,7 +6,7 @@ Pull RequestsやIssueでの改善提案を歓迎します。
 
 - Android SDK Platform 37.0 / Build Tools 36.0.0（compileSdk 37、targetSdk 36）
 - JDK 17
-- Gradle 9.9.0
+- Gradle 9.9.1
 - Android Gradle Plugin 9.5.1 (組み込みKotlin対応)
 - アプリ本体のソースコードはKotlinへ移行済みです（単体テストの一部はJava）。
 

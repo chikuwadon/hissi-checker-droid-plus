@@ -10,7 +10,7 @@
 
 `.github/workflows/codeql-advanced.yml` を追加して、次の構成で解析する。
 
-- Java/Kotlin: JDK 17、Gradle 9.9、Android SDK Platform 37、CodeQL `build-mode: manual`
+- Java/Kotlin: JDK 17、Gradle 9.9.1、Android SDK Platform 37、CodeQL `build-mode: manual`
 - `gradle --no-daemon --no-build-cache --rerun-tasks :app:assembleDebug :app:testDebugUnitTest` の実行によってKotlinの抽出を行う
 - Python / GitHub Actions: 別ジョブでCodeQLを実行
 - push（main）、pull_request（main）、毎週月曜日03:23 UTC、workflow_dispatchで実行

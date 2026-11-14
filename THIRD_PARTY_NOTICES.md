@@ -1,6 +1,6 @@
 # 第三者ライセンス / Third-party licenses
 
-## jsoup 1.23.2
+## jsoup 1.24.1
 
 - Library: https://jsoup.org/
 - Author: Jonathan Hedley and contributors
