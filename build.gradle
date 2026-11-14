@@ -1,66 +1,33 @@
-// Resolve Android Gradle Plugin and its build-only dependencies through
-// a single root buildscript classpath so tested security constraints apply
-// before the plugin is loaded. This is NOT an app/runtime dependency change.
+// AGP 9.5.1's published metadata includes vulnerable build-time libraries.
+// Exclude those transitive modules from its classpath and explicitly depend on
+// patched replacements. This affects the Gradle build only, not the APK.
+// Revisit when AGP publishes corrected dependency versions.
 buildscript {
   repositories {
     google()
     mavenCentral()
     gradlePluginPortal()
   }
-  configurations.classpath {
-    // Adjust the requested transitive version as well as the selected version.
-    // This test distinguishes original POM metadata from the resolved classpath.
-    resolutionStrategy.eachDependency { dep ->
-      def patched = [
-        'org.bouncycastle:bcprov-jdk18on': '1.86',
-        'org.bouncycastle:bcpkix-jdk18on': '1.86',
-        'org.bouncycastle:bcutil-jdk18on': '1.86',
-        'com.google.guava:guava': '33.7.2-jre',
-        'org.apache.commons:commons-lang3': '3.18.0',
-        'org.apache.httpcomponents:httpclient': '4.5.14'
-      ][dep.requested.group + ':' + dep.requested.name]
-      if (patched != null) {
-        dep.useVersion(patched)
-      }
-    }
-    resolutionStrategy.force(
-      'org.bouncycastle:bcprov-jdk18on:1.86',
-      'org.bouncycastle:bcpkix-jdk18on:1.86',
-      'org.bouncycastle:bcutil-jdk18on:1.86',
-      'org.jdom:jdom2:2.0.6.1',
-      'com.google.guava:guava:33.7.2-jre',
-      'org.bitbucket.b_c:jose4j:0.9.6',
-      'org.apache.commons:commons-lang3:3.18.0',
-      'org.apache.httpcomponents:httpclient:4.5.14',
-      // Kotlin build-cache deserialization CVE-2026-53914.
-      // Experimental: validate KGP 2.4.21 with AGP 9.5.1 before adoption.
-      'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'
-    )
-  }
   dependencies {
-    // Patch the *metadata* requests as well as the resolved classpath.
-    // Scoped to the AGP buildscript, never the application dependencies.
-    components {
-      all {
-        allVariants {
-          withDependencies {
-            all { dep ->
-              def fixed = [
-                'org.bouncycastle:bcprov-jdk18on': '1.86',
-                'org.bouncycastle:bcpkix-jdk18on': '1.86',
-                'org.bouncycastle:bcutil-jdk18on': '1.86',
-                'com.google.guava:guava': '33.7.2-jre',
-                'org.apache.commons:commons-lang3': '3.18.0',
-                'org.apache.httpcomponents:httpclient': '4.5.14'
-              ][dep.group + ':' + dep.name]
-              if (fixed != null) {
-                dep.version { require(fixed) }
-              }
-            }
-          }
-        }
-      }
+    classpath('com.android.tools.build:gradle:9.5.1') {
+      exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
+      exclude group: 'org.bouncycastle', module: 'bcpkix-jdk18on'
+      exclude group: 'org.bouncycastle', module: 'bcutil-jdk18on'
+      exclude group: 'com.google.guava', module: 'guava'
+      exclude group: 'org.apache.commons', module: 'commons-lang3'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'org.jetbrains.kotlin', module: 'kotlin-gradle-plugin'
+      exclude group: 'org.jdom', module: 'jdom2'
+      exclude group: 'org.bitbucket.b_c', module: 'jose4j'
     }
-    classpath 'com.android.tools.build:gradle:9.5.1'
+    classpath 'org.bouncycastle:bcprov-jdk18on:1.86'
+    classpath 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    classpath 'org.bouncycastle:bcutil-jdk18on:1.86'
+    classpath 'com.google.guava:guava:33.7.2-jre'
+    classpath 'org.apache.commons:commons-lang3:3.18.0'
+    classpath 'org.apache.httpcomponents:httpclient:4.5.14'
+    classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'
+    classpath 'org.jdom:jdom2:2.0.6.1'
+    classpath 'org.bitbucket.b_c:jose4j:0.9.6'
   }
 }
