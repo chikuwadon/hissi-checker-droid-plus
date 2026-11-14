@@ -38,6 +38,29 @@ buildscript {
     )
   }
   dependencies {
+    // Patch the *metadata* requests as well as the resolved classpath.
+    // Scoped to the AGP buildscript, never the application dependencies.
+    components {
+      all {
+        allVariants {
+          withDependencies {
+            all { dep ->
+              def fixed = [
+                'org.bouncycastle:bcprov-jdk18on': '1.86',
+                'org.bouncycastle:bcpkix-jdk18on': '1.86',
+                'org.bouncycastle:bcutil-jdk18on': '1.86',
+                'com.google.guava:guava': '33.7.2-jre',
+                'org.apache.commons:commons-lang3': '3.18.0',
+                'org.apache.httpcomponents:httpclient': '4.5.14'
+              ][dep.group + ':' + dep.name]
+              if (fixed != null) {
+                dep.version { require(fixed) }
+              }
+            }
+          }
+        }
+      }
+    }
     classpath 'com.android.tools.build:gradle:9.5.1'
   }
 }
