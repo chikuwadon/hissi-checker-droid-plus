@@ -1,0 +1,109 @@
+name: Audited Gradle dependency submission
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'app/build.gradle'
+      - 'gradle.properties'
+      - 'tools/resolved-dependency-snapshot.gradle'
+      - 'tools/validate_resolved_dependency_snapshot.py'
+      - 'tools/audit_gradle_dependency_snapshot.py'
+      - '.github/workflows/audited-dependency-submission.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate and audit full dependency graph
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          gradle-version: '9.9.1'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+      - name: Build and capture actually resolved dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-build-cache --rerun-tasks \
+            -I tools/resolved-dependency-snapshot.gradle \
+            :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
+            exportResolvedDependencySnapshot
+          python3 tools/validate_resolved_dependency_snapshot.py \
+            build/reports/dependencies/resolved-snapshot.json
+      - name: Generate complete Gradle vendor metadata without submission
+        uses: gradle/actions/dependency-submission@v6.4.1
+        with:
+          gradle-version: '9.9.1'
+          dependency-graph: generate-and-upload
+          dependency-graph-report-dir: dependency-graph-reports-official
+          artifact-retention-days: 1
+      - name: Reconcile and verify audited dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/audit_gradle_dependency_snapshot.py \
+            --official-dir dependency-graph-reports-official \
+            --selected build/reports/dependencies/resolved-snapshot.json \
+            --output build/reports/dependencies/audited-snapshot.json
+          python3 tools/validate_resolved_dependency_snapshot.py \
+            build/reports/dependencies/audited-snapshot.json
+      - name: Preserve audited dependency graph for inspection
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: audited-gradle-dependency-graph
+          path: build/reports/dependencies/audited-snapshot.json
+          if-no-files-found: error
+          retention-days: 2
+
+  submit:
+    name: Submit verified graph to GitHub (main only)
+    needs: generate
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download audited artifact from this workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name audited-gradle-dependency-graph --dir "$RUNNER_TEMP/verified"
+          jq -e --arg sha "$GITHUB_SHA" \
+            '.sha == $sha and .ref == "refs/heads/main" and (.manifests["settings.gradle"].resolved | length >= 100)' \
+            "$RUNNER_TEMP/verified/audited-snapshot.json"
+      - name: Submit trusted snapshot via Dependency Submission API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/dependency-graph/snapshots" \
+            --input "$RUNNER_TEMP/verified/audited-snapshot.json"

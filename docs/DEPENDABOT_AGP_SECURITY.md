@@ -36,3 +36,19 @@ GitHubの「Automatic Dependency Submission」から取得したスナップシ�
 - https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html
 - https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data
 - https://kotlinlang.org/docs/gradle-configure-project.html
+
+
+## 依存グラフの監査済み提出
+
+GitHubのAutomatic Dependency Submissionや公式Gradle Dependency Submissionは、AGPの公開POM内の要求版（例: Guava 33.4.0-jre）を、実際に選択された版（33.7.2-jre）と別ノードとして提出することがある。ユーザー報告の残件はこの差に起因する。
+
+`tools/resolved-dependency-snapshot.gradle` はGradleの`ResolutionResult`を利用し、通常のビルドとテスト・Lintで実際に解決された依存を収集する。`tools/validate_resolved_dependency_snapshot.py` は修正版の選択状況と参照整合性を検証する。
+
+ただし、実解決グラフだけではAGPのLintなどのツール系モジュールが全て含まれるとは限らないため、公式Gradle Dependency Submissionが出力する**全依存メタデータも保持**する。`tools/audit_gradle_dependency_snapshot.py` は、全メタデータのうち選択版を検証した9モジュールだけを実解決結果へ合わせ、依存の参照も更新する。差分を自動検証し、その他の依存モジュールは削除しない。
+
+本番ワークフローでは、この監査済みスナップショットをGitHub Dependency Submission APIで**手動提出**する。GitHub公式仕様上、手動提出は自動提出より優先される。ただし、自動提出・Dependabot・CodeQLの機能は無効化しない。CIでは古い版の実選択を引き続き検知する。
+
+GitHubの表示でアラートが閉じたかどうかは、**mainのDependency GraphとDependabot Alertsを再評価した結果**で確認する。根拠なくDismissして件数を減らす対応はしない。
+
+- [GitHubの提出形式と優先順位](https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission)
+- [Gradle公式のDependency Submission](https://docs.gradle.org/current/userguide/github-actions.html)
