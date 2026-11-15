@@ -9,6 +9,7 @@ This is NOT an alert-dismissal tool or a dependency scanner bypass.
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 
 EXPECTED = {
@@ -27,8 +28,21 @@ def module_key(coordinate: str) -> str:
     return coordinate.rsplit(':', 1)[0]
 
 def reconcile(official: dict, selected: dict) -> dict:
-    if official['sha'] != selected['sha'] or official['ref'] != selected['ref']:
-        raise ValueError('Official and actual-resolution snapshots must represent the same ref and commit')
+    if official['ref'] != selected['ref']:
+        raise ValueError('Official and actual-resolution snapshots must represent the same ref')
+    if official['sha'] != selected['sha']:
+        # For PR workflows the official Gradle action records the PR head SHA,
+        # whereas GITHUB_SHA on the checked-out PR merge ref is a synthetic SHA.
+        # Permit this mismatch ONLY for the same verified PR/run, never on main.
+        if os.environ.get('GITHUB_EVENT_NAME') != 'pull_request':
+            raise ValueError('Commit mismatch outside a PR is prohibited')
+        with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as event_file:
+            event = json.load(event_file)
+        expected_head = event['pull_request']['head']['sha']
+        if not (official['sha'] == expected_head
+                and selected['sha'] == os.environ.get('GITHUB_SHA')
+                and official['job']['id'] == selected['job']['id'] == os.environ.get('GITHUB_RUN_ID')):
+            raise ValueError('PR graph SHAs/run are inconsistent with the verified workflow event')
     if len(official['manifests']) != 1:
         raise ValueError('Expected one official Gradle dependency manifest')
     vendor = next(iter(official['manifests'].values()))
