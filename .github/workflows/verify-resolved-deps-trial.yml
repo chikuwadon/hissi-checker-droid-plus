@@ -1,0 +1,49 @@
+name: Verify selected Gradle dependency graph (trial)
+on:
+  push:
+    branches: [security/verified-gradle-dependency-submission-20261115]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          problem-matcher: true
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: ''
+      - uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          gradle-version: '9.9.1'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+      - name: Generate selected dependency snapshot without submitting
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-build-cache \
+            -I tools/resolved-dependency-snapshot.gradle \
+            exportResolvedDependencySnapshot
+          python3 tools/validate_resolved_dependency_snapshot.py \
+            build/reports/dependencies/resolved-snapshot.json
+      - name: Upload dependency graph for review
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: verified-resolved-dependency-graph-trial
+          path: build/reports/dependencies/resolved-snapshot.json
+          if-no-files-found: error
+          retention-days: 2
