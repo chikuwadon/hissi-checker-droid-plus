@@ -35,8 +35,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --no-build-cache \
+          gradle --no-daemon --no-build-cache --rerun-tasks \
             -I tools/resolved-dependency-snapshot.gradle \
+            :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
             exportResolvedDependencySnapshot
           python3 tools/validate_resolved_dependency_snapshot.py \
             build/reports/dependencies/resolved-snapshot.json
