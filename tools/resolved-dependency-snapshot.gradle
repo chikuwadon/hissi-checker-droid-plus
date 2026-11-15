@@ -2,9 +2,22 @@
 // rather than parsing requested versions from AGP publication metadata.
 // Run via: gradle -I tools/resolved-dependency-snapshot.gradle exportResolvedDependencySnapshot
 import groovy.json.JsonOutput
+import org.gradle.api.artifacts.DependencyResolutionListener
+import org.gradle.api.artifacts.ResolvableDependencies
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedDependencyResult
 import org.gradle.api.artifacts.result.UnresolvedDependencyResult
+
+// Capture every configuration that is actually resolved while compiling,
+// running unit tests and Lint, including AGP's detached tool configurations.
+// This listener is intended for this isolated CI job (configuration cache OFF).
+def buildResolutions = Collections.synchronizedList([])
+gradle.addListener(new DependencyResolutionListener() {
+  void beforeResolve(ResolvableDependencies dependencies) { }
+  void afterResolve(ResolvableDependencies dependencies) {
+    buildResolutions.add([dependencies.path, dependencies.resolutionResult.rootComponent.get()])
+  }
+})
 
 gradle.projectsEvaluated {
   def root = gradle.rootProject
@@ -49,6 +62,11 @@ gradle.projectsEvaluated {
         }
       }
 
+      // Every resolved configuration observed during the actual build is
+      // included in the submitted graph, not just AGP project classpaths.
+      new ArrayList(buildResolutions).each { event ->
+        configurationsToScan << [':resolved', event[0], [incoming: [resolutionResult: [rootComponent: [get: { event[1] }]]]]]
+      }
       configurationsToScan.each { entry ->
         def projectPath = entry[0]
         def configName = entry[1]
