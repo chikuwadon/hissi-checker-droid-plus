@@ -49,30 +49,27 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
-  official-export:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-java@v6.3.0
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4.0.4
-        with:
-          packages: ''
-      - name: Install Android SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
-          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
-            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
-          fi
-      - name: Generate official Gradle dependency snapshot without submission
+      - name: Generate complete official Gradle graph (not submitted)
         uses: gradle/actions/dependency-submission@v6.4.1
         with:
           gradle-version: '9.9.1'
           dependency-graph: generate-and-upload
           dependency-graph-report-dir: dependency-graph-reports-official
           artifact-retention-days: 2
+      - name: Reconcile actual selected modules against full vendor graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/audit_gradle_dependency_snapshot.py \
+            --official-dir dependency-graph-reports-official \
+            --selected build/reports/dependencies/resolved-snapshot.json \
+            --output build/reports/dependencies/audited-snapshot.json
+          python3 tools/validate_resolved_dependency_snapshot.py \
+            build/reports/dependencies/audited-snapshot.json
+      - name: Upload audited snapshot for independent inspection
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: audited-gradle-dependency-graph-trial
+          path: build/reports/dependencies/audited-snapshot.json
+          if-no-files-found: error
+          retention-days: 2
