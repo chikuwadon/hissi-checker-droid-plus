@@ -15,21 +15,6 @@ workflows:
         - 'actions/upload-artifact@v7.0.2'
         - 'android-actions/setup-android@v4.0.4'
         - 'gradle/actions@v6.4.1'
-    '.github/workflows/publish-v1.0.1.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/setup-java@v6.3.0'
-        - 'android-actions/setup-android@v4.0.4'
-        - 'gradle/actions@v6.4.1'
-    '.github/workflows/publish-v1.0.2.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/setup-java@v6.3.0'
-        - 'android-actions/setup-android@v4.0.4'
-        - 'gradle/actions@v6.4.1'
-    '.github/workflows/publish-v1.0.3.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/setup-java@v6.3.0'
-        - 'android-actions/setup-android@v4.0.4'
-        - 'gradle/actions@v6.4.1'
     '.github/workflows/verify-lockfile.yml':
         - 'actions/checkout@v7.0.1'
 dependencies:
