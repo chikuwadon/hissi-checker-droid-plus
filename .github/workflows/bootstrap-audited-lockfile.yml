@@ -1,0 +1,33 @@
+name: Generate Audited Dependency Workflow Lockfile (temporary)
+on:
+  push:
+    branches: [security/verified-gradle-dependency-submission-20261115]
+permissions:
+  contents: read
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install official GitHub Actions lockfile extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-actions-lock
+      - name: Generate permanent workflow lockfile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/bootstrap-audited-lockfile.yml
+          gh actions-lock
+          gh actions-lock --verify
+          test -s .github/workflows/actions.lock
+      - name: Export verified lockfile
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: audited-gradle-actions-lockfile
+          path: .github/workflows/actions.lock
+          if-no-files-found: error
+          retention-days: 1
