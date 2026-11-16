@@ -250,12 +250,14 @@ object ThemedMenu {
         val panel = column(a, 10)
         panel.addView(title(a, heading))
         val holder = arrayOfNulls<AlertDialog>(1)
+        var actionPending = false
         labels.forEachIndexed { index, value ->
             val row = LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(a, 48)
             }
-            applyTouch(a, row)
+            applyMenuTouch(a, row)
+            row.isActivated = index == selectedIndex
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 setPadding(dp(a, 10), dp(a, 8), 0, dp(a, 8))
             }
@@ -265,8 +267,14 @@ object ThemedMenu {
             row.addView(check, LinearLayout.LayoutParams(dp(a, 42), dp(a, 42)))
             panel.addView(row)
             row.setOnClickListener {
-                holder[0]?.dismiss()
-                onChoice.onSelected(index)
+                if (actionPending) return@setOnClickListener
+                actionPending = true
+                row.isActivated = true
+                check.text = "✓"
+                row.postDelayed({
+                    holder[0]?.dismiss()
+                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index)
+                }, 120L)
             }
         }
         addClose(a, panel, holder)
@@ -281,6 +289,7 @@ object ThemedMenu {
         val panel = column(a, 10)
         panel.addView(title(a, heading))
         val holder = arrayOfNulls<AlertDialog>(1)
+        var actionPending = false
         val always = CheckBox(a).apply {
             text = "次回から確認しない"
             textSize = 14f
@@ -294,16 +303,21 @@ object ThemedMenu {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(a, 48)
             }
-            applyTouch(a, row)
+            applyMenuTouch(a, row)
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 setPadding(dp(a, 10), dp(a, 8), dp(a, 10), dp(a, 8))
             }
             row.addView(option, LinearLayout.LayoutParams(-1, -2))
             panel.addView(row)
             row.setOnClickListener {
+                if (actionPending) return@setOnClickListener
+                actionPending = true
                 val checked = always.isChecked
-                holder[0]?.dismiss()
-                onChoice.onSelected(index, checked)
+                row.isActivated = true
+                row.postDelayed({
+                    holder[0]?.dismiss()
+                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index, checked)
+                }, 120L)
             }
         }
         panel.addView(always)
