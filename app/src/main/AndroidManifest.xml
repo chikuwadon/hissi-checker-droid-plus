@@ -67,6 +67,13 @@
                     <data android:query="bs=hi" />
                     <data android:queryPrefix="k=id:" />
                 </uri-relative-filter-group>
+                <!-- Upper-case ID: is also emitted by Kyodemo. Query matching
+                     is case-sensitive, even though CheckerQuery accepts both. -->
+                <uri-relative-filter-group android:allow="true">
+                    <data android:pathPrefix="/sdemo/b/e_e_" />
+                    <data android:query="bs=hi" />
+                    <data android:queryPrefix="k=ID:" />
+                </uri-relative-filter-group>
                 <!-- Previously supported thread-scoped ID checker pages. -->
                 <uri-relative-filter-group android:allow="true">
                     <data android:pathPrefix="/sdemo/b/e_e_" />
