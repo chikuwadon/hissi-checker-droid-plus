@@ -97,6 +97,7 @@ class ResultActivity : Activity() {
     private var previewTo = -1
     private var previewCompletion = true
     private var previewGeneration = 0
+    private var rowActionPending = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
@@ -169,9 +170,18 @@ class ResultActivity : Activity() {
                 else settleEdgeSwipe()
             }
         }
-        findViewById<View>(R.id.tab_posts).setOnClickListener { selectTab(0) }
-        findViewById<View>(R.id.tab_threads).setOnClickListener { selectTab(1) }
-        findViewById<View>(R.id.tab_names).setOnClickListener { selectTab(2) }
+        findViewById<View>(R.id.tab_posts).setOnClickListener {
+            TouchFeedback.pulse(it)
+            selectTab(0)
+        }
+        findViewById<View>(R.id.tab_threads).setOnClickListener {
+            TouchFeedback.pulse(it)
+            selectTab(1)
+        }
+        findViewById<View>(R.id.tab_names).setOnClickListener {
+            TouchFeedback.pulse(it)
+            selectTab(2)
+        }
         // Foreground ripples preserve the selected tab's underline and background.
         intArrayOf(
             R.id.tab_posts, R.id.tab_threads, R.id.tab_names,
@@ -213,7 +223,7 @@ class ResultActivity : Activity() {
             }
         }
         selectTab(0)
-        list.setOnItemClickListener { _, _, index, _ -> showEntry(index) }
+        list.setOnItemClickListener { _, _, index, _ -> showEntryAfterRipple(index) }
         list.setOnScrollListener(object : AbsListView.OnScrollListener {
             override fun onScrollStateChanged(view: AbsListView, state: Int) = Unit
 
@@ -636,6 +646,21 @@ class ResultActivity : Activity() {
             rememberTabPosition()
             showTabContents(index)
         }
+    }
+
+    /**
+     * Keep the tapped row visible while its expanding ripple finishes.
+     * SelectableResultTextView performs a native CANCEL before performClick,
+     * so immediate showEntry() would hide the feedback underneath a dialog.
+     */
+    private fun showEntryAfterRipple(index: Int) {
+        if (rowActionPending) return
+        val tappedTab = tab
+        rowActionPending = true
+        list.postDelayed({
+            rowActionPending = false
+            if (!isFinishing && !isDestroyed && tappedTab == tab) showEntry(index)
+        }, 150L)
     }
 
     private fun showEntry(index: Int) {
@@ -1196,20 +1221,15 @@ class ResultActivity : Activity() {
             val title = view.findViewById<SelectableResultTextView>(R.id.item_title)
             val subtitle = view.findViewById<SelectableResultTextView>(R.id.item_subtitle)
             val body = view.findViewById<SelectableResultTextView>(R.id.item_body)
-            if (convertView == null) {
-                // Text rows consume their own touch events for long-press selection.
-                // A foreground ripple still responds to a normal item tap.
-                TouchFeedback.foreground(title, 4)
-                TouchFeedback.foreground(subtitle, 4)
-                TouchFeedback.foreground(body, 4)
-            }
+            // RippleResultRow owns the full-row feedback at dispatch level.
+            // Do not attach separate ripples to selectable child text views.
             // Recycled rows can retain stale text-selection controllers.
             val identity = tab * 1_000_000 + index
             val reused = (view.tag as? Int) != identity
             view.tag = identity
             // Selectable text receives the original long-press; short taps
             // continue to open the existing action menu.
-            val showActions = View.OnClickListener { showEntry(index) }
+            val showActions = View.OnClickListener { showEntryAfterRipple(index) }
             title.setOnClickListener(showActions)
             subtitle.setOnClickListener(showActions)
             body.setOnClickListener(showActions)
