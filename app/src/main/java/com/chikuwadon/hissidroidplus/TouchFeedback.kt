@@ -7,7 +7,6 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.view.View
-import kotlin.math.roundToInt
 
 /**
  * Touch-position-based expanding ripple, shared by menus, tabs and actions.
