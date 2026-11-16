@@ -39,6 +39,17 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(code.contains("if (AppSettings.tabAnimations(this) && beginTabPreview(index))"));
     }
 
+    @Test public void animationSettingFitsOnOneLine() throws Exception {
+        String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
+        String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
+        assertTrue(home.contains("\"タブ切替アニメーション\""));
+        assertTrue(menu.contains("val toggleTextWidth = items.getOrNull(toggleIndex)"));
+        assertTrue(menu.contains("val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 93)"));
+        assertTrue(menu.contains("val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)"));
+        assertTrue(menu.contains("isSingleLine = true"));
+        assertTrue(menu.contains("ellipsize = android.text.TextUtils.TruncateAt.END"));
+    }
+
     @Test public void overflowCheckboxDoesNotDismissWhenToggled() throws Exception {
         String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
