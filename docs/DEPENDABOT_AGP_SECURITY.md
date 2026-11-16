@@ -12,6 +12,17 @@ Dependabotで報告された9件は、Androidアプリの`implementation`依存�
 - Apache HttpClient 4.5.6 → 4.5.14
 - Kotlin Gradle Plugin 2.2.10 → 2.4.21
 
+## 最新安定版への追随（2026-11-16、PR #32）
+
+上記の2026-11-15時点の変更履歴は保持し、現在のビルド用クラスパスでは以下の安定版を使用する。
+
+- Bouncy Castle bcprov / bcpkix / bcutil：1.86 → **1.87**
+- Guava：33.7.2-jre → **33.8.0-jre**
+- Apache Commons Lang：3.18.0 → **3.22.0**
+- jose4j：0.9.6 → **0.9.7**
+
+これらの期待値は `tools/verify_gradle_buildscript_dependencies.py`、`tools/validate_resolved_dependency_snapshot.py`、`tools/audit_gradle_dependency_snapshot.py` にも反映し、実際の選択版で検証する。HttpClient 4.5.14は4系の最新、JDOM2 2.0.6.1も現行最新のため据え置く。
+
 ## 対策
 
 AGPは最新安定版9.5.1を維持したまま、root `buildscript` classpathにて旧モジュールの推移的取り込みを除外し、修正版のモジュールを直接指定する。
@@ -40,7 +51,7 @@ GitHubの「Automatic Dependency Submission」から取得したスナップシ�
 
 ## 依存グラフの監査済み提出
 
-GitHubのAutomatic Dependency Submissionや公式Gradle Dependency Submissionは、AGPの公開POM内の要求版（例: Guava 33.4.0-jre）を、実際に選択された版（33.7.2-jre）と別ノードとして提出することがある。ユーザー報告の残件はこの差に起因する。
+GitHubのAutomatic Dependency Submissionや公式Gradle Dependency Submissionは、AGPの公開POM内の要求版（例: Guava 33.4.0-jre）を、実際に選択された版（初回対策時は33.7.2-jre、現在は33.8.0-jre）と別ノードとして提出することがある。ユーザー報告の残件はこの差に起因する。
 
 `tools/resolved-dependency-snapshot.gradle` はGradleの`ResolutionResult`を利用し、通常のビルドとテスト・Lintで実際に解決された依存を収集する。`tools/validate_resolved_dependency_snapshot.py` は修正版の選択状況と参照整合性を検証する。
 
