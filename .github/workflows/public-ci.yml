@@ -66,14 +66,14 @@ jobs:
         run: |
           set -euo pipefail
           mv app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.1.apk
+            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.2.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
-            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.1.apk
+            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.2.apk
       - name: Upload signed QA APK
         if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: hissi-checker-droid-plus-v1.0.4-dev.1-signed
-          path: app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.1.apk
+          name: hissi-checker-droid-plus-v1.0.4-dev.2-signed
+          path: app/build/outputs/apk/release/hissi-checker-droid-plus-v1.0.4-dev.2.apk
           if-no-files-found: error
           retention-days: 7
