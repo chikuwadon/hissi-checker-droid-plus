@@ -15,6 +15,16 @@ public class CheckerQueryTest {
         assertEquals(url,q.url);
         assertEquals(q.url,CheckerQuery.fromExternalPayload(url,null,null,null,null).url);
     }
+    @Test public void uppercaseIdCheckerLinkRemainsParseable(){
+        String url="https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=hi&k=ID%3AOCZQHNs6O";
+        CheckerQuery q=CheckerQuery.fromExternalPayload(url,null,null,null,null);
+        assertEquals(CheckerQuery.Site.EDGE,q.site);
+        assertEquals("liveedge",q.board);
+        assertEquals("OCZQHNs6O",q.id);
+        assertEquals("",q.date);
+        assertEquals("",q.key);
+        assertTrue(q.url.contains("id%3AOCZQHNs6O"));
+    }
     @Test public void indexUrlSupportsEncodedIdCharacters(){
         CheckerQuery q=CheckerQuery.parseUrl(
             "https://kyodemo.net/sdemo/b/e_e_liveedge/?bs=hi&k=id%3AAb%2B%2F12");
