@@ -94,6 +94,7 @@ class HistoryActivity : Activity() {
         }
         toolbar.addView(back, LinearLayout.LayoutParams(dp(44), dp(48)))
         back.setOnClickListener { navigateBack() }
+        TouchFeedback.foreground(back, 10)
         toolbarTitle = text("検索履歴", 18, getColor(R.color.text_primary))
         toolbar.addView(toolbarTitle, LinearLayout.LayoutParams(0, -2, 1f))
         sortLabel = text("新しい順 ▾", 13, getColor(R.color.accent)).apply {
@@ -101,6 +102,7 @@ class HistoryActivity : Activity() {
             setPadding(dp(8), 0, dp(8), 0)
         }
         toolbar.addView(sortLabel, LinearLayout.LayoutParams(-2, dp(48)))
+        TouchFeedback.foreground(sortLabel)
         sortLabel.setOnClickListener {
             ThemedMenu.showOverflow(this, sortLabel, sorts) { index ->
                 sort = index
@@ -112,6 +114,7 @@ class HistoryActivity : Activity() {
             contentDescription = "履歴の操作"
         }
         toolbar.addView(menuButton, LinearLayout.LayoutParams(dp(44), dp(48)))
+        TouchFeedback.foreground(menuButton, 10)
         menuButton.setOnClickListener {
             ThemedMenu.showOverflow(
                 this, menuButton, arrayOf("複数選択", "履歴を全削除")
@@ -132,6 +135,8 @@ class HistoryActivity : Activity() {
         favoriteTab.gravity = Gravity.CENTER
         tabs.addView(recentTab, LinearLayout.LayoutParams(0, -1, 1f))
         tabs.addView(favoriteTab, LinearLayout.LayoutParams(0, -1, 1f))
+        TouchFeedback.foreground(recentTab)
+        TouchFeedback.foreground(favoriteTab)
         recentTab.setOnClickListener { tab = 0; refresh() }
         favoriteTab.setOnClickListener {
             if (selection) {
@@ -150,6 +155,7 @@ class HistoryActivity : Activity() {
             gravity = Gravity.CENTER
         }
         actions.addView(cancelSelection, LinearLayout.LayoutParams(dp(62), dp(46)))
+        TouchFeedback.foreground(cancelSelection)
         cancelSelection.setOnClickListener {
             selection = false
             chosen.clear()
@@ -163,6 +169,7 @@ class HistoryActivity : Activity() {
             gravity = Gravity.CENTER
         }
         actions.addView(deleteSelected, LinearLayout.LayoutParams(dp(74), dp(46)))
+        TouchFeedback.foreground(deleteSelected)
         deleteSelected.setOnClickListener { confirmSelected() }
         actions.tag = "selectionActions"
         selectionActions = actions
@@ -170,7 +177,7 @@ class HistoryActivity : Activity() {
         list = ListView(this).apply {
             divider = ColorDrawable(getColor(R.color.divider))
             dividerHeight = dp(1)
-            selector = ColorDrawable(Color.TRANSPARENT)
+            selector = TouchFeedback.listSelector(this@HistoryActivity)
             isFastScrollEnabled = true
             adapter = this@HistoryActivity.adapter
         }
@@ -342,6 +349,8 @@ class HistoryActivity : Activity() {
                     gravity = Gravity.CENTER
                 }
                 row.addView(star, LinearLayout.LayoutParams(dp(48), dp(48)))
+                TouchFeedback.foreground(row, 6)
+                TouchFeedback.foreground(star, 10)
                 holder = HistoryRow(row, number, title, detail, star)
                 row.tag = holder
             }
