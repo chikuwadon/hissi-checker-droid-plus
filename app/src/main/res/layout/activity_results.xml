@@ -53,8 +53,14 @@
             android:id="@+id/hourly_chart" android:layout_width="match_parent"
             android:layout_height="64dp" android:visibility="gone" />
     </LinearLayout>
-    <ListView android:id="@+id/items" android:fastScrollEnabled="true" android:clipToPadding="false"
-        android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingBottom="3dp"
-        android:divider="@color/divider" android:dividerHeight="1dp"
-        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <com.chikuwadon.hissidroidplus.SwipeTabContainer
+        android:id="@+id/swipe_container"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:clipChildren="true">
+        <ListView android:id="@+id/items"
+            android:fastScrollEnabled="true" android:clipToPadding="false"
+            android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingBottom="3dp"
+            android:divider="@color/divider" android:dividerHeight="1dp"
+            android:layout_width="match_parent" android:layout_height="match_parent" />
+    </com.chikuwadon.hissidroidplus.SwipeTabContainer>
 </LinearLayout>

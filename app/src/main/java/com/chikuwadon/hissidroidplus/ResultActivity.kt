@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -27,8 +29,6 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.VelocityTracker
-import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -42,6 +42,7 @@ import android.webkit.WebViewClient
 import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -89,8 +90,13 @@ class ResultActivity : Activity() {
     private var fallbackAttempted = false
     private var edgeDiagnostic = "未取得"
     private var fallbackView: WebView? = null
-    private var swipeTracker: VelocityTracker? = null
-    private val swipeSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop.toFloat() }
+    private lateinit var swipeContainer: SwipeTabContainer
+    private var previewOverlay: ImageView? = null
+    private var previewBitmap: Bitmap? = null
+    private var previewFrom = -1
+    private var previewTo = -1
+    private var previewCompletion = true
+    private var previewGeneration = 0
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
@@ -130,33 +136,64 @@ class ResultActivity : Activity() {
         findViewById<View>(R.id.edge_analysis_link).setOnClickListener { openEdgeAnalysis() }
         status = findViewById(R.id.status)
         list = findViewById(R.id.items)
+        swipeContainer = findViewById(R.id.swipe_container)
         list.adapter = adapter
+        swipeContainer.callback = object : SwipeTabContainer.Callback {
+            override fun onStart(dx: Float) {
+                clearTabPreview(previewCompletion)
+                val next = tab + if (dx < 0f) 1 else -1
+                if (AppSettings.tabAnimations(this@ResultActivity) && next in 0..2) {
+                    beginTabPreview(next)
+                }
+            }
+
+            override fun onDrag(dx: Float) = dragTabPreview(dx)
+
+            override fun onRelease(dx: Float, dy: Float, velocityX: Float) {
+                val previous = if (previewFrom >= 0) previewFrom else tab
+                val target = TabSwipePolicy.destination(
+                    previous, 3, dx, dy, velocityX,
+                    dp(42).toFloat(), dp(15).toFloat(), dp(480).toFloat()
+                )
+                if (previewFrom >= 0) {
+                    finishTabPreview(target == previewTo)
+                } else if (target != tab) {
+                    selectTab(target)
+                } else {
+                    settleEdgeSwipe()
+                }
+            }
+
+            override fun onCancel() {
+                if (previewFrom >= 0) finishTabPreview(false)
+                else settleEdgeSwipe()
+            }
+        }
         findViewById<View>(R.id.tab_posts).setOnClickListener { selectTab(0) }
         findViewById<View>(R.id.tab_threads).setOnClickListener { selectTab(1) }
         findViewById<View>(R.id.tab_names).setOnClickListener { selectTab(2) }
         findViewById<View>(R.id.toolbar_back).setOnClickListener { exitResults() }
         findViewById<View>(R.id.toolbar_more).setOnClickListener { anchor ->
             val edge = query?.site == CheckerQuery.Site.EDGE
-            val animationLabel = "タブ切替アニメーション：" +
-                (if (AppSettings.tabAnimations(this)) "ON" else "OFF")
             val labels = if (edge) arrayOf(
-                "ホーム画面に戻る", "検索履歴", animationLabel, "書き込み分析",
+                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション", "書き込み分析",
                 "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
                 "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
             ) else arrayOf(
-                "ホーム画面に戻る", "検索履歴", animationLabel,
+                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション",
                 "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
                 "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
             )
-            ThemedMenu.showOverflow(this, anchor, labels) { which ->
-                if (which < 0 || which >= labels.size) return@showOverflow
+            ThemedMenu.showOverflowToggle(this, anchor, labels, 2,
+                AppSettings.tabAnimations(this), { enabled ->
+                    AppSettings.setTabAnimations(this, enabled)
+                    if (!enabled) clearTabPreview(previewCompletion)
+                }
+            ) { which ->
+                if (which < 0 || which >= labels.size) return@showOverflowToggle
                 when {
                     which == 0 -> openHome()
                     which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))
-                    which == 2 -> {
-                        AppSettings.setTabAnimations(this, !AppSettings.tabAnimations(this))
-                        if (!AppSettings.tabAnimations(this)) resetTabMotion()
-                    }
                     edge && which == 3 -> openEdgeAnalysis()
                     else -> when (which - if (edge) 4 else 3) {
                         0 -> openExternalBrowser(resultUrl())
@@ -171,91 +208,6 @@ class ResultActivity : Activity() {
         }
         selectTab(0)
         list.setOnItemClickListener { _, _, index, _ -> showEntry(index) }
-        list.setOnTouchListener(object : View.OnTouchListener {
-            private var downX = 0f
-            private var downY = 0f
-            private var swiping = false
-            private var verticalGesture = false
-
-            override fun onTouch(view: View, event: MotionEvent): Boolean {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        swipeTracker?.recycle()
-                        swipeTracker = VelocityTracker.obtain().also { it.addMovement(event) }
-                        downX = event.x
-                        downY = event.y
-                        swiping = false
-                        verticalGesture = false
-                        // A new touch always begins on a stable, untransformed page.
-                        resetTabMotion()
-                        return false
-                    }
-                    MotionEvent.ACTION_POINTER_DOWN -> {
-                        val consumed = swiping
-                        verticalGesture = true
-                        swiping = false
-                        swipeTracker?.recycle()
-                        swipeTracker = null
-                        if (consumed) settleTabMotion()
-                        return consumed
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        if (verticalGesture || event.pointerCount != 1) return false
-                        swipeTracker?.addMovement(event)
-                        val dx = event.x - downX
-                        val dy = event.y - downY
-                        if (!swiping) {
-                            if (abs(dy) > swipeSlop && abs(dy) > abs(dx)) {
-                                verticalGesture = true
-                                return false
-                            }
-                            if (abs(dx) > swipeSlop && abs(dx) > abs(dy) * 1.15f) {
-                                swiping = true
-                                view.parent?.requestDisallowInterceptTouchEvent(true)
-                            }
-                        }
-                        if (swiping) {
-                            if (AppSettings.tabAnimations(this@ResultActivity)) {
-                                val atEdge = (dx > 0 && tab == 0) ||
-                                    (dx < 0 && tab == 2)
-                                val limit = dp(72).toFloat()
-                                val factor = if (atEdge) 0.12f else 0.36f
-                                list.translationX = (dx * factor).coerceIn(-limit, limit)
-                                list.alpha = 1f - (abs(list.translationX) / limit) * 0.08f
-                            }
-                            return true
-                        }
-                        return false
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        swipeTracker?.addMovement(event)
-                        swipeTracker?.computeCurrentVelocity(1000)
-                        val vx = swipeTracker?.xVelocity ?: 0f
-                        swipeTracker?.recycle()
-                        swipeTracker = null
-                        val consumed = swiping
-                        if (swiping) {
-                            val next = TabSwipePolicy.destination(
-                                tab, 3, event.x - downX, event.y - downY, vx,
-                                dp(44).toFloat(), dp(18).toFloat(), dp(520).toFloat()
-                            )
-                            if (next != tab) selectTab(next) else settleTabMotion()
-                        }
-                        swiping = false
-                        return consumed
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        val consumed = swiping
-                        swiping = false
-                        swipeTracker?.recycle()
-                        swipeTracker = null
-                        if (consumed) settleTabMotion()
-                        return consumed
-                    }
-                }
-                return false
-            }
-        })
         list.setOnScrollListener(object : AbsListView.OnScrollListener {
             override fun onScrollStateChanged(view: AbsListView, state: Int) = Unit
 
@@ -517,33 +469,22 @@ class ResultActivity : Activity() {
         summary.text = label.toString()
     }
 
-    private fun resetTabMotion() {
-        list.animate().cancel()
-        list.translationX = 0f
-        list.alpha = 1f
-    }
-
-    private fun settleTabMotion() {
-        list.animate().cancel()
-        if (!AppSettings.tabAnimations(this)) {
-            resetTabMotion()
-            return
-        }
-        list.animate().translationX(0f).alpha(1f).setDuration(150L)
-            .setInterpolator(DecelerateInterpolator(1.7f)).start()
-    }
-
-    private fun selectTab(index: Int) {
-        if (index !in 0..2) return
-        val previousTab = tab
+    private fun rememberTabPosition() {
         positions[tab] = list.firstVisiblePosition
         offsets[tab] = list.getChildAt(0)?.top ?: 0
-        resetTabMotion()
+    }
+
+    private fun showTabContents(index: Int) {
         tab = index
+        adapter.notifyDataSetChanged()
+        list.setSelectionFromTop(positions[index], offsets[index])
+        refreshTabLabels()
+    }
+
+    private fun refreshTabLabels() {
         val tabs = intArrayOf(R.id.tab_posts, R.id.tab_threads, R.id.tab_names)
         tabs.forEachIndexed { position, res ->
             val button = findViewById<TextView>(res)
-            // Underline selection only, retaining the flat tab background.
             button.isSelected = position == tab
             button.setTextColor(getColor(
                 if (position == tab) R.color.accent else R.color.text_secondary
@@ -551,14 +492,143 @@ class ResultActivity : Activity() {
             button.contentDescription = button.text.toString() +
                 if (position == tab) "、選択中" else ""
         }
-        adapter.notifyDataSetChanged()
-        list.setSelectionFromTop(positions[tab], offsets[tab])
-        // A short ease-out follows both tab taps and completed drag/fling gestures.
-        if (previousTab != tab && AppSettings.tabAnimations(this)) {
-            list.translationX = (if (tab > previousTab) 1 else -1) * dp(34).toFloat()
-            list.alpha = 0.83f
-            list.animate().translationX(0f).alpha(1f).setDuration(185L)
-                .setInterpolator(DecelerateInterpolator(1.65f)).start()
+    }
+
+    /** Release both the bitmap and the overlay after each transition. */
+    private fun disposeTabOverlay() {
+        previewOverlay?.let {
+            it.animate().cancel()
+            swipeContainer.removeView(it)
+            it.setImageDrawable(null)
+        }
+        previewOverlay = null
+        previewBitmap?.recycle()
+        previewBitmap = null
+    }
+
+    /** Complete interrupted transitions before handling a fresh gesture. */
+    private fun clearTabPreview(commit: Boolean) {
+        previewGeneration++
+        if (::list.isInitialized) {
+            list.animate().cancel()
+            list.translationX = 0f
+            list.alpha = 1f
+        }
+        if (::swipeContainer.isInitialized) disposeTabOverlay()
+        val previous = previewFrom
+        previewFrom = -1
+        previewTo = -1
+        if (!commit && previous >= 0 && ::list.isInitialized) {
+            showTabContents(previous)
+        } else if (::list.isInitialized && ::status.isInitialized) {
+            refreshTabLabels()
+        }
+    }
+
+    /** Capture only the visible page; no off-screen posts or WebViews are copied. */
+    private fun beginTabPreview(index: Int): Boolean {
+        if (index !in 0..2 || index == tab || list.width <= 0 || list.height <= 0) {
+            return false
+        }
+        val bitmap = try {
+            Bitmap.createBitmap(list.width, list.height, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            return false
+        }
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(getColor(R.color.surface))
+        list.draw(canvas)
+        val old = tab
+        rememberTabPosition()
+        previewFrom = old
+        previewTo = index
+        previewCompletion = true
+        previewBitmap = bitmap
+        val image = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_XY
+            setImageBitmap(bitmap)
+            isClickable = false
+        }
+        previewOverlay = image
+        swipeContainer.addView(image, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        // The next page is a real ListView underneath the outgoing snapshot.
+        showTabContents(index)
+        val width = swipeContainer.width.toFloat()
+        list.translationX = if (index > old) width else -width
+        return true
+    }
+
+    /** Two adjacent pages track the finger instead of snapping after ACTION_UP. */
+    private fun dragTabPreview(dx: Float) {
+        val from = previewFrom
+        val target = previewTo
+        if (from >= 0 && target >= 0) {
+            val width = swipeContainer.width.toFloat()
+            if (width <= 0f) return
+            val distance = if (target > from) dx.coerceIn(-width, 0f)
+                else dx.coerceIn(0f, width)
+            previewOverlay?.translationX = distance
+            list.translationX = distance + if (target > from) width else -width
+        } else if (AppSettings.tabAnimations(this)) {
+            // Gentle resistance at the first/last tab.
+            val maxBounce = dp(36).toFloat()
+            list.translationX = (dx * 0.16f).coerceIn(-maxBounce, maxBounce)
+        }
+    }
+
+    private fun settleEdgeSwipe() {
+        if (!AppSettings.tabAnimations(this)) {
+            list.animate().cancel()
+            list.translationX = 0f
+            return
+        }
+        list.animate().cancel()
+        list.animate().translationX(0f).setDuration(165L)
+            .setInterpolator(DecelerateInterpolator(1.5f)).start()
+    }
+
+    private fun finishTabPreview(commit: Boolean) {
+        val from = previewFrom
+        val to = previewTo
+        val overlay = previewOverlay
+        if (from < 0 || to < 0 || overlay == null) {
+            clearTabPreview(true)
+            return
+        }
+        previewCompletion = commit
+        val width = swipeContainer.width.toFloat()
+        val direction = if (to > from) 1f else -1f
+        val listEnd = if (commit) 0f else direction * width
+        val overlayEnd = if (commit) -direction * width else 0f
+        val remaining = kotlin.math.abs(listEnd - list.translationX) / width.coerceAtLeast(1f)
+        val duration = (135f + 85f * remaining.coerceIn(0f, 1f)).toLong()
+        val generation = ++previewGeneration
+        val ease = DecelerateInterpolator(1.65f)
+        list.animate().cancel()
+        overlay.animate().cancel()
+        list.animate().translationX(listEnd).setDuration(duration)
+            .setInterpolator(ease).start()
+        overlay.animate().translationX(overlayEnd).setDuration(duration)
+            .setInterpolator(ease).withEndAction {
+                if (generation == previewGeneration && !isFinishing && !isDestroyed) {
+                    clearTabPreview(commit)
+                }
+            }.start()
+    }
+
+    private fun selectTab(index: Int) {
+        if (index !in 0..2) return
+        clearTabPreview(previewCompletion)
+        if (index == tab) {
+            refreshTabLabels()
+            return
+        }
+        if (AppSettings.tabAnimations(this) && beginTabPreview(index)) {
+            finishTabPreview(true)
+        } else {
+            rememberTabPosition()
+            showTabContents(index)
         }
     }
 
@@ -1067,9 +1137,8 @@ class ResultActivity : Activity() {
     }
 
     override fun onDestroy() {
-        swipeTracker?.recycle()
-        swipeTracker = null
-        if (::list.isInitialized) list.animate().cancel()
+        if (::swipeContainer.isInitialized) swipeContainer.callback = null
+        clearTabPreview(previewCompletion)
         worker.shutdownNow()
         cleanupWebView(fallbackView)
         super.onDestroy()

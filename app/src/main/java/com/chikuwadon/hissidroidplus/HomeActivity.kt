@@ -251,18 +251,17 @@ class HomeActivity : Activity() {
 
     /** Toolbar overflow stays attached to the three-dot anchor. */
     private fun showSettings(anchor: View) {
-        ThemedMenu.showOverflow(this, anchor,
+        ThemedMenu.showOverflowToggle(this, anchor,
             arrayOf("検索履歴", "テーマ", "スレの開き方", "リンクの開き方",
-                "タブ切替アニメーション：" +
-                    (if (AppSettings.tabAnimations(this)) "ON" else "OFF"),
-                "このアプリについて")
+                "タブ切替アニメーション", "このアプリについて"),
+            4, AppSettings.tabAnimations(this),
+            { enabled -> AppSettings.setTabAnimations(this, enabled) }
         ) { index ->
             when (index) {
                 0 -> startActivity(Intent(this, HistoryActivity::class.java))
                 1 -> showThemePicker()
                 2 -> showThreadModePicker()
                 3 -> showLinkModePicker()
-                4 -> AppSettings.setTabAnimations(this, !AppSettings.tabAnimations(this))
                 else -> ThemedMenu.showAbout(this)
             }
         }
