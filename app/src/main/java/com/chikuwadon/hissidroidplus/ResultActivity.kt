@@ -172,6 +172,12 @@ class ResultActivity : Activity() {
         findViewById<View>(R.id.tab_posts).setOnClickListener { selectTab(0) }
         findViewById<View>(R.id.tab_threads).setOnClickListener { selectTab(1) }
         findViewById<View>(R.id.tab_names).setOnClickListener { selectTab(2) }
+        // Foreground ripples preserve the selected tab's underline and background.
+        intArrayOf(
+            R.id.tab_posts, R.id.tab_threads, R.id.tab_names,
+            R.id.toolbar_back, R.id.toolbar_more, R.id.stat_summary,
+            R.id.edge_analysis_link
+        ).forEach { TouchFeedback.foreground(findViewById(it)) }
         findViewById<View>(R.id.toolbar_back).setOnClickListener { exitResults() }
         findViewById<View>(R.id.toolbar_more).setOnClickListener { anchor ->
             val edge = query?.site == CheckerQuery.Site.EDGE
@@ -716,10 +722,7 @@ class ResultActivity : Activity() {
             gravity = Gravity.CENTER
             minWidth = dp(76)
             minHeight = dp(46)
-            background = RippleDrawable(
-                ColorStateList.valueOf(0x3345BDB6),
-                ColorDrawable(Color.TRANSPARENT), null
-            )
+            TouchFeedback.foreground(this)
         }
 
     private fun finishPanel(
@@ -749,10 +752,7 @@ class ResultActivity : Activity() {
                 gravity = Gravity.CENTER_VERTICAL
                 minHeight = dp(49)
                 setPadding(dp(9), 0, dp(9), 0)
-                background = RippleDrawable(
-                    ColorStateList.valueOf(0x3345BDB6),
-                    ColorDrawable(Color.TRANSPARENT), null
-                )
+                TouchFeedback.foreground(this)
             }
             panel.addView(row, LinearLayout.LayoutParams(-1, -2))
             row.setOnClickListener {
@@ -1196,6 +1196,13 @@ class ResultActivity : Activity() {
             val title = view.findViewById<SelectableResultTextView>(R.id.item_title)
             val subtitle = view.findViewById<SelectableResultTextView>(R.id.item_subtitle)
             val body = view.findViewById<SelectableResultTextView>(R.id.item_body)
+            if (convertView == null) {
+                // Text rows consume their own touch events for long-press selection.
+                // A foreground ripple still responds to a normal item tap.
+                TouchFeedback.foreground(title, 4)
+                TouchFeedback.foreground(subtitle, 4)
+                TouchFeedback.foreground(body, 4)
+            }
             // Recycled rows can retain stale text-selection controllers.
             val identity = tab * 1_000_000 + index
             val reused = (view.tag as? Int) != identity

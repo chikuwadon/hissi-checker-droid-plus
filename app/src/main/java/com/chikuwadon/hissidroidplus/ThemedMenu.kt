@@ -8,8 +8,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.RippleDrawable
-import android.graphics.drawable.StateListDrawable
 import android.net.Uri
 import android.view.Gravity
 import android.view.View
@@ -50,35 +48,14 @@ object ThemedMenu {
         }
 
     private fun applyTouch(a: Activity, view: View) {
-        view.background = RippleDrawable(
-            ColorStateList.valueOf(a.getColor(R.color.panel_pressed)),
-            ColorDrawable(Color.TRANSPARENT), null
-        )
-    }
-
-    /** Full-row feedback, like a settings list: pressed, focused, then selected. */
-    private fun menuRowBackground(a: Activity): StateListDrawable {
-        val panel = a.getColor(R.color.panel)
-        val pressed = a.getColor(R.color.panel_pressed)
-        val selected = Color.rgb(
-            (Color.red(panel) + Color.red(pressed)) / 2,
-            (Color.green(panel) + Color.green(pressed)) / 2,
-            (Color.blue(panel) + Color.blue(pressed)) / 2
-        )
-        fun fill(color: Int) = GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(a, 8).toFloat()
-        }
-        return StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_pressed), fill(pressed))
-            addState(intArrayOf(android.R.attr.state_focused), fill(pressed))
-            addState(intArrayOf(android.R.attr.state_activated), fill(selected))
-            addState(intArrayOf(), ColorDrawable(Color.TRANSPARENT))
-        }
+        // The same touch-origin ripple as the category picker button.
+        TouchFeedback.foreground(view)
     }
 
     private fun applyMenuTouch(a: Activity, view: View) {
-        view.background = menuRowBackground(a)
+        // No persistent fill or border tint for the ON state: only the checkmark
+        // identifies the saved setting. The ripple expands while pressing.
+        TouchFeedback.foreground(view)
     }
 
     private fun panelWidth(a: Activity, preferred: Int): Int =
@@ -116,7 +93,6 @@ object ThemedMenu {
             row.setOnClickListener {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
-                row.isActivated = true
                 row.postDelayed({
                     popup.dismiss()
                     if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
@@ -162,7 +138,6 @@ object ThemedMenu {
                     gravity = Gravity.CENTER_VERTICAL
                     minimumHeight = dp(a, 48)
                     setPadding(dp(a, 12), 0, dp(a, 6), 0)
-                    isActivated = checked
                     contentDescription = value + if (checked) "、オン" else "、オフ"
                 }
                 applyMenuTouch(a, row)
@@ -182,14 +157,13 @@ object ThemedMenu {
                     isFocusable = false
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     setOnCheckedChangeListener { _, enabled ->
-                        row.isActivated = enabled
                         row.contentDescription = value + if (enabled) "、オン" else "、オフ"
                         onToggle(enabled)
                     }
                 }
                 row.addView(checkbox, LinearLayout.LayoutParams(dp(a, 38), dp(a, 48)))
                 row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }
-                // The check row stays open, and its fill shows the saved choice.
+                // The checkbox reflects the saved value without changing the row frame.
                 panel.addView(row, LinearLayout.LayoutParams(-1, -2))
             } else {
                 val row = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
@@ -203,8 +177,7 @@ object ThemedMenu {
                     if (actionPending) return@setOnClickListener
                     actionPending = true
                     // Show the touched row before the popup disappears.
-                    row.isActivated = true
-                    row.postDelayed({
+                        row.postDelayed({
                         popup.dismiss()
                         if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
                     }, 120L)
@@ -257,7 +230,6 @@ object ThemedMenu {
                 minimumHeight = dp(a, 48)
             }
             applyMenuTouch(a, row)
-            row.isActivated = index == selectedIndex
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 setPadding(dp(a, 10), dp(a, 8), 0, dp(a, 8))
             }
@@ -269,7 +241,6 @@ object ThemedMenu {
             row.setOnClickListener {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
-                row.isActivated = true
                 check.text = "✓"
                 row.postDelayed({
                     holder[0]?.dismiss()
@@ -313,7 +284,6 @@ object ThemedMenu {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
                 val checked = always.isChecked
-                row.isActivated = true
                 row.postDelayed({
                     holder[0]?.dismiss()
                     if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index, checked)

@@ -54,16 +54,35 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(menu.contains("val width = min(availableWidth, max(dp(a, 170)"));
     }
 
-    @Test public void selectedAndPressedRowsHaveVisibleFeedback() throws Exception {
+    @Test public void allMenusHaveExpandingRippleFeedback() throws Exception {
         String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
-        assertTrue(menu.contains("private fun menuRowBackground(a: Activity): StateListDrawable"));
-        assertTrue(menu.contains("android.R.attr.state_pressed"));
-        assertTrue(menu.contains("android.R.attr.state_activated"));
+        String feedback = source("java/com/chikuwadon/hissidroidplus/TouchFeedback.kt");
+        assertTrue(feedback.contains("RippleDrawable("));
+        assertTrue(feedback.contains("cornerRadius = dp(context, cornerDp)"));
+        assertTrue(feedback.contains("view.foreground = ripple(view.context, cornerDp)"));
         assertTrue(menu.contains("private fun applyMenuTouch(a: Activity, view: View)"));
-        assertTrue(menu.contains("isActivated = checked"));
-        assertTrue(menu.contains("row.isActivated = enabled"));
+        assertTrue(menu.contains("TouchFeedback.foreground(view)"));
+        assertFalse(menu.contains("menuRowBackground("));
+        assertFalse(menu.contains("StateListDrawable"));
+        assertFalse(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("row.postDelayed({"));
         assertTrue(menu.contains("}, 120L)"));
+    }
+
+    @Test public void allMainNavigationAndHistoryActionsUseRipple() throws Exception {
+        String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
+        String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
+        String history = source("java/com/chikuwadon/hissidroidplus/HistoryActivity.kt");
+        assertTrue(home.contains("TouchFeedback.foreground(findViewById(R.id.home_more)"));
+        assertTrue(home.contains("selector = TouchFeedback.listSelector(this@HomeActivity)"));
+        assertTrue(home.contains("TouchFeedback.foreground(close"));
+        assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
+        assertTrue(result.contains("R.id.toolbar_back, R.id.toolbar_more"));
+        assertTrue(result.contains("TouchFeedback.foreground(body, 4)"));
+        assertTrue(history.contains("TouchFeedback.foreground(recentTab)"));
+        assertTrue(history.contains("TouchFeedback.foreground(favoriteTab)"));
+        assertTrue(history.contains("TouchFeedback.foreground(deleteSelected)"));
+        assertTrue(history.contains("TouchFeedback.listSelector(this@HistoryActivity)"));
     }
 
     @Test public void overflowCheckboxDoesNotDismissWhenToggled() throws Exception {
@@ -73,7 +92,8 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(menu.contains("fun showOverflowToggle("));
         assertTrue(menu.contains("row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }"));
         assertTrue(menu.contains("setOnCheckedChangeListener { _, enabled ->"));
-        assertTrue(menu.contains("row.isActivated = enabled"));
+        assertTrue(menu.contains("row.contentDescription = value + if (enabled)"));
+        assertFalse(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("onToggle(enabled)"));
         assertTrue(home.contains("ThemedMenu.showOverflowToggle(this, anchor,"));
         assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
