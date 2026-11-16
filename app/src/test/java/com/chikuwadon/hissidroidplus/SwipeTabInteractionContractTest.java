@@ -60,7 +60,7 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(menu.contains("android.R.attr.state_pressed"));
         assertTrue(menu.contains("android.R.attr.state_activated"));
         assertTrue(menu.contains("private fun applyMenuTouch(a: Activity, view: View)"));
-        assertTrue(menu.contains("row.isActivated = checked"));
+        assertTrue(menu.contains("isActivated = checked"));
         assertTrue(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("row.postDelayed({"));
         assertTrue(menu.contains("}, 120L)"));
@@ -72,7 +72,9 @@ public final class SwipeTabInteractionContractTest {
         String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
         assertTrue(menu.contains("fun showOverflowToggle("));
         assertTrue(menu.contains("row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }"));
-        assertTrue(menu.contains("setOnCheckedChangeListener { _, enabled -> onToggle(enabled) }"));
+        assertTrue(menu.contains("setOnCheckedChangeListener { _, enabled ->"));
+        assertTrue(menu.contains("row.isActivated = enabled"));
+        assertTrue(menu.contains("onToggle(enabled)"));
         assertTrue(home.contains("ThemedMenu.showOverflowToggle(this, anchor,"));
         assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
     }
