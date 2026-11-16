@@ -106,9 +106,18 @@ object ThemedMenu {
         if (a.isFinishing || a.isDestroyed) return
         val panel = column(a, 5)
         val measure = text(a, "", 14, a.getColor(R.color.text_primary))
-        val labelWidth = items.maxOfOrNull { measure.paint.measureText(it) } ?: 0f
-        val desired = ceil(labelWidth.toDouble()).toInt() + dp(a, 64)
-        val width = min(panelWidth(a, 304), max(dp(a, 176), desired))
+        // A checkable row reserves 48dp for its checkbox, in addition to
+        // horizontal padding and the popup panel insets. Measuring only the
+        // label (as the old code did) caused Japanese text to wrap.
+        val ordinaryTextWidth = items.filterIndexed { i, _ -> i != toggleIndex }
+            .maxOfOrNull { measure.paint.measureText(it) } ?: 0f
+        val toggleTextWidth = items.getOrNull(toggleIndex)?.let {
+            measure.paint.measureText(it)
+        } ?: 0f
+        val ordinaryWidth = ceil(ordinaryTextWidth.toDouble()).toInt() + dp(a, 47)
+        val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 93)
+        val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)
+        val width = min(availableWidth, max(dp(a, 280), max(ordinaryWidth, checkableWidth)))
         val popup = PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         popup.isOutsideTouchable = true
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -122,7 +131,11 @@ object ThemedMenu {
                     setPadding(dp(a, 15), 0, dp(a, 8), 0)
                 }
                 applyTouch(a, row)
-                val title = text(a, value, 14, a.getColor(R.color.text_primary))
+                val title = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
+                    // Keep the setting and checkbox aligned on the same row.
+                    isSingleLine = true
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
                 row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
                 val checkbox = CheckBox(a).apply {
                     isChecked = checked
