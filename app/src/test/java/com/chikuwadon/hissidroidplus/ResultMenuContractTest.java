@@ -28,11 +28,13 @@ public final class ResultMenuContractTest {
         assertEquals(3,layout.split(java.util.regex.Pattern.quote(
             "<com.chikuwadon.hissidroidplus.SelectableResultTextView"),-1).length-1);
         assertTrue(code.contains(
-            "list.setOnItemClickListener { _, _, index, _ -> showEntry(index) }"));
-        assertTrue(code.contains("val showActions = View.OnClickListener { showEntry(index) }"));
+            "list.setOnItemClickListener { _, _, index, _ -> showEntryAfterRipple(index) }"));
+        assertTrue(code.contains("val showActions = View.OnClickListener { showEntryAfterRipple(index) }"));
         assertTrue(code.contains("title.setOnClickListener(showActions)"));
         assertTrue(code.contains("subtitle.setOnClickListener(showActions)"));
         assertTrue(code.contains("body.setOnClickListener(showActions)"));
+        assertTrue(code.contains("list.postDelayed({"));
+        assertTrue(code.contains("if (!isFinishing && !isDestroyed && tappedTab == tab) showEntry(index)"));
     }
 
     @Test public void longPressHasComfortableDelayAndTapHandling() throws Exception {

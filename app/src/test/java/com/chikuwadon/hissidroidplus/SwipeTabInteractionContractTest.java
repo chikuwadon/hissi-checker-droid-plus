@@ -78,11 +78,48 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(home.contains("TouchFeedback.foreground(close"));
         assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
         assertTrue(result.contains("R.id.toolbar_back, R.id.toolbar_more"));
-        assertTrue(result.contains("TouchFeedback.foreground(body, 4)"));
+        assertTrue(result.contains("TouchFeedback.pulse(it)"));
+        assertTrue(result.contains("showEntryAfterRipple(index)"));
+        assertFalse(result.contains("TouchFeedback.foreground(body, 4)"));
         assertTrue(history.contains("TouchFeedback.foreground(recentTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(favoriteTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(deleteSelected)"));
         assertTrue(history.contains("TouchFeedback.listSelector(this@HistoryActivity)"));
+    }
+
+    @Test public void selectableResultRowsTriggerVisibleTouchRipple() throws Exception {
+        String layout = source("res/layout/item_row.xml");
+        String row = source("java/com/chikuwadon/hissidroidplus/RippleResultRow.kt");
+        String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
+        assertTrue(layout.contains("<com.chikuwadon.hissidroidplus.RippleResultRow"));
+        assertTrue(layout.contains("</com.chikuwadon.hissidroidplus.RippleResultRow>"));
+        assertTrue(row.contains("override fun dispatchTouchEvent(event: MotionEvent)"));
+        assertTrue(row.contains("(foreground as? RippleDrawable)?.setHotspot(event.x, event.y)"));
+        assertTrue(row.contains("val handled = super.dispatchTouchEvent(event)"));
+        assertTrue(row.contains("postDelayed(clearPress, 160L)"));
+        assertTrue(row.contains("isPressed = false"));
+        assertTrue(result.contains("list.postDelayed({"));
+        assertTrue(result.contains("}, 150L)"));
+        assertFalse(result.contains("TouchFeedback.foreground(body, 4)"));
+    }
+
+    @Test public void tabTapRippleIsVisibleAfterSelection() throws Exception {
+        String feedback = source("java/com/chikuwadon/hissidroidplus/TouchFeedback.kt");
+        String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
+        assertTrue(feedback.contains("fun pulse(view: View)"));
+        assertTrue(feedback.contains("ripple.state = intArrayOf(android.R.attr.state_enabled, android.R.attr.state_pressed)"));
+        assertTrue(feedback.contains("}, 170L)"));
+        assertEquals(3, result.split("TouchFeedback.pulse\\(it\\)", -1).length - 1);
+    }
+
+    @Test public void dialogCloseTouchAreaIsOnlyTheButton() throws Exception {
+        String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
+        assertTrue(menu.contains("val actions = LinearLayout(a).apply"));
+        assertTrue(menu.contains("minimumWidth = dp(a, 80)"));
+        assertTrue(menu.contains("actions.addView(close, LinearLayout.LayoutParams("));
+        assertTrue(menu.contains("ViewGroup.LayoutParams.WRAP_CONTENT, dp(a, 46)"));
+        assertTrue(menu.contains("panel.addView(actions, LinearLayout.LayoutParams("));
+        assertFalse(menu.contains("panel.addView(close)"));
     }
 
     @Test public void overflowCheckboxDoesNotDismissWhenToggled() throws Exception {

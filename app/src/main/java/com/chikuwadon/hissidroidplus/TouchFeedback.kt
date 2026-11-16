@@ -37,6 +37,28 @@ object TouchFeedback {
         view.foreground = ripple(view.context, cornerDp)
     }
 
+    /**
+     * Some tab labels do not remain pressed long enough for a visible ripple
+     * after ListView content changes. Pulse only the foreground drawable after
+     * the click dispatch; never change the tab background / underline colors.
+     */
+    @JvmStatic
+    fun pulse(view: View) {
+        val ripple = view.foreground as? RippleDrawable ?: return
+        view.post {
+            if (!view.isAttachedToWindow || view.foreground !== ripple) return@post
+            ripple.setHotspot(view.width / 2f, view.height / 2f)
+            ripple.state = intArrayOf(android.R.attr.state_enabled, android.R.attr.state_pressed)
+            view.invalidate()
+            view.postDelayed({
+                if (view.foreground === ripple) {
+                    ripple.state = intArrayOf(android.R.attr.state_enabled)
+                    view.invalidate()
+                }
+            }, 170L)
+        }
+    }
+
     /** A ripple to use as a ListView selector without losing its list gestures. */
     @JvmStatic
     fun listSelector(context: Context): RippleDrawable = ripple(context, 6)
