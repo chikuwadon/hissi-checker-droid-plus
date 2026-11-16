@@ -14,7 +14,7 @@ public final class DevelopmentVersionContractTest {
 
     @Test public void qaVersionIsNewerThanPublished103() throws Exception {
         String gradle = projectFile("app/build.gradle");
-        assertTrue(gradle.contains("versionCode = 39"));
+        assertTrue(gradle.contains("versionCode = 40"));
         assertTrue(gradle.contains("versionName = '1.0.4-dev.3'"));
         String menu = projectFile(
             "app/src/main/java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
