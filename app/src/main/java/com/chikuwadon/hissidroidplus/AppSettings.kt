@@ -11,6 +11,7 @@ object AppSettings {
     private const val FILE = "checker_settings"
     const val THEME = "theme"
     const val LINK_MODE = "external_link_mode"
+    const val TAB_ANIMATIONS = "tab_switch_animations"
     const val THREAD_OPEN_MODE = "thread_open_mode"
     const val THREAD_ASK = "ask"
     const val THREAD_CHMATE = "chmate"
@@ -63,6 +64,16 @@ object AppSettings {
     fun setThreadOpenMode(context: Context, mode: String?) {
         val validated = THREAD_MODES.firstOrNull { it == mode } ?: THREAD_ASK
         prefs(context).edit().putString(THREAD_OPEN_MODE, validated).apply()
+    }
+
+    /** Persisted across both 5ch and Edge result pages; enabled by default. */
+    @JvmStatic
+    fun tabAnimations(context: Context): Boolean =
+        prefs(context).getBoolean(TAB_ANIMATIONS, true)
+
+    @JvmStatic
+    fun setTabAnimations(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(TAB_ANIMATIONS, enabled).apply()
     }
 
     @JvmStatic

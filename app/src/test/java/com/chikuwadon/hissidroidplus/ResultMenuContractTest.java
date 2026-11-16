@@ -72,8 +72,10 @@ public final class ResultMenuContractTest {
         assertTrue(code.contains("which == 0 -> openHome()"));
         assertTrue(code.contains(
             "which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))"));
-        assertTrue(code.contains("edge && which == 2 -> openEdgeAnalysis()"));
-        assertTrue(code.contains("when (which - if (edge) 3 else 2)"));
+        assertTrue(code.contains("which == 2 -> {"));
+        assertTrue(code.contains("AppSettings.setTabAnimations(this, !AppSettings.tabAnimations(this))"));
+        assertTrue(code.contains("edge && which == 3 -> openEdgeAnalysis()"));
+        assertTrue(code.contains("when (which - if (edge) 4 else 3)"));
         assertTrue(code.contains("1 -> copyResultUrl()"));
         assertTrue(code.contains("2 -> copySearchedId()"));
         assertTrue(code.contains("3 -> copyWrittenThreads()"));
