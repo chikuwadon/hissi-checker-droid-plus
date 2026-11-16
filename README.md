@@ -4,8 +4,8 @@
 
 **Hissi Checker Droid Plus**
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.0.3-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.3)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.3/HissiCheckerDroidPlus-v1.0.3.apk)
+[![Latest Release](https://img.shields.io/badge/Release-v1.0.4-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.4)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.4/HissiCheckerDroidPlus-v1.0.4.apk)
 
 </div>
 
@@ -27,7 +27,7 @@
 | レス操作 | タップで各種コピー・スレを開く、長押しでテキストの範囲選択とコピー |
 | 履歴 | 直近100件の検索履歴、お気に入り、並べ替え、複数選択削除 |
 | 外部連携 | ChMate・Haiagaruなどの対応アプリやブラウザでスレッドを開く、エッヂのID検索リンクをアプリで受け取る |
-| 表示設定 | ダーク / ライト / システムテーマ、コンパクトな一覧表示 |
+| 表示設定 | ダーク / ライト / システムテーマ、タブ切替アニメーションのON/OFF、コンパクトな一覧表示 |
 
 ## 使い方
 
@@ -51,7 +51,7 @@
 
 ### 検索結果を見る
 
-検索結果には次の3つのタブがあります。タップでも左右スワイプでも切り替えられます。
+検索結果には次の3つのタブがあります。タップでも左右スワイプでも切り替えられます。切り替え時のスライドアニメーションは、右上メニューからON/OFFを変更できます。
 
 - **レス**：投稿を一覧表示。タップすると、スレを開く、全体コピー、本文コピー、追加コピー、リンクコピーを選べます。本文などを長押しすると、範囲を選択してコピーできます。
 - **スレ**：書き込みのあるスレッドをまとめて確認できます。
@@ -92,7 +92,7 @@ ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを
 ## 動作環境
 
 - Android 8.0以降
-- バージョン：1.0.3
+- バージョン：1.0.4
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意
