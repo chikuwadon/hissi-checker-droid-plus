@@ -19,6 +19,7 @@ public final class EdgeDeepLinkRoutingContractTest {
         assertTrue(xml.contains("<uri-relative-filter-group android:allow=\"true\">"));
         assertTrue(xml.contains("android:query=\"bs=hi\""));
         assertTrue(xml.contains("android:queryPrefix=\"k=id:\""));
+        assertTrue(xml.contains("android:queryPrefix=\"k=ID:\""));
         assertTrue(xml.contains("android:queryPrefix=\"hi=\""));
         assertTrue(xml.contains("android:queryPrefix=\"key=\""));
         assertTrue(xml.contains("android:queryPrefix=\"date=\""));
