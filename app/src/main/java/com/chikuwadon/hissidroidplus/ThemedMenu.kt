@@ -204,14 +204,30 @@ object ThemedMenu {
         }
 
     private fun addClose(a: Activity, panel: LinearLayout, holder: Array<AlertDialog?>) {
-        val close = text(a, "閉じる", 14, a.getColor(R.color.accent)).apply {
+        // The close button is right-aligned, but its clickable/ripple area is
+        // only the button itself, not the full width of the dialog.
+        val actions = LinearLayout(a).apply {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            setPadding(dp(a, 10), dp(a, 3), dp(a, 12), dp(a, 3))
+        }
+        val close = text(a, "閉じる", 14, a.getColor(R.color.accent)).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(a, 16), dp(a, 3), dp(a, 16), dp(a, 3))
+            minimumWidth = dp(a, 80)
             minimumHeight = dp(a, 46)
         }
         applyTouch(a, close)
-        panel.addView(close)
-        close.setOnClickListener { holder[0]?.dismiss() }
+        actions.addView(close, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(a, 46)
+        ))
+        panel.addView(actions, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        var closing = false
+        close.setOnClickListener {
+            if (closing) return@setOnClickListener
+            closing = true
+            close.postDelayed({ holder[0]?.dismiss() }, 125L)
+        }
     }
 
     @JvmStatic
