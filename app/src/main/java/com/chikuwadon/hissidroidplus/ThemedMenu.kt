@@ -94,6 +94,65 @@ object ThemedMenu {
         popup.showAsDropDown(anchor, 0, -dp(a, 2), Gravity.END)
     }
 
+    /**
+     * A checkable overflow item that does not dismiss its popup when toggled.
+     * All ordinary actions continue to close the popup, as before.
+     */
+    @JvmStatic
+    fun showOverflowToggle(
+        a: Activity, anchor: View, items: Array<String>, toggleIndex: Int,
+        checked: Boolean, onToggle: (Boolean) -> Unit, selected: Selection
+    ) {
+        if (a.isFinishing || a.isDestroyed) return
+        val panel = column(a, 5)
+        val measure = text(a, "", 14, a.getColor(R.color.text_primary))
+        val labelWidth = items.maxOfOrNull { measure.paint.measureText(it) } ?: 0f
+        val desired = ceil(labelWidth.toDouble()).toInt() + dp(a, 64)
+        val width = min(panelWidth(a, 304), max(dp(a, 176), desired))
+        val popup = PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        popup.isOutsideTouchable = true
+        popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        popup.elevation = dp(a, 10).toFloat()
+        items.forEachIndexed { index, value ->
+            if (index == toggleIndex) {
+                val row = LinearLayout(a).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    minimumHeight = dp(a, 48)
+                    setPadding(dp(a, 15), 0, dp(a, 8), 0)
+                }
+                applyTouch(a, row)
+                val title = text(a, value, 14, a.getColor(R.color.text_primary))
+                row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+                val checkbox = CheckBox(a).apply {
+                    isChecked = checked
+                    buttonTintList = ColorStateList.valueOf(a.getColor(R.color.accent))
+                    contentDescription = value
+                    minimumWidth = dp(a, 48)
+                    minimumHeight = dp(a, 48)
+                    setOnCheckedChangeListener { _, enabled -> onToggle(enabled) }
+                }
+                row.addView(checkbox, LinearLayout.LayoutParams(dp(a, 48), dp(a, 48)))
+                row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }
+                // No popup.dismiss() in either checkbox handler.
+                panel.addView(row, LinearLayout.LayoutParams(-1, -2))
+            } else {
+                val row = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
+                    minimumHeight = dp(a, 48)
+                    setPadding(dp(a, 15), dp(a, 10), dp(a, 12), dp(a, 10))
+                    isSingleLine = false
+                }
+                applyTouch(a, row)
+                panel.addView(row, LinearLayout.LayoutParams(-1, -2))
+                row.setOnClickListener {
+                    popup.dismiss()
+                    selected.onSelected(index)
+                }
+            }
+        }
+        popup.showAsDropDown(anchor, 0, -dp(a, 2), Gravity.END)
+    }
+
     private fun dialog(a: Activity, panel: LinearLayout): AlertDialog =
         AlertDialog.Builder(a).create().apply {
             setView(panel)
