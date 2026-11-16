@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
 import android.net.Uri
 import android.view.Gravity
 import android.view.View
@@ -55,6 +56,31 @@ object ThemedMenu {
         )
     }
 
+    /** Full-row feedback, like a settings list: pressed, focused, then selected. */
+    private fun menuRowBackground(a: Activity): StateListDrawable {
+        val panel = a.getColor(R.color.panel)
+        val pressed = a.getColor(R.color.panel_pressed)
+        val selected = Color.rgb(
+            (Color.red(panel) + Color.red(pressed)) / 2,
+            (Color.green(panel) + Color.green(pressed)) / 2,
+            (Color.blue(panel) + Color.blue(pressed)) / 2
+        )
+        fun fill(color: Int) = GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(a, 8).toFloat()
+        }
+        return StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), fill(pressed))
+            addState(intArrayOf(android.R.attr.state_focused), fill(pressed))
+            addState(intArrayOf(android.R.attr.state_activated), fill(selected))
+            addState(intArrayOf(), ColorDrawable(Color.TRANSPARENT))
+        }
+    }
+
+    private fun applyMenuTouch(a: Activity, view: View) {
+        view.background = menuRowBackground(a)
+    }
+
     private fun panelWidth(a: Activity, preferred: Int): Int =
         min(a.resources.displayMetrics.widthPixels - dp(a, 32), dp(a, preferred))
 
@@ -78,17 +104,23 @@ object ThemedMenu {
         popup.isOutsideTouchable = true
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         popup.elevation = dp(a, 10).toFloat()
+        var actionPending = false
         items.forEachIndexed { index, value ->
             val row = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 minimumHeight = dp(a, 48)
                 setPadding(dp(a, 15), dp(a, 10), dp(a, 12), dp(a, 10))
                 isSingleLine = false
             }
-            applyTouch(a, row)
+            applyMenuTouch(a, row)
             panel.addView(row, LinearLayout.LayoutParams(-1, -2))
             row.setOnClickListener {
-                popup.dismiss()
-                selected.onSelected(index)
+                if (actionPending) return@setOnClickListener
+                actionPending = true
+                row.isActivated = true
+                row.postDelayed({
+                    popup.dismiss()
+                    if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
+                }, 120L)
             }
         }
         popup.showAsDropDown(anchor, 0, -dp(a, 2), Gravity.END)
@@ -106,48 +138,58 @@ object ThemedMenu {
         if (a.isFinishing || a.isDestroyed) return
         val panel = column(a, 5)
         val measure = text(a, "", 14, a.getColor(R.color.text_primary))
-        // A checkable row reserves 48dp for its checkbox, in addition to
-        // horizontal padding and the popup panel insets. Measuring only the
-        // label (as the old code did) caused Japanese text to wrap.
+        // Size exactly for the widest row. The checkmark sits next to its
+        // label; no weighted spacer or hard-coded 280dp minimum is necessary.
         val ordinaryTextWidth = items.filterIndexed { i, _ -> i != toggleIndex }
             .maxOfOrNull { measure.paint.measureText(it) } ?: 0f
         val toggleTextWidth = items.getOrNull(toggleIndex)?.let {
             measure.paint.measureText(it)
         } ?: 0f
-        val ordinaryWidth = ceil(ordinaryTextWidth.toDouble()).toInt() + dp(a, 47)
-        val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 93)
+        val ordinaryWidth = ceil(ordinaryTextWidth.toDouble()).toInt() + dp(a, 37)
+        // 10dp panel + 12dp left + 4dp gap + 38dp checkbox + 6dp right.
+        val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 70)
         val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)
-        val width = min(availableWidth, max(dp(a, 280), max(ordinaryWidth, checkableWidth)))
+        val width = min(availableWidth, max(dp(a, 170), max(ordinaryWidth, checkableWidth)))
         val popup = PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         popup.isOutsideTouchable = true
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         popup.elevation = dp(a, 10).toFloat()
+        var actionPending = false
         items.forEachIndexed { index, value ->
             if (index == toggleIndex) {
                 val row = LinearLayout(a).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     minimumHeight = dp(a, 48)
-                    setPadding(dp(a, 15), 0, dp(a, 8), 0)
+                    setPadding(dp(a, 12), 0, dp(a, 6), 0)
+                    isActivated = checked
+                    contentDescription = value + if (checked) "、オン" else "、オフ"
                 }
-                applyTouch(a, row)
+                applyMenuTouch(a, row)
                 val title = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
-                    // Keep the setting and checkbox aligned on the same row.
                     isSingleLine = true
                     ellipsize = android.text.TextUtils.TruncateAt.END
+                    maxWidth = (width - dp(a, 70)).coerceAtLeast(dp(a, 76))
                 }
-                row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(title, LinearLayout.LayoutParams(-2, -2))
+                row.addView(View(a), LinearLayout.LayoutParams(dp(a, 4), 1))
                 val checkbox = CheckBox(a).apply {
                     isChecked = checked
                     buttonTintList = ColorStateList.valueOf(a.getColor(R.color.accent))
-                    contentDescription = value
-                    minimumWidth = dp(a, 48)
-                    minimumHeight = dp(a, 48)
-                    setOnCheckedChangeListener { _, enabled -> onToggle(enabled) }
+                    minimumWidth = 0
+                    minimumHeight = 0
+                    isClickable = false
+                    isFocusable = false
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    setOnCheckedChangeListener { _, enabled ->
+                        row.isActivated = enabled
+                        row.contentDescription = value + if (enabled) "、オン" else "、オフ"
+                        onToggle(enabled)
+                    }
                 }
-                row.addView(checkbox, LinearLayout.LayoutParams(dp(a, 48), dp(a, 48)))
+                row.addView(checkbox, LinearLayout.LayoutParams(dp(a, 38), dp(a, 48)))
                 row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }
-                // No popup.dismiss() in either checkbox handler.
+                // The check row stays open, and its fill shows the saved choice.
                 panel.addView(row, LinearLayout.LayoutParams(-1, -2))
             } else {
                 val row = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
@@ -155,11 +197,17 @@ object ThemedMenu {
                     setPadding(dp(a, 15), dp(a, 10), dp(a, 12), dp(a, 10))
                     isSingleLine = false
                 }
-                applyTouch(a, row)
+                applyMenuTouch(a, row)
                 panel.addView(row, LinearLayout.LayoutParams(-1, -2))
                 row.setOnClickListener {
-                    popup.dismiss()
-                    selected.onSelected(index)
+                    if (actionPending) return@setOnClickListener
+                    actionPending = true
+                    // Show the touched row before the popup disappears.
+                    row.isActivated = true
+                    row.postDelayed({
+                        popup.dismiss()
+                        if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
+                    }, 120L)
                 }
             }
         }
@@ -202,12 +250,14 @@ object ThemedMenu {
         val panel = column(a, 10)
         panel.addView(title(a, heading))
         val holder = arrayOfNulls<AlertDialog>(1)
+        var actionPending = false
         labels.forEachIndexed { index, value ->
             val row = LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(a, 48)
             }
-            applyTouch(a, row)
+            applyMenuTouch(a, row)
+            row.isActivated = index == selectedIndex
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 setPadding(dp(a, 10), dp(a, 8), 0, dp(a, 8))
             }
@@ -217,8 +267,14 @@ object ThemedMenu {
             row.addView(check, LinearLayout.LayoutParams(dp(a, 42), dp(a, 42)))
             panel.addView(row)
             row.setOnClickListener {
-                holder[0]?.dismiss()
-                onChoice.onSelected(index)
+                if (actionPending) return@setOnClickListener
+                actionPending = true
+                row.isActivated = true
+                check.text = "✓"
+                row.postDelayed({
+                    holder[0]?.dismiss()
+                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index)
+                }, 120L)
             }
         }
         addClose(a, panel, holder)
@@ -233,6 +289,7 @@ object ThemedMenu {
         val panel = column(a, 10)
         panel.addView(title(a, heading))
         val holder = arrayOfNulls<AlertDialog>(1)
+        var actionPending = false
         val always = CheckBox(a).apply {
             text = "次回から確認しない"
             textSize = 14f
@@ -246,16 +303,21 @@ object ThemedMenu {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(a, 48)
             }
-            applyTouch(a, row)
+            applyMenuTouch(a, row)
             val option = text(a, value, 14, a.getColor(R.color.text_primary)).apply {
                 setPadding(dp(a, 10), dp(a, 8), dp(a, 10), dp(a, 8))
             }
             row.addView(option, LinearLayout.LayoutParams(-1, -2))
             panel.addView(row)
             row.setOnClickListener {
+                if (actionPending) return@setOnClickListener
+                actionPending = true
                 val checked = always.isChecked
-                holder[0]?.dismiss()
-                onChoice.onSelected(index, checked)
+                row.isActivated = true
+                row.postDelayed({
+                    holder[0]?.dismiss()
+                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index, checked)
+                }, 120L)
             }
         }
         panel.addView(always)

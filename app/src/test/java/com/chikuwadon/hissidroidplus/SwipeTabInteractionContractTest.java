@@ -44,10 +44,26 @@ public final class SwipeTabInteractionContractTest {
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
         assertTrue(home.contains("\"タブ切替アニメーション\""));
         assertTrue(menu.contains("val toggleTextWidth = items.getOrNull(toggleIndex)"));
-        assertTrue(menu.contains("val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 93)"));
+        assertTrue(menu.contains("val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 70)"));
         assertTrue(menu.contains("val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)"));
         assertTrue(menu.contains("isSingleLine = true"));
         assertTrue(menu.contains("ellipsize = android.text.TextUtils.TruncateAt.END"));
+        assertTrue(menu.contains("row.addView(title, LinearLayout.LayoutParams(-2, -2))"));
+        assertTrue(menu.contains("row.addView(View(a), LinearLayout.LayoutParams(dp(a, 4), 1))"));
+        assertTrue(menu.contains("row.addView(checkbox, LinearLayout.LayoutParams(dp(a, 38), dp(a, 48)))"));
+        assertTrue(menu.contains("val width = min(availableWidth, max(dp(a, 170)"));
+    }
+
+    @Test public void selectedAndPressedRowsHaveVisibleFeedback() throws Exception {
+        String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
+        assertTrue(menu.contains("private fun menuRowBackground(a: Activity): StateListDrawable"));
+        assertTrue(menu.contains("android.R.attr.state_pressed"));
+        assertTrue(menu.contains("android.R.attr.state_activated"));
+        assertTrue(menu.contains("private fun applyMenuTouch(a: Activity, view: View)"));
+        assertTrue(menu.contains("isActivated = checked"));
+        assertTrue(menu.contains("row.isActivated = enabled"));
+        assertTrue(menu.contains("row.postDelayed({"));
+        assertTrue(menu.contains("}, 120L)"));
     }
 
     @Test public void overflowCheckboxDoesNotDismissWhenToggled() throws Exception {
@@ -56,7 +72,9 @@ public final class SwipeTabInteractionContractTest {
         String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
         assertTrue(menu.contains("fun showOverflowToggle("));
         assertTrue(menu.contains("row.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }"));
-        assertTrue(menu.contains("setOnCheckedChangeListener { _, enabled -> onToggle(enabled) }"));
+        assertTrue(menu.contains("setOnCheckedChangeListener { _, enabled ->"));
+        assertTrue(menu.contains("row.isActivated = enabled"));
+        assertTrue(menu.contains("onToggle(enabled)"));
         assertTrue(home.contains("ThemedMenu.showOverflowToggle(this, anchor,"));
         assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
     }
