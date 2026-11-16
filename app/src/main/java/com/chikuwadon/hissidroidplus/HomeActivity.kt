@@ -68,6 +68,7 @@ class HomeActivity : Activity() {
         AppTitle.apply(findViewById(R.id.app_title))
         AppSettings.configureBars(this)
         findViewById<View>(R.id.home_more).setOnClickListener { showSettings(it) }
+        TouchFeedback.foreground(findViewById(R.id.home_more), 12)
         applyInsets()
         board = findViewById(R.id.board)
         id = findViewById(R.id.user_id)
@@ -582,10 +583,11 @@ class HomeActivity : Activity() {
             visibility = if (refresh) View.VISIBLE else View.GONE
         }
         titleRow.addView(update, LinearLayout.LayoutParams(dp(54), dp(54)))
+        TouchFeedback.foreground(update, 12)
         val list = ListView(this).apply {
             divider = ColorDrawable(getColor(R.color.divider))
             dividerHeight = dp(1)
-            selector = ColorDrawable(getColor(R.color.panel_pressed))
+            selector = TouchFeedback.listSelector(this@HomeActivity)
         }
         val adapter = object : ArrayAdapter<String>(
             this, android.R.layout.simple_list_item_1, labels
@@ -611,6 +613,7 @@ class HomeActivity : Activity() {
             height = dp(52)
         }
         panel.addView(close)
+        TouchFeedback.foreground(close, 10)
         val dialog = AlertDialog.Builder(this).create().apply {
             setView(panel)
             show()
