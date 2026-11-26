@@ -649,18 +649,17 @@ class ResultActivity : Activity() {
     }
 
     /**
-     * Keep the tapped row visible while its expanding ripple finishes.
-     * SelectableResultTextView performs a native CANCEL before performClick,
-     * so immediate showEntry() would hide the feedback underneath a dialog.
+     * Dispatch the action on the next frame, not after a fixed ripple delay.
+     * The row begins its native ripple on ACTION_DOWN.
      */
     private fun showEntryAfterRipple(index: Int) {
         if (rowActionPending) return
         val tappedTab = tab
         rowActionPending = true
-        list.postDelayed({
+        list.postOnAnimation {
             rowActionPending = false
-            if (!isFinishing && !isDestroyed && tappedTab == tab) showEntry(index)
-        }, 150L)
+            if (!isFinishing && !isDestroyed && hasWindowFocus() && tappedTab == tab) showEntry(index)
+        }
     }
 
     private fun showEntry(index: Int) {
@@ -827,7 +826,7 @@ class ResultActivity : Activity() {
 
     private fun showCentered(dialog: AlertDialog) {
         if (isFinishing || isDestroyed) return
-        dialog.show()
+        dialog.create()
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.transparent)
             attributes = attributes.apply {
@@ -837,6 +836,7 @@ class ResultActivity : Activity() {
             setLayout(min(resources.displayMetrics.widthPixels - dp(28), dp(480)),
                 WindowManager.LayoutParams.WRAP_CONTENT)
         }
+        dialog.show()
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()

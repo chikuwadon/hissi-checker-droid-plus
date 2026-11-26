@@ -93,10 +93,12 @@ object ThemedMenu {
             row.setOnClickListener {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
-                row.postDelayed({
-                    popup.dismiss()
-                    if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
-                }, 120L)
+                row.postOnAnimation {
+                    if (popup.isShowing && !a.isFinishing && !a.isDestroyed) {
+                        popup.dismiss()
+                        selected.onSelected(index)
+                    }
+                }
             }
         }
         popup.showAsDropDown(anchor, 0, -dp(a, 2), Gravity.END)
@@ -176,11 +178,13 @@ object ThemedMenu {
                 row.setOnClickListener {
                     if (actionPending) return@setOnClickListener
                     actionPending = true
-                    // Show the touched row before the popup disappears.
-                        row.postDelayed({
-                        popup.dismiss()
-                        if (!a.isFinishing && !a.isDestroyed) selected.onSelected(index)
-                    }, 120L)
+                    // Let the native ripple start on touch, then act on the next frame.
+                    row.postOnAnimation {
+                        if (popup.isShowing && !a.isFinishing && !a.isDestroyed) {
+                            popup.dismiss()
+                            selected.onSelected(index)
+                        }
+                    }
                 }
             }
         }
@@ -190,12 +194,13 @@ object ThemedMenu {
     private fun dialog(a: Activity, panel: LinearLayout): AlertDialog =
         AlertDialog.Builder(a).create().apply {
             setView(panel)
-            show()
+            create()
             window?.apply {
                 setBackgroundDrawableResource(android.R.color.transparent)
                 setGravity(Gravity.CENTER)
                 setLayout(panelWidth(a, 420), WindowManager.LayoutParams.WRAP_CONTENT)
             }
+            show()
         }
 
     private fun title(a: Activity, name: String): TextView =
@@ -226,7 +231,7 @@ object ThemedMenu {
         close.setOnClickListener {
             if (closing) return@setOnClickListener
             closing = true
-            close.postDelayed({ holder[0]?.dismiss() }, 125L)
+            close.postOnAnimation { holder[0]?.takeIf { it.isShowing }?.dismiss() }
         }
     }
 
@@ -258,10 +263,12 @@ object ThemedMenu {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
                 check.text = "✓"
-                row.postDelayed({
-                    holder[0]?.dismiss()
-                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index)
-                }, 120L)
+                row.postOnAnimation {
+                    if (holder[0]?.isShowing == true && !a.isFinishing && !a.isDestroyed) {
+                        holder[0]?.dismiss()
+                        onChoice.onSelected(index)
+                    }
+                }
             }
         }
         addClose(a, panel, holder)
@@ -300,10 +307,12 @@ object ThemedMenu {
                 if (actionPending) return@setOnClickListener
                 actionPending = true
                 val checked = always.isChecked
-                row.postDelayed({
-                    holder[0]?.dismiss()
-                    if (!a.isFinishing && !a.isDestroyed) onChoice.onSelected(index, checked)
-                }, 120L)
+                row.postOnAnimation {
+                    if (holder[0]?.isShowing == true && !a.isFinishing && !a.isDestroyed) {
+                        holder[0]?.dismiss()
+                        onChoice.onSelected(index, checked)
+                    }
+                }
             }
         }
         panel.addView(always)

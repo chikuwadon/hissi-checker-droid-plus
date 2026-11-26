@@ -616,13 +616,14 @@ class HomeActivity : Activity() {
         TouchFeedback.foreground(close, 10)
         val dialog = AlertDialog.Builder(this).create().apply {
             setView(panel)
-            show()
+            create()
             window?.apply {
                 setBackgroundDrawableResource(android.R.color.transparent)
                 setGravity(Gravity.CENTER)
                 setLayout(resources.displayMetrics.widthPixels - dp(34),
                     min((resources.displayMetrics.heightPixels * 0.77f).toInt(), dp(700)))
             }
+            show()
         }
         update.setOnClickListener {
             dialog.dismiss()
