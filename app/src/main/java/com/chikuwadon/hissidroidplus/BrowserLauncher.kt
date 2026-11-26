@@ -40,13 +40,13 @@ object BrowserLauncher {
             .addCategory(Intent.CATEGORY_BROWSABLE)
         val packages = LinkedHashSet<String>()
         try {
-            val preferred = pm.resolveActivity(generic, PackageManager.MATCH_DEFAULT_ONLY)
+            val preferred = PackageQueries.resolve(pm, generic, PackageManager.MATCH_DEFAULT_ONLY)
             val name = preferred?.activityInfo?.packageName
             if (!name.isNullOrEmpty()) packages.add(name)
         } catch (_: Exception) {}
         packages.addAll(COMMON_BROWSERS)
         try {
-            for (item in pm.queryIntentActivities(generic, 0)) {
+            for (item in PackageQueries.query(pm, generic, 0)) {
                 val name = item.activityInfo?.packageName
                 if (!name.isNullOrEmpty()) packages.add(name)
             }

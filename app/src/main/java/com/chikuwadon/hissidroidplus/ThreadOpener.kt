@@ -52,10 +52,9 @@ object ThreadOpener {
         return ArrayList(urls)
     }
 
-    @Suppress("DEPRECATION")
     private fun isReaderInstalled(pm: PackageManager, pkg: String): Boolean =
         try {
-            pm.getPackageInfo(pkg, 0)
+            PackageQueries.packageInfo(pm, pkg)
             true
         } catch (_: PackageManager.NameNotFoundException) {
             false

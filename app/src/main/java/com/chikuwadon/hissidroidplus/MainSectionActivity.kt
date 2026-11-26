@@ -2,7 +2,6 @@ package com.chikuwadon.hissidroidplus
 
 import android.app.Activity
 import android.content.Context
-import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout

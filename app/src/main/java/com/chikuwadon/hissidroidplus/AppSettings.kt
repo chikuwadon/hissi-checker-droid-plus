@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Configuration
-import android.view.View
+import androidx.core.view.WindowCompat
 
 /** Persistent cross-activity preferences, independent of the hosting task. */
 object AppSettings {
@@ -44,13 +44,20 @@ object AppSettings {
     }
 
     @JvmStatic
-    @Suppress("DEPRECATION")
     fun configureBars(activity: Activity) {
         val light = (activity.resources.configuration.uiMode and
             Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_NO
-        val flags = if (light) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
-        activity.window.decorView.systemUiVisibility = flags
+        // Use the AndroidX controller without overwriting unrelated window flags.
+        val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        controller.isAppearanceLightStatusBars = light
+        controller.isAppearanceLightNavigationBars = light
+        configureBarBackgrounds(activity)
+    }
+
+    // Keep the platform's existing bar background behavior for legacy devices and
+    // three-button navigation. Edge-to-edge platforms may ignore these colors.
+    @Suppress("DEPRECATION")
+    private fun configureBarBackgrounds(activity: Activity) {
         activity.window.statusBarColor = activity.getColor(R.color.surface)
         activity.window.navigationBarColor = activity.getColor(R.color.surface)
     }

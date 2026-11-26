@@ -25,10 +25,9 @@ object ExternalThreadApps {
     private fun view(url: String): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
 
-    @Suppress("DEPRECATION")
     private fun query(pm: PackageManager, url: String): List<ResolveInfo> =
         try {
-            pm.queryIntentActivities(view(url), PackageManager.MATCH_DEFAULT_ONLY)
+            PackageQueries.query(pm, view(url), PackageManager.MATCH_DEFAULT_ONLY)
         } catch (_: RuntimeException) {
             emptyList()
         }
