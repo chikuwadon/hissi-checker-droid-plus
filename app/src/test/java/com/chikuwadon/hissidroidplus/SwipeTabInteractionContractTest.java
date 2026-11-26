@@ -137,6 +137,7 @@ public final class SwipeTabInteractionContractTest {
         assertFalse(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("onToggle(enabled)"));
         assertTrue(home.contains("MainNavigation.Destination.HOME"));
-        assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
+        assertFalse(result.contains("ThemedMenu.showOverflowToggle(this, anchor"));
+        assertTrue(result.contains("ThemedMenu.showOverflow(this, anchor, actions.map"));
     }
 }

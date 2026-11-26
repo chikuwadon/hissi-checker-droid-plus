@@ -55,6 +55,7 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import org.json.JSONArray
+import androidx.lifecycle.ViewModelProvider
 
 /** Native 5ch/Edge result reader, with validated WebView fallback for Edge. */
 class ResultActivity : CheckerActivity() {
@@ -72,6 +73,8 @@ class ResultActivity : CheckerActivity() {
         }
     }
 
+    private val screenState by lazy { ViewModelProvider(this)[ResultScreenState::class.java] }
+    private var themeAtCreation: String? = null
     private val worker = Executors.newSingleThreadExecutor()
     private var query: CheckerQuery? = null
     private var inboundEdgeSearch = false
@@ -122,9 +125,10 @@ class ResultActivity : CheckerActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         if (redirectNonCheckerWebLink()) return
-        if (routeStandaloneLinkToOwnTask()) return
+        if (state == null && routeStandaloneLinkToOwnTask()) return
         setContentView(R.layout.activity_results)
         AppSettings.configureBars(this)
+        themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
         findViewById<View>(R.id.stat_summary).setOnClickListener {
             val chart = findViewById<View>(R.id.hourly_chart)
             val expanding = chart.visibility != View.VISIBLE
@@ -192,38 +196,21 @@ class ResultActivity : CheckerActivity() {
         AppBar.setIcon(this, findViewById<ImageButton>(R.id.toolbar_more), AppBar.Icon.MORE, false)
         findViewById<View>(R.id.toolbar_more).setOnClickListener { anchor ->
             val edge = query?.site == CheckerQuery.Site.EDGE
-            val labels = if (edge) arrayOf(
-                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション", "書き込み分析",
-                "外部ブラウザで開く", "URLをコピー", "IDをコピー",
-                "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
-            ) else arrayOf(
-                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション",
-                "外部ブラウザで開く", "URLをコピー", "IDをコピー",
-                "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
-            )
-            ThemedMenu.showOverflowToggle(this, anchor, labels, 2,
-                AppSettings.tabAnimations(this), { enabled ->
-                    AppSettings.setTabAnimations(this, enabled)
-                    if (!enabled) clearTabPreview(previewCompletion)
-                }
-            ) { which ->
-                if (which < 0 || which >= labels.size) return@showOverflowToggle
-                when {
-                    which == 0 -> openHome()
-                    which == 1 -> MainNavigation.navigate(this, MainNavigation.Destination.HISTORY)
-                    edge && which == 3 -> openEdgeAnalysis()
-                    else -> when (which - if (edge) 4 else 3) {
-                        0 -> openExternalBrowser(resultUrl())
-                        1 -> copyResultUrl()
-                        2 -> copySearchedId()
-                        3 -> copyWrittenThreads()
-                        4 -> copyAllVisible()
-                        else -> exitResults()
-                    }
+            val actions = ResultMenuAction.forSite(edge)
+            ThemedMenu.showOverflow(this, anchor, actions.map { it.label }.toTypedArray()) { which ->
+                when (actions.getOrNull(which)) {
+                    ResultMenuAction.ANALYSIS -> openEdgeAnalysis()
+                    ResultMenuAction.BROWSER -> openExternalBrowser(resultUrl())
+                    ResultMenuAction.COPY_URL -> copyResultUrl()
+                    ResultMenuAction.COPY_ID -> copySearchedId()
+                    ResultMenuAction.COPY_THREADS -> copyWrittenThreads()
+                    ResultMenuAction.COPY_POSTS -> copyAllVisible()
+                    null -> Unit
                 }
             }
         }
-        selectTab(0)
+        restoreNavigationState(state)
+        refreshTabLabels()
         list.setOnItemClickListener { _, _, index, _ -> showEntryAfterRipple(index) }
         list.setOnScrollListener(object : AbsListView.OnScrollListener {
             override fun onScrollStateChanged(view: AbsListView, state: Int) = Unit
@@ -248,6 +235,20 @@ class ResultActivity : CheckerActivity() {
         registerBackAction { backFromResult() }
         MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
         inboundEdgeSearch = initial.site == CheckerQuery.Site.EDGE && initial.url.isEmpty()
+        // Only a surviving ViewModel can reuse the fetched model. Process death reloads normally.
+        val retained = if (state != null) screenState.snapshot else null
+        if (retained != null) {
+            query = retained.query
+            result = retained.result
+            nextPage = retained.nextPage
+            noMorePages = retained.noMorePages
+            edgeDiagnostic = retained.edgeDiagnostic
+            rebuildIndexes()
+            loading = false
+            showTabContents(tab)
+            updateHeader()
+            return
+        }
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
             "エッヂ / 取得中…" else "5ch / 取得中…"
         worker.execute {
@@ -291,8 +292,9 @@ class ResultActivity : CheckerActivity() {
                     result = received
                     rebuildIndexes()
                     loading = false
-                    adapter.notifyDataSetChanged()
+                    showTabContents(tab)
                     updateHeader()
+                    rememberLoadedResult()
                     if (result.posts.isNotEmpty()) SearchHistory.record(this, target, result)
                     if (result.posts.isEmpty()) showEmpty()
                 }
@@ -349,12 +351,14 @@ class ResultActivity : CheckerActivity() {
                     rebuildIndexes()
                     adapter.notifyDataSetChanged()
                     updateHeader()
+                    rememberLoadedResult()
                 }
             } catch (_: Exception) {
                 runOnUiThread {
                     paging = false
                     noMorePages = true
                     if (!isFinishing && !isDestroyed) {
+                        rememberLoadedResult()
                         toast("追加レスを取得できませんでした", Toast.LENGTH_LONG)
                     }
                 }
@@ -419,21 +423,16 @@ class ResultActivity : CheckerActivity() {
     }
 
     private fun backFromResult() {
+        val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
         if (!::list.isInitialized || query == null ||
-            (launchedExternally() && !AppSettings.standalone(this) && !enteredViaNavigation)) {
+            (origin == null && launchedExternally() && !AppSettings.standalone(this) && !enteredViaNavigation)) {
             exitResults()
         } else {
-            val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
             val destination = if (enteredViaNavigation) backDestination else
                 MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
                     ?: MainNavigation.Destination.HOME
             MainNavigation.navigate(this, destination)
         }
-    }
-
-    /** Retain this result when navigating to the home screen. */
-    private fun openHome() {
-        MainNavigation.navigate(this, MainNavigation.Destination.HOME)
     }
 
     private fun exitResults() {
@@ -507,6 +506,7 @@ class ResultActivity : CheckerActivity() {
     }
 
     private fun rememberTabPosition() {
+        if (adapter.count == 0) return
         positions[tab] = list.firstVisiblePosition
         offsets[tab] = list.getChildAt(0)?.top ?: 0
     }
@@ -514,7 +514,7 @@ class ResultActivity : CheckerActivity() {
     private fun showTabContents(index: Int) {
         tab = index
         adapter.notifyDataSetChanged()
-        list.setSelectionFromTop(positions[index], offsets[index])
+        if (adapter.count > 0) list.setSelectionFromTop(positions[index].coerceIn(0, adapter.count - 1), offsets[index])
         refreshTabLabels()
     }
 
@@ -1020,8 +1020,9 @@ class ResultActivity : CheckerActivity() {
                                                 result = found
                                                 rebuildIndexes()
                                                 loading = false
-                                                adapter.notifyDataSetChanged()
+                                                showTabContents(tab)
                                                 updateHeader()
+                                                rememberLoadedResult()
                                                 SearchHistory.record(this@ResultActivity,
                                                     request, result)
                                                 cleanupWebView(view)
@@ -1167,9 +1168,42 @@ class ResultActivity : CheckerActivity() {
         copy(builder.toString(), false)
     }
 
+    private fun rememberLoadedResult() {
+        val current = query ?: return
+        if (result.posts.isNotEmpty()) {
+            screenState.snapshot = ResultScreenState.Snapshot(current, result, nextPage, noMorePages, edgeDiagnostic)
+        }
+    }
+
+    private fun restoreNavigationState(state: Bundle?) {
+        if (state == null) return
+        tab = state.getInt("result_tab", 0).coerceIn(0, 2)
+        state.getIntArray("result_positions")?.takeIf { it.size == positions.size }?.copyInto(positions)
+        state.getIntArray("result_offsets")?.takeIf { it.size == offsets.size }?.copyInto(offsets)
+        backDestination = MainNavigation.hostDestination(state.getString("result_back_destination"))
+        enteredViaNavigation = state.getBoolean("result_entered_via_navigation")
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::list.isInitialized) {
+            clearTabPreview(previewCompletion)
+            rememberTabPosition()
+            outState.putInt("result_tab", tab)
+            outState.putIntArray("result_positions", positions.copyOf())
+            outState.putIntArray("result_offsets", offsets.copyOf())
+            outState.putString("result_back_destination", backDestination.name)
+            outState.putBoolean("result_entered_via_navigation", enteredViaNavigation)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onResume() {
         super.onResume()
         MainNavigation.refresh(this)
+        if (::list.isInitialized && !isFinishing &&
+            themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
+            recreate()
+        }
     }
 
     override fun onDestroy() {

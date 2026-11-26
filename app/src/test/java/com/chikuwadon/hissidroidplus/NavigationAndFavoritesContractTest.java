@@ -50,6 +50,6 @@ public class NavigationAndFavoritesContractTest {
         assertTrue(s.contains("limitRow.addView(currentLabel"));
         String result = source("ResultActivity.kt");
         assertFalse(result.contains("検索結果を外部ブラウザで開く"));
-        assertTrue(result.contains("外部ブラウザで開く"));
+        assertTrue(source("ResultMenuAction.kt").contains("外部ブラウザで開く"));
     }
 }
