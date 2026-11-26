@@ -177,6 +177,14 @@ jobs:
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/release/HissiCheckerDroidPlus-v1.0.5.apk"
+          # Explicitly create the release tag before creating the draft.
+          TAG_SHA="$(git ls-remote --tags origin refs/tags/v1.0.5 | cut -f1)"
+          if [[ -z "$TAG_SHA" ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref=refs/tags/v1.0.5 -f sha="$GITHUB_SHA" >/dev/null
+          else
+            [[ "$TAG_SHA" == "$GITHUB_SHA" ]]
+          fi
           if gh release view v1.0.5 --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-draft" 2>/dev/null; then
             [[ "$(cat "$RUNNER_TEMP/release-draft")" == true ]]
             gh release upload v1.0.5 "$APK" --clobber
