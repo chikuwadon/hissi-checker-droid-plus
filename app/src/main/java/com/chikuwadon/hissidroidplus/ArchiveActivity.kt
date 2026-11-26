@@ -96,6 +96,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     saveKeyword()
                     state.drafts[state.provider] = state.draft
                     val previousKeyword = state.draft.keyword
+                    state.form = null
                     state.provider = selected
                     state.draft = state.drafts[selected] ?: ArchiveQuery(previousKeyword)
                     keyword.setText(state.draft.keyword)
@@ -140,7 +141,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     return@setOnClickListener
                 }
             } else state.provider.url
-            if (state.provider.nativeSearch && state.draft.maximum.isNotEmpty()) {
+            if (state.provider == ArchiveProvider.EDGE_ARCHIVE && state.draft.maximum.isNotEmpty()) {
                 android.widget.Toast.makeText(host, "レス数の上限はアプリ内表示にのみ適用されます", android.widget.Toast.LENGTH_SHORT).show()
             }
             BrowserLauncher.open(host, target)
@@ -159,7 +160,13 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         list.setOnItemClickListener { _, _, position, _ ->
-            state.result?.items?.getOrNull(position)?.let { ThreadOpener.open(host, it.url, true) }
+            state.result?.items?.getOrNull(position)?.let { entry ->
+                when {
+                    state.provider == ArchiveProvider.EDGE_ARCHIVE -> ThreadOpener.open(host, entry.url, true)
+                    ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
+                    else -> BrowserLauncher.open(host, entry.url)
+                }
+            }
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
             val entry = state.result?.items?.getOrNull(position)
@@ -260,7 +267,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun showOptions() {
         if (loading || disposed) return
         saveKeyword()
-        if (!state.provider.nativeSearch) {
+        if (state.provider != ArchiveProvider.EDGE_ARCHIVE) {
             showExternalOptions()
             return
         }
@@ -356,7 +363,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showOptionsDialog() {
-        if (disposed || !state.provider.nativeSearch) return
+        if (disposed || state.provider != ArchiveProvider.EDGE_ARCHIVE) return
         val panel = ThemedMenu.formPanel(host)
         panel.addView(ThemedMenu.formTitle(host, "詳細条件"))
         val scroll = ScrollView(host)

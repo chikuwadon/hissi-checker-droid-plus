@@ -10,9 +10,9 @@ import java.time.LocalDate
 /** Archive providers share a request/result model; native support is enabled individually. */
 enum class ArchiveProvider(val label: String, val url: String, val nativeSearch: Boolean) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/", true),
-    EDGE_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", false),
-    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/s?bs=&kt=5_&fr=&to=&k=", false),
-    FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/q/-/?kako=1&guid=ON", false)
+    EDGE_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", true),
+    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/s?bs=&kt=5_&fr=&to=&k=", true),
+    FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/q/-/?kako=1&guid=ON", true)
 }
 
 data class ArchiveQuery @JvmOverloads constructor(
@@ -43,21 +43,22 @@ data class ArchiveQuery @JvmOverloads constructor(
     }
 }
 
-data class ArchiveThread(val title: String, val url: String, val replies: Int, val date: String)
+data class ArchiveThread @JvmOverloads constructor(val title: String, val url: String, val replies: Int, val date: String, val board: String = "")
 data class ArchiveSortOption(val value: String, val label: String)
 data class ArchiveFormOptions(val sorts: List<ArchiveSortOption>, val fuzzyValue: String?)
 data class ArchivePage @JvmOverloads constructor(
     val items: List<ArchiveThread>, val total: Long, val page: Int, val hasNext: Boolean,
-    val form: ArchiveFormOptions? = null
+    val form: ArchiveFormOptions? = null,
+    val pageSize: Int = ArchiveRepository.PAGE_SIZE
 ) {
     /** The Edge archive serves 50 results per page. Range refers to server results,
      *  not the locally filtered upper-bound subset. */
     val totalPages: Int get() = if (total <= 0) 0 else
-        ((total - 1) / ArchiveRepository.PAGE_SIZE + 1).coerceAtMost(ArchiveRepository.MAX_PAGE.toLong()).toInt()
+        ((total - 1) / pageSize + 1).coerceAtMost(ArchiveRepository.MAX_PAGE.toLong()).toInt()
     val firstIndex: Long get() = if (total <= 0 || page !in 1..totalPages) 0 else
-        (page.toLong() - 1) * ArchiveRepository.PAGE_SIZE + 1
+        (page.toLong() - 1) * pageSize + 1
     val lastIndex: Long get() = if (firstIndex == 0L) 0 else
-        minOf(total, page.toLong() * ArchiveRepository.PAGE_SIZE)
+        minOf(total, page.toLong() * pageSize)
 }
 
 
@@ -84,8 +85,13 @@ object ArchiveRepository {
     }
 
     fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int): ArchivePage {
-        require(provider == ArchiveProvider.EDGE_ARCHIVE) { "アプリ内検索は未対応です" }
-        val result = parse(HttpTransport.get(url(query, page), StandardCharsets.UTF_8), page)
+        val target = ArchiveExternalSearch.url(provider, query, page)
+        val html = HttpTransport.get(target, StandardCharsets.UTF_8)
+        val result = when (provider) {
+            ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
+            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemo(html, page)
+            ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page)
+        }
         return filterRange(result, query)
     }
 

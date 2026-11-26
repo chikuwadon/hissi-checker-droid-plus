@@ -30,6 +30,10 @@ public final class SecurityAndPerformanceContractTest {
         checkAllowed("https://hissi.org/read.php/android/20261024/id.html",true);
         checkAllowed("https://menu.5ch.io/bbsmenu.json",true);
         checkAllowed("https://eddiarchive3rd.boy.jp/?keyword=Android",true);
+        checkAllowed("https://n2ch.net/q/-/?q=Android",true);
+        checkAllowed("http://n2ch.net/q/-/",false);
+        checkAllowed("https://n2ch.net/r/-/android/1793641629/",false);
+        checkAllowed("https://n2ch.net.evil.example/q/-/",false);
         checkAllowed("http://eddiarchive3rd.boy.jp/",false);
         checkAllowed("https://eddiarchive3rd.boy.jp/other",false);
         checkAllowed("https://eddiarchive3rd.boy.jp.evil.example/",false);
