@@ -75,6 +75,7 @@ class ResultActivity : CheckerActivity() {
 
     private val screenState by lazy { ViewModelProvider(this)[ResultScreenState::class.java] }
     private var themeAtCreation: String? = null
+    private val repository = ResultRepository()
     private val worker = Executors.newSingleThreadExecutor()
     private var query: CheckerQuery? = null
     private var inboundEdgeSearch = false
@@ -251,70 +252,47 @@ class ResultActivity : CheckerActivity() {
         }
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
             "エッヂ / 取得中…" else "5ch / 取得中…"
+        val verifyDate = verifyEdgeSearchDate()
         worker.execute {
-            var resolved = initial
-            try {
-                if (inboundEdgeSearch) {
-                    val found = EdgeInboundSearch.resolve(initial.board, initial.date, initial.id)
-                    if (found == null) {
-                        runOnUiThread {
-                            if (isFinishing || isDestroyed) return@runOnUiThread
-                            loading = false
-                            showMessage("該当する投稿が見つかりませんでした",
-                                "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
-                                "閉じる", { exitResults() }, null, null)
-                        }
-                        return@execute
-                    }
-                    resolved = found
-                }
-                val target = resolved
-                val parsed = if (target.site == CheckerQuery.Site.EDGE)
-                    EdgeAdapter().load(target) else HissiAdapter().load(target)
-                val wrongDay = verifyEdgeSearchDate() && parsed.posts.isNotEmpty()
-                val received = if (wrongDay)
-                    EdgeSearchValidation.matchingPosts(parsed, target.date, target.id) else parsed
-                val rejected = wrongDay && received.posts.isEmpty()
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    query = target
-                    if (rejected) {
-                        showWrongDay()
-                        return@runOnUiThread
-                    }
-                    if (target.site == CheckerQuery.Site.EDGE && received.posts.isEmpty()) {
-                        edgeDiagnostic = received.diagnostic
-                        loadEdgeWithWebView(
-                            "通常通信では抽出できません: " + received.diagnostic
-                        )
-                        return@runOnUiThread
-                    }
-                    result = received
-                    rebuildIndexes()
-                    loading = false
-                    showTabContents(tab)
-                    updateHeader()
-                    rememberLoadedResult()
-                    if (result.posts.isNotEmpty()) SearchHistory.record(this, target, result)
-                    if (result.posts.isEmpty()) showEmpty()
-                }
-            } catch (error: Exception) {
-                val lastResolved = resolved
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (inboundEdgeSearch && lastResolved.url.isEmpty()) {
+            val outcome = repository.load(initial, verifyDate)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when (outcome) {
+                    ResultRepository.Load.NotFound -> {
                         loading = false
-                        showMessage("エッヂのID検索に失敗しました",
-                            error.message ?: "検索結果を取得できませんでした",
+                        showMessage("該当する投稿が見つかりませんでした",
+                            "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
                             "閉じる", { exitResults() }, null, null)
-                    } else if (lastResolved.site == CheckerQuery.Site.EDGE) {
-                        query = lastResolved
-                        loadEdgeWithWebView(
-                            (error.message ?: "通信失敗") +
-                                " / " + HttpTransport.lastDiagnostic()
-                        )
-                    } else {
-                        showError(error.message)
+                    }
+                    is ResultRepository.Load.WrongDay -> {
+                        query = outcome.query
+                        showWrongDay()
+                    }
+                    is ResultRepository.Load.WebFallback -> {
+                        query = outcome.query
+                        outcome.diagnostic?.let { edgeDiagnostic = it }
+                        loadEdgeWithWebView(outcome.reason)
+                    }
+                    is ResultRepository.Load.Ready -> {
+                        query = outcome.query
+                        result = outcome.result
+                        rebuildIndexes()
+                        loading = false
+                        showTabContents(tab)
+                        updateHeader()
+                        rememberLoadedResult()
+                        if (result.posts.isNotEmpty()) SearchHistory.record(this, outcome.query, result)
+                        if (result.posts.isEmpty()) showEmpty()
+                    }
+                    is ResultRepository.Load.Failed -> {
+                        if (outcome.resolvingEdge) {
+                            loading = false
+                            showMessage("エッヂのID検索に失敗しました",
+                                outcome.message ?: "検索結果を取得できませんでした",
+                                "閉じる", { exitResults() }, null, null)
+                        } else {
+                            showError(outcome.message)
+                        }
                     }
                 }
             }
@@ -330,27 +308,21 @@ class ResultActivity : CheckerActivity() {
         ) return
         paging = true
         val page = nextPage
+        val sourceUrl = result.sourceUrl
         worker.execute {
             try {
-                val addition = HissiAdapter().nextPage(result.sourceUrl, page)
+                val addition = repository.nextPage(sourceUrl, page)
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (addition.posts.isEmpty()) {
-                        noMorePages = true
-                    } else {
-                        val before = result.posts.size
-                        val seen = HashSet<String>()
-                        result.posts.forEach { seen.add(it.link + it.meta) }
-                        for (post in addition.posts) {
-                            if (seen.add(post.link + post.meta)) result.posts.add(post)
-                        }
-                        if (result.posts.size == before) noMorePages = true
-                    }
+                    val added = ResultRepository.appendPage(result, addition)
+                    if (!added) noMorePages = true
                     nextPage = page + 1
                     paging = false
-                    rebuildIndexes()
-                    adapter.notifyDataSetChanged()
-                    updateHeader()
+                    if (added) {
+                        rebuildIndexes()
+                        adapter.notifyDataSetChanged()
+                        updateHeader()
+                    }
                     rememberLoadedResult()
                 }
             } catch (_: Exception) {
