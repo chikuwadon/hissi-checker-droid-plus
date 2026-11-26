@@ -13,7 +13,9 @@ public class NavigationAndFavoritesContractTest {
         assertTrue(h.contains("isFastScrollEnabled = false"));
         assertTrue(h.contains("verticalScrollbarPosition = View.SCROLLBAR_POSITION_RIGHT"));
         assertTrue(h.contains("FrameLayout.LayoutParams(dp(12), -1, Gravity.RIGHT)"));
-        assertTrue(h.contains("setPadding(dp(10), dp(6), dp(12), dp(6))"));
+        assertTrue(h.contains("setPadding(dp(10), dp(3), dp(12), dp(3))"));
+        assertTrue(h.contains("minimumHeight = dp(54)"));
+        assertTrue(h.contains("row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))"));
         String rail = source("HistoryScrollRail.kt");
         assertTrue(rail.contains("list.setSelectionFromTop"));
         assertTrue(rail.contains("event.x < 0f || event.x >= width"));
