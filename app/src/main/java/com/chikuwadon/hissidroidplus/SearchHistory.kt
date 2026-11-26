@@ -204,18 +204,28 @@ object SearchHistory {
         db(context).delete("recent", "url = ?", arrayOf(url))
     }
 
-    @JvmStatic fun deleteRecents(context: Context, urls: Set<String>) {
+    @JvmStatic fun deleteRecents(context: Context, urls: Set<String>) =
+        deleteEntries(context, "recent", urls)
+
+    @JvmStatic fun removeFavorites(context: Context, urls: Set<String>) =
+        deleteEntries(context, "favorites", urls)
+
+    private fun deleteEntries(context: Context, table: String, urls: Set<String>) {
         val database = db(context)
         database.beginTransaction()
         try {
             for (chunk in urls.chunked(400)) {
                 val placeholders = chunk.joinToString(",") { "?" }
-                database.delete("recent", "url IN ($placeholders)", chunk.toTypedArray())
+                database.delete(table, "url IN ($placeholders)", chunk.toTypedArray())
             }
             database.setTransactionSuccessful()
         } finally {
             database.endTransaction()
         }
+    }
+
+    @JvmStatic fun clearFavorites(context: Context) {
+        db(context).delete("favorites", null, null)
     }
 
     @JvmStatic fun clearRecents(context: Context) {

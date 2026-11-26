@@ -195,11 +195,11 @@ class ResultActivity : Activity() {
             val edge = query?.site == CheckerQuery.Site.EDGE
             val labels = if (edge) arrayOf(
                 "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション", "書き込み分析",
-                "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
+                "外部ブラウザで開く", "URLをコピー", "IDをコピー",
                 "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
             ) else arrayOf(
                 "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション",
-                "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
+                "外部ブラウザで開く", "URLをコピー", "IDをコピー",
                 "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
             )
             ThemedMenu.showOverflowToggle(this, anchor, labels, 2,

@@ -69,6 +69,52 @@ class SettingsActivity : MainSectionActivity() {
         body.addView(animationRow, LinearLayout.LayoutParams(-1, -2))
         body.addView(View(this).apply { setBackgroundColor(getColor(R.color.divider)) },
             LinearLayout.LayoutParams(-1, dp(1)))
+        caption(body, "ナビゲーションバー")
+        for (destination in MainNavigation.configurable) {
+            val navRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
+                setPadding(dp(12), 0, dp(4), 0)
+                isFocusable = true
+                contentDescription = destination.label
+                TouchFeedback.foreground(this)
+            }
+            val navLabel = TextView(this).apply {
+                text = destination.label
+                textSize = 15f
+                setTextColor(getColor(R.color.text_primary))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            val navCheck = CheckBox(this).apply {
+                buttonTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
+                isChecked = MainNavigation.isVisible(this@SettingsActivity, destination)
+                minimumWidth = 0
+                minimumHeight = 0
+                setPadding(0, 0, 0, 0)
+                isClickable = false
+                isFocusable = false
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                setOnCheckedChangeListener { _, enabled ->
+                    MainNavigation.setVisible(this@SettingsActivity, destination, enabled)
+                    MainNavigation.refresh(this@SettingsActivity)
+                }
+            }
+            navRow.addView(navLabel, LinearLayout.LayoutParams(0, -2, 1f))
+            navRow.addView(navCheck, LinearLayout.LayoutParams(dp(40), dp(48)))
+            navRow.setOnClickListener { navCheck.isChecked = !navCheck.isChecked }
+            navRow.accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = CheckBox::class.java.name
+                    info.isCheckable = true
+                    info.isChecked = navCheck.isChecked
+                }
+            }
+            body.addView(navRow, LinearLayout.LayoutParams(-1, -2))
+            body.addView(View(this).apply { setBackgroundColor(getColor(R.color.divider)) },
+                LinearLayout.LayoutParams(-1, dp(1)))
+        }
         caption(body, "外部アプリ連携")
         row(body, "スレの開き方") {
             val labels = arrayOf("毎回選択", "ChMateで開く", "Haiagaruで開く",
@@ -94,13 +140,21 @@ class SettingsActivity : MainSectionActivity() {
             setTextColor(getColor(R.color.text_primary))
             setPadding(dp(12), dp(8), dp(12), 0)
         }
-        body.addView(limitLabel)
+        val limitRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), dp(12), 0)
+        }
+        limitLabel.setPadding(dp(12), 0, 0, 0)
+        limitLabel.textSize = 14f
+        limitRow.addView(limitLabel, LinearLayout.LayoutParams(0, -2, 1f))
         val currentLabel = TextView(this).apply {
             textSize = 12f
             setTextColor(getColor(R.color.text_secondary))
-            setPadding(dp(12), dp(5), dp(12), 0)
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, 0, 0)
         }
-        body.addView(currentLabel)
+        limitRow.addView(currentLabel, LinearLayout.LayoutParams(-2, -2))
+        body.addView(limitRow, LinearLayout.LayoutParams(-1, -2))
         val slider = SeekBar(this).apply {
             max = HistoryRetention.LAST_PROGRESS
             progress = HistoryRetention.toProgress(currentLimit)

@@ -3,6 +3,7 @@ package com.chikuwadon.hissidroidplus
 import android.app.Activity
 import android.app.ActivityOptions
 import android.content.Intent
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
@@ -23,6 +24,17 @@ object MainNavigation {
     }
 
     private const val RESULT_TAG = "main_navigation_result"
+    private const val BAR_TAG = "main_navigation_bar"
+    val configurable = listOf(Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES)
+
+    fun isVisible(context: Context, destination: Destination): Boolean =
+        destination !in configurable ||
+            AppSettings.prefs(context).getBoolean("navigation_visible_" + destination.name, true)
+
+    fun setVisible(context: Context, destination: Destination, visible: Boolean) {
+        if (destination !in configurable) return
+        AppSettings.prefs(context).edit().putBoolean("navigation_visible_" + destination.name, visible).apply()
+    }
     private val results = HashMap<Int, WeakReference<ResultActivity>>()
 
     private fun result(a: Activity): ResultActivity? {
@@ -41,6 +53,12 @@ object MainNavigation {
     }
 
     fun refresh(a: Activity) {
+        val bar = a.window.decorView.findViewWithTag<LinearLayout>(BAR_TAG)
+        if (bar != null) {
+            Destination.values().forEachIndexed { index, destination ->
+                bar.getChildAt(index)?.visibility = if (isVisible(a, destination)) View.VISIBLE else View.GONE
+            }
+        }
         val item = a.window.decorView.findViewWithTag<TextView>(RESULT_TAG) ?: return
         val available = result(a) != null
         item.isEnabled = available
@@ -54,6 +72,7 @@ object MainNavigation {
         val divider = View(a).apply { setBackgroundColor(a.getColor(R.color.divider)) }
         root.addView(divider, LinearLayout.LayoutParams(-1, dp(a, 1)))
         val bar = LinearLayout(a).apply {
+            tag = BAR_TAG
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(a.getColor(R.color.panel))
             gravity = Gravity.CENTER_VERTICAL
@@ -68,6 +87,7 @@ object MainNavigation {
                 setTextColor(color)
                 isSingleLine = true
                 isSelected = active
+                visibility = if (isVisible(a, destination)) View.VISIBLE else View.GONE
                 if (destination == Destination.RESULT) tag = RESULT_TAG
                 contentDescription = destination.label
                 setPadding(0, dp(a, 6), 0, dp(a, 5))

@@ -170,7 +170,7 @@ open class HistoryActivity : Activity() {
             else chosen.addAll(rows.map { it.url })
             updateSelectionUi()
         }
-        val clearAll = text("全削除", 13, getColor(R.color.text_secondary)).apply {
+        val clearAll = text(if (favoritesScreen) "全解除" else "全削除", 13, getColor(R.color.text_secondary)).apply {
             gravity = Gravity.CENTER
         }
         actions.addView(clearAll, LinearLayout.LayoutParams(dp(62), dp(46)))
@@ -180,7 +180,7 @@ open class HistoryActivity : Activity() {
             gravity = Gravity.CENTER
         }
         actions.addView(selectedActions, LinearLayout.LayoutParams(0, dp(46), 1f))
-        deleteSelected = text("削除", 14, getColor(R.color.accent)).apply {
+        deleteSelected = text(if (favoritesScreen) "解除" else "削除", 14, getColor(R.color.accent)).apply {
             gravity = Gravity.CENTER
         }
         actions.addView(deleteSelected, LinearLayout.LayoutParams(dp(74), dp(46)))
@@ -194,6 +194,8 @@ open class HistoryActivity : Activity() {
             dividerHeight = dp(1)
             selector = TouchFeedback.listSelector(this@HistoryActivity)
             isFastScrollEnabled = true
+            // Keep the fast-scroll touch lane outside all row action targets.
+            scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
             itemsCanFocus = false
             adapter = this@HistoryActivity.adapter
         }
@@ -255,25 +257,35 @@ open class HistoryActivity : Activity() {
 
     private fun confirmSelected() {
         if (chosen.isEmpty()) return
-        ThemedMenu.confirm(this, "選択した履歴の削除",
-            "選択した" + chosen.size + "件を削除しますか？\nお気に入りは維持されます。",
-            "削除", Runnable {
-                val selected = HashSet(chosen)
+        val selected = HashSet(chosen)
+        val favorite = favoritesScreen
+        ThemedMenu.confirm(this, if (favorite) "選択したお気に入りの解除" else "選択した履歴の削除",
+            if (favorite) "選択した${selected.size}件のお気に入りを解除しますか？\n通常履歴は維持されます。"
+            else "選択した${selected.size}件を削除しますか？\nお気に入りは維持されます。",
+            if (favorite) "解除" else "削除", Runnable {
                 chosen.clear()
                 selection = false
                 updateSelectionUi()
-                changeHistory { SearchHistory.deleteRecents(this, selected) }
+                changeHistory {
+                    if (favorite) SearchHistory.removeFavorites(this, selected)
+                    else SearchHistory.deleteRecents(this, selected)
+                }
             })
     }
 
     private fun confirmClear() {
-        ThemedMenu.confirm(this, "履歴の全削除",
-            "通常履歴をすべて削除しますか？\nお気に入りは残ります。",
-            "全削除", Runnable {
+        val favorite = favoritesScreen
+        ThemedMenu.confirm(this, if (favorite) "お気に入りの全解除" else "履歴の全削除",
+            if (favorite) "お気に入りをすべて解除しますか？\n通常履歴は残ります。"
+            else "通常履歴をすべて削除しますか？\nお気に入りは残ります。",
+            if (favorite) "全解除" else "全削除", Runnable {
                 chosen.clear()
                 selection = false
                 updateSelectionUi()
-                changeHistory { SearchHistory.clearRecents(this) }
+                changeHistory {
+                    if (favorite) SearchHistory.clearFavorites(this)
+                    else SearchHistory.clearRecents(this)
+                }
             })
     }
 
@@ -463,14 +475,14 @@ open class HistoryActivity : Activity() {
         favoriteTab.setTextColor(getColor(if (tab == 1) R.color.accent else R.color.text_secondary))
         sortLabel.text = getString(R.string.history_sort_label, sorts[sort])
         sortLabel.visibility = if (selection) View.GONE else View.VISIBLE
-        menuButton.visibility = if (tab == 1) View.GONE else View.VISIBLE
+        menuButton.visibility = View.VISIBLE
         AppBar.setIcon(this, menuButton, if (selection) AppBar.Icon.DONE else AppBar.Icon.SELECT, selection)
         menuButton.contentDescription = if (selection) "完了" else "複数選択"
         searchButton.visibility = if (selection) View.GONE else View.VISIBLE
         AppBar.setIcon(this, searchButton, AppBar.Icon.SEARCH, filter.active())
         searchButton.contentDescription = if (filter.active()) "履歴内検索（絞り込み中）" else "履歴内検索"
         val count = if (filter.active()) "${rows.size}/$totalCount" else totalCount.toString()
-        toolbarTitle.text = if (selection) "履歴を選択" else (if (tab == 0) "履歴" else "お気に入り") + " ($count)"
+        toolbarTitle.text = if (selection) (if (favoritesScreen) "お気に入りを選択" else "履歴を選択") else (if (tab == 0) "履歴" else "お気に入り") + " ($count)"
         selectionActions.visibility = if (selection) View.VISIBLE else View.GONE
         selectedActions.text = getString(R.string.history_selected_count, chosen.size)
         deleteSelected.isEnabled = chosen.isNotEmpty()
@@ -505,7 +517,7 @@ open class HistoryActivity : Activity() {
             } else {
                 val row = LinearLayout(this@HistoryActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(10), dp(6), dp(6), dp(6))
+                    setPadding(dp(10), dp(6), dp(48), dp(6))
                     minimumHeight = dp(64)
                     descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }
