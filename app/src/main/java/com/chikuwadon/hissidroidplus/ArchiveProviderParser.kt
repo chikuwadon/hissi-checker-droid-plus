@@ -22,8 +22,13 @@ object ArchiveProviderParser {
     } catch (_: IllegalArgumentException) { null }
 
     @JvmStatic
-    fun kyodemo(html: String, page: Int): ArchivePage {
-        val doc = Jsoup.parse(html, "https://www.kyodemo.net/sdemo/s")
+    fun kyodemo(html: String, page: Int): ArchivePage = parseKyodemo(html, page, false)
+
+    @JvmStatic
+    fun kyodemoEdge(html: String, page: Int): ArchivePage = parseKyodemo(html, page, true)
+
+    private fun parseKyodemo(html: String, page: Int, edge: Boolean): ArchivePage {
+        val doc = Jsoup.parse(html, if (edge) ArchiveProvider.EDGE_KYODEMO.url else "https://www.kyodemo.net/sdemo/s")
         val count = kyodemoCount.find(doc.text()) ?: throw IOException("Kyodemoの検索結果件数を確認できませんでした")
         val total = count.groupValues[1].replace(",", "").toLong()
         val current = count.groupValues[2].toInt()
@@ -33,11 +38,11 @@ object ArchiveProviderParser {
         for (anchor in doc.select("article.panel-block a[href]")) {
             val uri = safeUri(anchor.absUrl("href"), "www.kyodemo.net") ?: continue
             val path = kyodemoPath.matchEntire(uri.path.orEmpty()) ?: continue
-            if (uri.rawQuery != null) continue
+            if (uri.rawQuery != null || (edge && path.groupValues[1] != "e_e_liveedge")) continue
             val title = anchor.selectFirst("h2.cltitle")?.wholeText()?.replaceFirst(Regex("^\\s*\\d+[:：]\\s*"), "")?.trim().orEmpty()
             val replies = anchor.selectFirst("small.right_i b")?.text()?.replace(",", "")?.toIntOrNull() ?: continue
             if (title.isBlank()) continue
-            val board = anchor.selectFirst("small.left_i span")?.text().orEmpty()
+            val board = if (path.groupValues[1] == "e_e_liveedge") "エッヂ" else anchor.selectFirst("small.left_i span")?.text().orEmpty()
             val link = uri.toASCIIString()
             rows.putIfAbsent(link, ArchiveThread(title, link, replies, timestamp(path.groupValues[2]), board))
         }

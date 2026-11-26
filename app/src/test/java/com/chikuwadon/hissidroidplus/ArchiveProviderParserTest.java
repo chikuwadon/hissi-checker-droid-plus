@@ -30,7 +30,7 @@ public class ArchiveProviderParserTest {
     }
     @Test public void providerPageParametersAreDifferent() {
         ArchiveQuery q = new ArchiveQuery("sample");
-        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q, 2).contains("&j=2"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.ALL_KYODEMO, q, 2).contains("&j=2"));
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_NUKO, q, 2).contains("&p=1"));
         assertFalse(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_NUKO, q, 1).contains("&p="));
     }

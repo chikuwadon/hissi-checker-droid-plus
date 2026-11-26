@@ -10,7 +10,8 @@ import java.time.LocalDate
 /** Archive providers share a request/result model; native support is enabled individually. */
 enum class ArchiveProvider(val label: String, val url: String, val nativeSearch: Boolean) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/", true),
-    EDGE_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", true),
+    EDGE_KYODEMO("エッヂ / Kyodemo", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k=", true),
+    ALL_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", true),
     FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/s?bs=&kt=5_&fr=&to=&k=", true),
     FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/q/-/?kako=1&guid=ON", true)
 }
@@ -86,10 +87,12 @@ object ArchiveRepository {
 
     fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int): ArchivePage {
         val target = ArchiveExternalSearch.url(provider, query, page)
-        val html = HttpTransport.get(target, StandardCharsets.UTF_8)
+        val charset = if (provider == ArchiveProvider.EDGE_ARCHIVE) StandardCharsets.UTF_8 else java.nio.charset.Charset.forName("windows-31j")
+        val html = HttpTransport.get(target, charset)
         val result = when (provider) {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
-            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemo(html, page)
+            ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
+            ArchiveProvider.ALL_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemo(html, page)
             ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page)
         }
         return filterRange(result, query)

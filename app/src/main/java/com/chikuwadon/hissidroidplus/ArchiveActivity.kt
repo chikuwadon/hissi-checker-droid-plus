@@ -297,6 +297,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val nuko = state.provider == ArchiveProvider.FIVECH_NUKO
         var draft = state.draft
         var excluded: EditText? = null
+        var sort = draft.sort
+        var minimum = draft.minimum
         var exact: CheckBox? = null
         var external: CheckBox? = null
         fun check(label: String, selected: Boolean): CheckBox = CheckBox(host).apply {
@@ -339,6 +341,25 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             day("開始日", true)
             day("終了日", false)
             panel.addView(ThemedMenu.formLabel(host, "複数の検索ワードは空白区切りでAND検索"))
+            if (state.provider == ArchiveProvider.EDGE_KYODEMO) {
+                fun choice(label: String, values: List<String>, labels: List<String>, selected: String, apply: (String) -> Unit) {
+                    panel.addView(ThemedMenu.formLabel(host, label))
+                    var index = values.indexOf(selected).coerceAtLeast(0)
+                    val button = ThemedMenu.formButton(host, labels[index] + " ▾")
+                    panel.addView(button, LinearLayout.LayoutParams(-1, dp(44)))
+                    button.setOnClickListener {
+                        ThemedMenu.choose(host, label, labels.toTypedArray(), index) { selectedIndex ->
+                            if (selectedIndex in values.indices) {
+                                index = selectedIndex
+                                button.text = labels[index] + " ▾"
+                                apply(values[index])
+                            }
+                        }
+                    }
+                }
+                choice("ソート", listOf("new", "old", "replies"), listOf("立降順（新しい順）", "立昇順（古い順）", "レス数順"), sort) { sort = it }
+                choice("レス数", listOf("", "50", "300", "900"), listOf("指定なし", "50以上", "300以上", "900以上"), minimum) { minimum = it }
+            }
         }
         val buttons = LinearLayout(host)
         val cancel = ThemedMenu.formAction(host, "キャンセル")
@@ -350,7 +371,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         cancel.setOnClickListener { dialog.dismiss() }
         apply.setOnClickListener {
             val updated = draft.copy(exclude = excluded?.text?.toString() ?: "",
-                exact = exact?.isChecked ?: false, externalBoards = external?.isChecked ?: false)
+                exact = exact?.isChecked ?: false, externalBoards = external?.isChecked ?: false,
+                sort = sort, minimum = minimum)
             try {
                 updated.copy(keyword = updated.keyword.ifBlank { "x" }).validate()
                 state.draft = updated
