@@ -77,6 +77,17 @@ internal class SettingsContent(host: Activity) : SectionContent(host) {
         body.addView(animationRow, LinearLayout.LayoutParams(-1, -2))
         body.addView(View(this).apply { setBackgroundColor(getColor(R.color.divider)) },
             LinearLayout.LayoutParams(-1, dp(1)))
+        caption(body, "過去ログ検索")
+        val placementLabels = arrayOf("画面上部", "画面下部")
+        fun placementText(): String = "検索欄の位置：" + placementLabels[if (AppSettings.archiveSearchAtBottom(host)) 1 else 0]
+        lateinit var placementRow: TextView
+        placementRow = row(body, placementText()) {
+            ThemedMenu.choose(this, "検索欄の位置", placementLabels,
+                if (AppSettings.archiveSearchAtBottom(host)) 1 else 0) { index ->
+                AppSettings.setArchiveSearchAtBottom(host, index == 1)
+                placementRow.text = placementText()
+            }
+        }
         caption(body, "ナビゲーションバー")
         for (destination in MainNavigation.configurable) {
             val navRow = LinearLayout(this).apply {

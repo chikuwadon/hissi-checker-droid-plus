@@ -24,6 +24,11 @@ class ArchiveFragment : Fragment() {
         return root
     }
 
+    override fun onResume() {
+        super.onResume()
+        content?.resume()
+    }
+
     override fun onDestroyView() {
         content?.dispose()
         content = null

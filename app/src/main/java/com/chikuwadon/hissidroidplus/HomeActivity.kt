@@ -208,19 +208,15 @@ class HomeActivity : CheckerActivity() {
         findViewById<View>(R.id.choose_board).setOnClickListener { showBoards() }
         findViewById<View>(R.id.add_favorite).setOnClickListener {
             val current = board.text.toString().trim()
-            if (!current.matches(Regex("[A-Za-z0-9_]+"))) {
+            if (!BoardFavorites.valid(current)) {
                 toast("板名を指定してください")
                 return@setOnClickListener
             }
-            val favorites = HashSet(prefs.getStringSet("favorite_boards", emptySet())
-                ?: emptySet())
-            favorites.add(current)
-            prefs.edit().putStringSet("favorite_boards", favorites).apply()
+            BoardFavorites.add(this, current)
             toast("お気に入りに登録しました")
         }
         findViewById<View>(R.id.show_favorites).setOnClickListener {
-            val favorites = (prefs.getStringSet("favorite_boards", emptySet())
-                ?: emptySet()).toMutableList().sorted()
+            val favorites = BoardFavorites.read(this)
             if (favorites.isEmpty()) {
                 toast("お気に入りがありません")
                 return@setOnClickListener
@@ -230,7 +226,7 @@ class HomeActivity : CheckerActivity() {
             }, {
                 ThemedMenu.choose(this, "お気に入りをすべて削除しますか？",
                     arrayOf("戻る", "すべて削除"), -1) { choice ->
-                    if (choice == 1) prefs.edit().remove("favorite_boards").apply()
+                    if (choice == 1) BoardFavorites.clear(this)
                 }
             })
         }

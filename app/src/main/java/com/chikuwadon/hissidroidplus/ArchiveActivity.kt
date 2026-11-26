@@ -58,6 +58,11 @@ class ArchiveActivity : MainSectionActivity() {
         applyContentInsets(root)
     }
 
+    override fun onResume() {
+        super.onResume()
+        content?.resume()
+    }
+
     override fun onDestroy() {
         content?.dispose()
         super.onDestroy()
@@ -73,6 +78,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var provider: TextView
     private lateinit var keyword: EditText
     private lateinit var boardButton: TextView
+    private lateinit var boardRow: LinearLayout
+    private lateinit var saveBoardButton: TextView
+    private lateinit var favoriteBoardsButton: TextView
+    private lateinit var searchTop: LinearLayout
+    private lateinit var searchBottom: LinearLayout
+    private lateinit var searchControls: LinearLayout
+    private lateinit var searchLine: LinearLayout
+    private lateinit var searchLinks: LinearLayout
+    private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
     private lateinit var search: TextView
@@ -86,7 +100,6 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private val adapter = ThreadsAdapter()
 
     fun buildScreen(root: LinearLayout) {
-        root.addView(AppBar.title(host, "過去ログ検索"), LinearLayout.LayoutParams(-1, dp(56)))
         val controls = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(4))
@@ -113,15 +126,30 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     state.result = null
                     state.message = ""
                     refresh()
-                    if (selected == ArchiveProvider.FIVECH_KYODEMO && state.draft.boardCode.isEmpty()) showBoards()
                 }
             }
         }
+        boardRow = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
+        controls.addView(boardRow, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
         boardButton = ThemedMenu.formButton(host, "板を選択 ▾")
-        controls.addView(boardButton, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
+        boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1f))
         boardButton.setOnClickListener { showBoards() }
+        saveBoardButton = ThemedMenu.formButton(host, "☆ 保存").apply {
+            contentDescription = "選択した板をお気に入りに保存"
+            setOnClickListener { saveFavoriteBoard() }
+        }
+        boardRow.addView(saveBoardButton, LinearLayout.LayoutParams(dp(82), -1).apply { marginStart = dp(4) })
+        favoriteBoardsButton = ThemedMenu.formButton(host, "★").apply {
+            contentDescription = "板のお気に入り"
+            setOnClickListener { showFavoriteBoards() }
+        }
+        boardRow.addView(favoriteBoardsButton, LinearLayout.LayoutParams(dp(48), -1).apply { marginStart = dp(4) })
+        searchTop = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        controls.addView(searchTop, LinearLayout.LayoutParams(-1, -2))
+        searchControls = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         val line = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
-        controls.addView(line, LinearLayout.LayoutParams(-1, dp(52)))
+        searchLine = line
+        searchControls.addView(line, LinearLayout.LayoutParams(-1, dp(52)))
         keyword = ThemedMenu.formInput(host, state.draft.keyword).apply {
             hint = "スレタイ検索"
             setHintTextColor(host.getColor(R.color.text_secondary))
@@ -160,7 +188,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         line.addView(search, LinearLayout.LayoutParams(dp(72), dp(44)).apply { marginStart = dp(6) })
         search.setOnClickListener { startSearch() }
         val links = LinearLayout(host)
-        controls.addView(links, LinearLayout.LayoutParams(-1, dp(42)))
+        searchLinks = links
+        searchControls.addView(links, LinearLayout.LayoutParams(-1, dp(42)))
         options = ThemedMenu.formAction(host, "詳細条件")
         browser = ThemedMenu.formAction(host, "外部ブラウザ")
         links.addView(options, LinearLayout.LayoutParams(0, -1, 1f))
@@ -221,12 +250,38 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         pager.addView(pageJump, LinearLayout.LayoutParams(0, dp(40), 1.15f))
         pager.addView(next, LinearLayout.LayoutParams(0, dp(44), 1f))
         root.addView(pager, LinearLayout.LayoutParams(-1, -2))
+        searchBottom = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, dp(12), dp(4))
+        }
+        root.addView(searchBottom, LinearLayout.LayoutParams(-1, -2))
+        applySearchPlacement()
         previous.setOnClickListener { state.submitted?.let { q -> state.result?.let { if (it.page > 1) load(q, it.page - 1) } } }
         next.setOnClickListener { state.submitted?.let { q -> state.result?.let { if (it.hasNext) load(q, it.page + 1) } } }
         pageJump.setOnClickListener { showPageJump() }
         refresh()
         val restored = state.submitted?.let { query -> state.result?.let { state.pages.get(state.provider, query, it.page) } }
         restored?.let { restorePosition(it.position) }
+    }
+
+    /** Move the existing search views; do not recreate the list or discard its state. */
+    private fun applySearchPlacement() {
+        val bottom = AppSettings.archiveSearchAtBottom(host)
+        if (bottomPlacement == bottom) return
+        (searchControls.parent as? ViewGroup)?.removeView(searchControls)
+        searchControls.removeView(searchLinks)
+        searchControls.addView(searchLinks, if (bottom) 0 else 1, LinearLayout.LayoutParams(-1, dp(42)))
+        val target = if (bottom) searchBottom else searchTop
+        target.addView(searchControls, LinearLayout.LayoutParams(-1, -2))
+        searchTop.visibility = if (bottom) View.GONE else View.VISIBLE
+        searchBottom.visibility = if (bottom) View.VISIBLE else View.GONE
+        bottomPlacement = bottom
+    }
+
+    fun resume() {
+        if (disposed || !::searchControls.isInitialized) return
+        applySearchPlacement()
+        updateBoardButtons()
     }
 
     private fun showCopyMenu(entry: ArchiveThread) {
@@ -342,17 +397,64 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             showBoardList(category.name, category.boards.map { it.toString() }, { showBoardCategories(groups) }) { position ->
                 if (disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return@showBoardList
                 val board = category.boards[position]
-                saveKeyword()
-                if (state.draft.boardCode != board.code) {
-                    state.draft = state.draft.copy(boardCode = board.code, boardName = board.name)
-                    state.pages.clear()
-                    state.result = null
-                    state.submitted = null
-                    state.message = ""
-                }
-                refresh()
+                selectBoard(board.code, board.name)
             }
         }
+    }
+
+    private fun selectBoard(code: String, name: String) {
+        if (disposed || loading || state.provider != ArchiveProvider.FIVECH_KYODEMO || !BoardFavorites.valid(code)) return
+        saveKeyword()
+        if (state.draft.boardCode != code) {
+            state.pages.clear()
+            state.result = null
+            state.submitted = null
+            state.message = ""
+        }
+        state.draft = state.draft.copy(boardCode = code, boardName = name.ifBlank { code })
+        refresh()
+    }
+
+    private fun saveFavoriteBoard() {
+        if (loading || disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        val code = state.draft.boardCode
+        if (!BoardFavorites.valid(code)) {
+            Toast.makeText(host, "板を選択してください", Toast.LENGTH_SHORT).show()
+            return
+        }
+        BoardFavorites.add(host, code)
+        updateBoardButtons()
+        Toast.makeText(host, "お気に入りに登録しました", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showFavoriteBoards() {
+        if (loading || disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        val favorites = BoardFavorites.read(host)
+        if (favorites.isEmpty()) {
+            Toast.makeText(host, "板のお気に入りがありません", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Home and archive share the same code list. Resolve names when the menu is available.
+        val names = boardGroups.orEmpty().flatMap { it.boards }.associate { it.code to it.name }
+        val labels = favorites.map { code ->
+            val name = names[code] ?: if (code == state.draft.boardCode) state.draft.boardName else ""
+            if (name.isNotBlank() && name != code) "$name ($code)" else code
+        }
+        showBoardList("板のお気に入り", labels, null) { index ->
+            val code = favorites[index]
+            selectBoard(code, names[code] ?: if (code == state.draft.boardCode) state.draft.boardName else code)
+        }
+    }
+
+    private fun updateBoardButtons() {
+        val fivech = state.provider == ArchiveProvider.FIVECH_KYODEMO
+        boardRow.visibility = if (fivech) View.VISIBLE else View.GONE
+        boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { "板を選択" } }) + " ▾"
+        boardButton.isEnabled = !loading
+        saveBoardButton.isEnabled = !loading && BoardFavorites.valid(state.draft.boardCode)
+        saveBoardButton.alpha = if (saveBoardButton.isEnabled) 1f else 0.45f
+        saveBoardButton.text = if (state.draft.boardCode in BoardFavorites.read(host)) "★ 保存済" else "☆ 保存"
+        favoriteBoardsButton.isEnabled = !loading
     }
 
     private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?, pick: (Int) -> Unit) {
@@ -714,9 +816,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val native = state.provider.nativeSearch
         provider.text = state.provider.label + " ▾"
         provider.isEnabled = !loading
-        boardButton.visibility = if (state.provider == ArchiveProvider.FIVECH_KYODEMO) View.VISIBLE else View.GONE
-        boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { "板を選択" } }) + " ▾"
-        boardButton.isEnabled = !loading
+        updateBoardButtons()
         searchHistoryButton.isEnabled = !loading
         keyword.isEnabled = !loading
         search.isEnabled = !loading
