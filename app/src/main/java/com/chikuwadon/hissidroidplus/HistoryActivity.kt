@@ -16,6 +16,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ScrollView
 import java.time.LocalDate
@@ -188,14 +189,19 @@ open class HistoryActivity : CheckerActivity() {
             divider = ColorDrawable(getColor(R.color.divider))
             dividerHeight = dp(1)
             selector = TouchFeedback.listSelector(this@HistoryActivity)
-            isFastScrollEnabled = true
-            // Keep the fast-scroll touch lane outside all row action targets.
-            scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
-            verticalScrollbarPosition = View.SCROLLBAR_POSITION_LEFT
+            // Platform fast-scroll can intercept touches well inside the row.
+            // A separate, exact-width right-hand rail avoids the star hit target.
+            isFastScrollEnabled = false
+            isVerticalScrollBarEnabled = false
+            verticalScrollbarPosition = View.SCROLLBAR_POSITION_RIGHT
             itemsCanFocus = false
             adapter = this@HistoryActivity.adapter
         }
-        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        val listFrame = FrameLayout(this)
+        listFrame.addView(list, FrameLayout.LayoutParams(-1, -1))
+        listFrame.addView(HistoryScrollRail(this, list),
+            FrameLayout.LayoutParams(dp(12), -1, Gravity.RIGHT))
+        root.addView(listFrame, LinearLayout.LayoutParams(-1, 0, 1f))
         MainNavigation.attach(this, root, if (tab == 0) MainNavigation.Destination.HISTORY else MainNavigation.Destination.FAVORITES)
         list.setOnItemClickListener { _, _, position, _ ->
             if (position !in rows.indices) return@setOnItemClickListener
@@ -345,7 +351,7 @@ open class HistoryActivity : CheckerActivity() {
     }
 
     private fun changeFavorite(entry: SearchHistory.Entry) {
-        if (selection || pendingFavorites.containsKey(entry.url)) return
+        if (favoritesScreen || selection || pendingFavorites.containsKey(entry.url)) return
         val desired = !favoriteUrls.contains(entry.url)
         pendingFavorites[entry.url] = desired
         adapter.notifyDataSetChanged()
@@ -507,7 +513,7 @@ open class HistoryActivity : CheckerActivity() {
             } else {
                 val row = LinearLayout(this@HistoryActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(22), dp(6), dp(8), dp(6))
+                    setPadding(dp(10), dp(6), dp(12), dp(6))
                     minimumHeight = dp(64)
                     descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }
@@ -553,8 +559,9 @@ open class HistoryActivity : CheckerActivity() {
             ))
             holder.title.text = entry.title()
             holder.detail.text = entry.detail()
-            holder.star.visibility = if (selection) View.GONE else View.VISIBLE
-            if (!selection) {
+            val showStar = !favoritesScreen && !selection
+            holder.star.visibility = if (showStar) View.VISIBLE else View.GONE
+            if (showStar) {
                 val starred = pendingFavorites[entry.url] ?: favoriteUrls.contains(entry.url)
                 holder.star.text = if (starred) "★" else "☆"
                 holder.star.setTextColor(getColor(
@@ -569,6 +576,7 @@ open class HistoryActivity : CheckerActivity() {
             } else {
                 holder.star.setOnClickListener(null)
                 holder.star.isClickable = false
+                holder.star.contentDescription = null
             }
             return holder.root
         }

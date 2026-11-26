@@ -10,11 +10,21 @@ public class NavigationAndFavoritesContractTest {
     }
     @Test public void fastScrollAndStarHaveSeparateTouchLanes() throws Exception {
         String h = source("HistoryActivity.kt");
-        assertTrue(h.contains("isFastScrollEnabled = true"));
-        assertTrue(h.contains("scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY"));
-        assertTrue(h.contains("verticalScrollbarPosition = View.SCROLLBAR_POSITION_LEFT"));
-        assertTrue(h.contains("setPadding(dp(22), dp(6), dp(8), dp(6))"));
+        assertTrue(h.contains("isFastScrollEnabled = false"));
+        assertTrue(h.contains("verticalScrollbarPosition = View.SCROLLBAR_POSITION_RIGHT"));
+        assertTrue(h.contains("FrameLayout.LayoutParams(dp(12), -1, Gravity.RIGHT)"));
+        assertTrue(h.contains("setPadding(dp(10), dp(6), dp(12), dp(6))"));
+        String rail = source("HistoryScrollRail.kt");
+        assertTrue(rail.contains("list.setSelectionFromTop"));
+        assertTrue(rail.contains("event.x < 0f || event.x >= width"));
         assertTrue(h.contains("row.addView(star, LinearLayout.LayoutParams(dp(48), dp(48)))"));
+    }
+    @Test public void favoritesHaveNoDirectStarToggle() throws Exception {
+        String h = source("HistoryActivity.kt");
+        assertTrue(h.contains("val showStar = !favoritesScreen && !selection"));
+        assertTrue(h.contains("holder.star.visibility = if (showStar) View.VISIBLE else View.GONE"));
+        assertTrue(h.contains("if (favoritesScreen || selection || pendingFavorites.containsKey(entry.url)) return"));
+        assertTrue(h.contains("holder.star.setOnClickListener(null)"));
     }
     @Test public void favoritesSelectionNeverDeletesNormalHistory() throws Exception {
         String h = source("HistoryActivity.kt");
