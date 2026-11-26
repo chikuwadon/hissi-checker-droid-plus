@@ -76,7 +76,7 @@ public final class SwipeTabInteractionContractTest {
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
         String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
         String history = source("java/com/chikuwadon/hissidroidplus/HistoryActivity.kt");
-        assertTrue(home.contains("MainNavigation.attach(this, findViewById(R.id.home_root)"));
+        assertTrue(home.contains("MainNavigation.attach(this, shell"));
         assertTrue(home.contains("selector = TouchFeedback.listSelector(this@HomeActivity)"));
         assertTrue(home.contains("TouchFeedback.foreground(close"));
         assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
