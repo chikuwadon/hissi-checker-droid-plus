@@ -21,6 +21,10 @@
 
 事前のドライラン: https://github.com/chikuwadon/hissi-checker-droid-plus/actions/runs/42976849810
 
+## 開発環境の更新（2026-11-26）
+
+Gradle のセキュリティ修正版 9.9.2 を採用した。上記の2026-11-11当時の構成記録は歴史的記録として維持する。現行の CodeQL ビルド、Android CI、監査済み依存グラフの生成はすべて Gradle 9.9.2 を使用する。
+
 ## 運用・確認
 
 従来のDefault setupは新しいAdvanced setupと同時稼働させない。ユーザーがGitHub管理画面で設定を切り替えた後に、本ワークフローの解析結果アップロードを有効化する。
