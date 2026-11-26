@@ -9,6 +9,7 @@ on:
       - 'settings.gradle'
       - 'app/build.gradle'
       - 'gradle.properties'
+      - 'tools/gradle-retry.sh'
       - 'tools/resolved-dependency-snapshot.gradle'
       - 'tools/validate_resolved_dependency_snapshot.py'
       - 'tools/audit_gradle_dependency_snapshot.py'
@@ -47,7 +48,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --no-build-cache --rerun-tasks \
+          bash tools/gradle-retry.sh --no-daemon --no-build-cache --rerun-tasks \
             -I tools/resolved-dependency-snapshot.gradle \
             :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
             exportResolvedDependencySnapshot
