@@ -40,10 +40,11 @@ public final class MainNavigationContractTest {
         assertTrue(settings.contains("info.isChecked = checkbox.isChecked"));
     }
     @Test public void archiveLaunchesOnlyExplicitProviderLinks() throws Exception {
-        String archive = source("ArchiveActivity.kt");
+        String archive = source("ArchiveRepository.kt");
         assertTrue(archive.contains("https://n2ch.net/?guid=ON"));
         assertTrue(archive.contains("https://eddiarchive3rd.boy.jp/"));
         assertTrue(archive.contains("https://www.kyodemo.net/sdemo/"));
-        assertFalse(archive.contains("HttpTransport"));
+        assertFalse(source("ArchiveActivity.kt").contains("HttpTransport"));
+        assertTrue(source("ArchiveActivity.kt").contains("ArchiveRepository.search(requested, query, page)"));
     }
 }

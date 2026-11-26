@@ -10,15 +10,24 @@ import androidx.lifecycle.ViewModelProvider
 
 /** Hosted destinations do not own a Window or a bottom navigation bar. */
 class ArchiveFragment : Fragment() {
+    private var content: ArchiveContent? = null
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         val host = requireActivity()
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(host.getColor(R.color.surface))
         }
-        val content = ArchiveContent(host)
-        content.populate(content.build(root, "過去ログ検索"))
+        val screen = ArchiveContent(host, ViewModelProvider(this)[ArchiveScreenState::class.java])
+        content = screen
+        screen.buildScreen(root)
         return root
+    }
+
+    override fun onDestroyView() {
+        content?.dispose()
+        content = null
+        super.onDestroyView()
     }
 }
 

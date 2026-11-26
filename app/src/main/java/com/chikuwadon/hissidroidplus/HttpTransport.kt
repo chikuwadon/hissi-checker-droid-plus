@@ -185,6 +185,7 @@ object HttpTransport {
         if ((host.equals("hissi.org", true) || host.equals("www.hissi.org", true)) &&
             (proto == "http" || proto == "https")) return
         if (host.equals("menu.5ch.io", true) && proto == "https") return
+        if (host.equals("eddiarchive3rd.boy.jp", true) && proto == "https" && target.path == "/") return
         throw IOException("通信先が許可されていません")
     }
 }
