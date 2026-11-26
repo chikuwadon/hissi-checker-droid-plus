@@ -7,6 +7,7 @@ import java.nio.charset.Charset
  *  Shared by native search and the external browser. */
 object ArchiveExternalSearch {
     private val formCharset = Charset.forName("windows-31j")
+    private val whitespace = Regex("\\s+")
 
     @JvmStatic
     @JvmOverloads
@@ -15,7 +16,7 @@ object ArchiveExternalSearch {
         require(page in 1..ArchiveRepository.MAX_PAGE)
         val (base, parameters) = when (provider) {
             ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> {
-                val key = query.keyword.trim() + query.exclude.trim().split(Regex("\\s+"))
+                val key = query.keyword.trim() + query.exclude.trim().split(whitespace)
                     .filter { it.isNotBlank() }.joinToString("") { " -" + it.trimStart('-') }
                 val board = if (provider == ArchiveProvider.EDGE_KYODEMO) "e_e_liveedge" else query.boardCode
                 require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "5chの板を選択してください" }

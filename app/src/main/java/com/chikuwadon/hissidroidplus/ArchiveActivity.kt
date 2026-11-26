@@ -112,7 +112,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         provider.setOnClickListener {
             if (loading) return@setOnClickListener
             val providers = ArchiveProvider.entries
-            val labels = providers.map { it.label + if (it.nativeSearch) "" else "（ブラウザ検索）" }.toTypedArray()
+            val labels = providers.map { it.label }.toTypedArray()
             ThemedMenu.choose(host, "検索サービス", labels, providers.indexOf(state.provider)) { index ->
                 val selected = providers.getOrNull(index) ?: return@choose
                 if (selected != state.provider) {
@@ -560,7 +560,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (loading || disposed) return
         saveKeyword()
         if (state.provider != ArchiveProvider.EDGE_ARCHIVE) {
-            showExternalOptions()
+            showProviderOptions()
             return
         }
         if (state.form != null && state.form?.fuzzyValue != null) {
@@ -583,7 +583,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
     }
 
-    private fun showExternalOptions() {
+    private fun showProviderOptions() {
         val panel = ThemedMenu.formPanel(host)
         panel.addView(ThemedMenu.formTitle(host, "詳細条件"))
         val nuko = state.provider == ArchiveProvider.FIVECH_NUKO
@@ -798,15 +798,11 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(keyword.windowToken, 0)
         keyword.clearFocus()
         ArchiveKeywordHistory.record(host, query.keyword)
-        if (state.provider.nativeSearch) {
-            load(query, 1, fresh = true)
-        } else {
-            BrowserLauncher.open(host, ArchiveExternalSearch.url(state.provider, query))
-        }
+        load(query, 1, fresh = true)
     }
 
     private fun load(query: ArchiveQuery, page: Int, fresh: Boolean = false) {
-        if (loading || disposed || !state.provider.nativeSearch) return
+        if (loading || disposed) return
         rememberPosition()
         val requested = state.provider
         if (!fresh) {
@@ -836,21 +832,18 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun refresh() {
-        val native = state.provider.nativeSearch
         provider.text = state.provider.label + " ▾"
         provider.isEnabled = !loading
         updateBoardButtons()
         searchHistoryButton.isEnabled = !loading
         keyword.isEnabled = !loading
         search.isEnabled = !loading
-        search.text = if (native) "検索" else "ブラウザ検索"
         options.isEnabled = !loading
         search.alpha = if (search.isEnabled) 1f else 0.45f
         options.alpha = if (options.isEnabled) 1f else 0.45f
         val page = state.result
         message.text = when {
             loading -> "検索中…"
-            !native -> "検索条件を入力するとブラウザで結果を開きます（アプリ内結果表示は未対応）"
             state.message.isNotEmpty() -> state.message
             page != null -> {
                 val submitted = state.submitted
@@ -864,9 +857,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
             else -> "スレタイを入力して検索してください"
         }
-        previous.isEnabled = !loading && native && page != null && page.page > 1
-        next.isEnabled = !loading && native && page?.hasNext == true && page.page < page.totalPages
-        pageJump.isEnabled = !loading && native && page != null && page.totalPages > 1
+        previous.isEnabled = !loading && page != null && page.page > 1
+        next.isEnabled = !loading && page?.hasNext == true && page.page < page.totalPages
+        pageJump.isEnabled = !loading && page != null && page.totalPages > 1
         pageJump.text = if (page == null) "ページ指定" else
             (if (page.totalPages == 0) "0" else number(page.page.toLong())) + " / " + number(page.totalPages.toLong())
         pageJump.contentDescription = "ページ指定：" + pageJump.text

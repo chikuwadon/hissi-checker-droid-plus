@@ -14,15 +14,14 @@ object ArchiveProviderParser {
     private val kyodemoPath = Regex("^/sdemo/r/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
     private val nukoPath = Regex("^/r/-/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
     private val titleCount = Regex("^(.*?)\\s*\\(([0-9,]+)\\)\\s*$")
+    private val resultNumber = Regex("^\\s*\\d+[:：]\\s*")
+    private val nukoRange = Regex("([0-9,]+)\\s*[-～〜]\\s*([0-9,]+)件目")
     private val dateFormat = DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss").withZone(ZoneId.of("Asia/Tokyo"))
     private fun timestamp(key: String): String = dateFormat.format(Instant.ofEpochSecond(key.toLong()))
     private fun safeUri(raw: String, host: String): URI? = try {
         URI.create(raw).takeIf { it.scheme.equals("https", true) && it.host.equals(host, true) &&
             it.rawUserInfo == null && it.port == -1 && it.rawFragment == null }
     } catch (_: IllegalArgumentException) { null }
-
-    @JvmStatic
-    fun kyodemo(html: String, page: Int): ArchivePage = parseKyodemo(html, page, "", "")
 
     @JvmStatic
     fun kyodemoEdge(html: String, page: Int): ArchivePage = parseKyodemo(html, page, "e_e_liveedge", "エッヂ")
@@ -45,11 +44,11 @@ object ArchiveProviderParser {
         for (anchor in doc.select("article.panel-block a[href]")) {
             val uri = safeUri(anchor.absUrl("href"), "www.kyodemo.net") ?: continue
             val path = kyodemoPath.matchEntire(uri.path.orEmpty()) ?: continue
-            if (uri.rawQuery != null || (code.isNotEmpty() && path.groupValues[1] != code)) continue
-            val title = anchor.selectFirst("h2.cltitle")?.wholeText()?.replaceFirst(Regex("^\\s*\\d+[:：]\\s*"), "")?.trim().orEmpty()
+            if (uri.rawQuery != null || path.groupValues[1] != code) continue
+            val title = anchor.selectFirst("h2.cltitle")?.wholeText()?.replaceFirst(resultNumber, "")?.trim().orEmpty()
             val replies = anchor.selectFirst("small.right_i b")?.text()?.replace(",", "")?.toIntOrNull() ?: continue
             if (title.isBlank()) continue
-            val board = if (code.isNotEmpty()) name else if (path.groupValues[1] == "e_e_liveedge") "エッヂ" else anchor.selectFirst("small.left_i span")?.text().orEmpty()
+            val board = name
             val link = uri.toASCIIString()
             rows.putIfAbsent(link, ArchiveThread(title, link, replies, timestamp(path.groupValues[2]), board))
         }
@@ -62,7 +61,7 @@ object ArchiveProviderParser {
         val doc = Jsoup.parse(html, "https://n2ch.net/q/-/")
         val total = nukoCount.find(doc.text())?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
             ?: throw IOException("ぬこの検索結果件数を確認できませんでした")
-        val range = Regex("([0-9,]+)\\s*[-～〜]\\s*([0-9,]+)件目").find(doc.text())
+        val range = nukoRange.find(doc.text())
         if (total > 0 && range?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull() != (page.toLong() - 1) * 20 + 1) {
             throw IOException("指定ページと取得ページが一致しません")
         }

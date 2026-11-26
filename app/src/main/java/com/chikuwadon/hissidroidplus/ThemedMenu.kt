@@ -443,7 +443,7 @@ object ThemedMenu {
         if (a.isFinishing || a.isDestroyed) return
         var version = "不明"
         try {
-            version = a.packageManager.getPackageInfo(a.packageName, 0).versionName ?: "不明"
+            version = PackageQueries.packageInfo(a.packageManager, a.packageName).versionName ?: "不明"
         } catch (_: Exception) { }
         val panel = column(a, 12)
         panel.addView(title(a, "必死チェッカーdroid +"))

@@ -47,11 +47,18 @@ public class ArchiveRepositoryTest {
         assertThrows(IOException.class, () -> ArchiveRepository.parse("<p>Access denied</p>", 1));
         assertThrows(IOException.class, () -> ArchiveRepository.parse("<p>検索結果：10件</p>", 1));
     }
-    @Test public void allFourProviderChoicesSupportNativeSearch() {
-        assertTrue(ArchiveProvider.EDGE_ARCHIVE.getNativeSearch());
-        assertTrue(ArchiveProvider.FIVECH_NUKO.getNativeSearch());
-        assertTrue(ArchiveProvider.FIVECH_KYODEMO.getNativeSearch());
-        assertTrue(ArchiveProvider.EDGE_KYODEMO.getNativeSearch());
+    @Test public void allFourProviderChoicesHaveNativeRequestRoutes() {
+        assertEquals(4, ArchiveProvider.values().length);
+        ArchiveQuery q = new ArchiveQuery("Android", "", "", "", "", "", "new", "", false, false, "android", "Android");
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_ARCHIVE, q).startsWith("https://eddiarchive3rd.boy.jp/?"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q).startsWith("https://www.kyodemo.net/sdemo/b/e_e_liveedge/"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, q).startsWith("https://www.kyodemo.net/sdemo/b/android/"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_NUKO, q).startsWith("https://n2ch.net/q/-/"));
+    }
+    @Test public void unfilteredPagesAreReusedWithoutCopyingRows() {
+        ArchivePage page = new ArchivePage(java.util.Collections.singletonList(new ArchiveThread("a", "a", 12, "")), 50, 1, false);
+        assertSame(page, ArchiveRepository.filterRange(page, new ArchiveQuery("x")));
+        assertEquals(0, ArchiveRepository.filterRange(page, new ArchiveQuery("x", "", "13")).getItems().size());
     }
     @Test public void providerFormSuppliesExactSortAndFuzzyValues() {
         ArchiveFormOptions form = ArchiveRepository.parseForm("<form><select name='sort'>"

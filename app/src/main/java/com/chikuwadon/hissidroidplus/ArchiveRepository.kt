@@ -7,12 +7,12 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 
-/** Archive providers share a request/result model; native support is enabled individually. */
-enum class ArchiveProvider(val label: String, val url: String, val nativeSearch: Boolean) {
-    EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/", true),
-    EDGE_KYODEMO("Kyodemo / エッヂ", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k=", true),
-    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/", true),
-    FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON", true)
+/** All selectable archive providers support native search. */
+enum class ArchiveProvider(val label: String, val url: String) {
+    EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/"),
+    EDGE_KYODEMO("Kyodemo / エッヂ", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k="),
+    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/"),
+    FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON")
 }
 
 data class ArchiveQuery @JvmOverloads constructor(
@@ -55,7 +55,7 @@ data class ArchivePage @JvmOverloads constructor(
     val pageSize: Int = ArchiveRepository.PAGE_SIZE,
     val totalCapped: Boolean = false
 ) {
-    /** The Edge archive serves 50 results per page. Range refers to server results,
+    /** Page size is provider-specific. Range refers to server results,
      *  not the locally filtered upper-bound subset. */
     val totalPages: Int get() = if (total <= 0) 0 else
         ((total - 1) / pageSize + 1).coerceAtMost(ArchiveRepository.MAX_PAGE.toLong()).toInt()
@@ -64,8 +64,6 @@ data class ArchivePage @JvmOverloads constructor(
     val lastIndex: Long get() = if (firstIndex == 0L) 0 else
         minOf(total, page.toLong() * pageSize)
 }
-
-
 
 object ArchiveRepository {
     const val PAGE_SIZE = 50
@@ -126,6 +124,7 @@ object ArchiveRepository {
 
     @JvmStatic
     fun filterRange(page: ArchivePage, query: ArchiveQuery): ArchivePage {
+        if (query.minimum.isEmpty() && query.maximum.isEmpty()) return page
         val min = query.minimum.toIntOrNull() ?: 0
         val max = query.maximum.toIntOrNull() ?: Int.MAX_VALUE
         // Keep the original page count and navigation even when this page has no matches.
