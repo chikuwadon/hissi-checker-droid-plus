@@ -87,6 +87,11 @@ class SelectableResultTextView(context: Context, attrs: AttributeSet?) : TextVie
                     clearPending()
                 }
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // A multi-touch gesture is not a row click or a text-selection long press.
+                moved = true
+                clearPending()
+            }
             MotionEvent.ACTION_UP -> {
                 val ordinaryTap = touchActive && !moved && !selectionStarted
                 touchActive = false

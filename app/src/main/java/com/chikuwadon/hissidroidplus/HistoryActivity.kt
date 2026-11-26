@@ -4,10 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -229,12 +227,12 @@ class HistoryActivity : Activity() {
             }
             true
         }
-        refresh()
+        // onResume performs the initial data refresh as well as subsequent refreshes.
     }
 
     private fun toggleSelection(url: String) {
         if (!chosen.add(url)) chosen.remove(url)
-        refresh()
+        updateSelectionUi()
     }
 
     private fun confirmSelected() {
@@ -283,6 +281,10 @@ class HistoryActivity : Activity() {
         for (favorite in favorites) favoriteUrls.add(favorite.url)
         recentTab.text = getString(R.string.history_recent_count, recents.size)
         favoriteTab.text = getString(R.string.history_favorite_count, favorites.size)
+        updateSelectionUi()
+    }
+
+    private fun updateSelectionUi() {
         recentTab.setTextColor(getColor(if (tab == 0) R.color.accent else R.color.text_secondary))
         favoriteTab.setTextColor(getColor(if (tab == 1) R.color.accent else R.color.text_secondary))
         sortLabel.text = getString(R.string.history_sort_label, sorts[sort])
@@ -358,10 +360,8 @@ class HistoryActivity : Activity() {
             if (checked || entry.url == pendingConfirmationUrl) {
                 holder.root.setBackgroundColor(getColor(R.color.panel_pressed))
             } else {
-                holder.root.background = RippleDrawable(
-                    ColorStateList.valueOf(getColor(R.color.panel_pressed)),
-                    ColorDrawable(Color.TRANSPARENT), null
-                )
+                // The existing foreground already handles touch feedback.
+                holder.root.background = null
             }
             holder.number.text = if (selection) (if (checked) "☑" else "☐") else (position + 1).toString()
             holder.number.textSize = if (selection) 21f else 12f

@@ -81,6 +81,8 @@ object HttpTransport {
                 connection.setRequestProperty("Referer", "https://www.kyodemo.net/sdemo/")
             }
             try {
+                // Request properties must be read before outputStream connects a POST.
+                val hadCookie = connection.getRequestProperty("Cookie") != null
                 if (form != null) {
                     connection.requestMethod = "POST"
                     connection.doOutput = true
@@ -91,7 +93,6 @@ object HttpTransport {
                         it.write(form.toByteArray(StandardCharsets.UTF_8))
                     }
                 }
-                val hadCookie = connection.getRequestProperty("Cookie") != null
                 val status = connection.responseCode
                 val contentType = connection.contentType
                 diagnostics = "HTTP=" + status + " / 形式=" +
