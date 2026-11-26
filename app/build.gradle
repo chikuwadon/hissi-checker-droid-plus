@@ -7,8 +7,8 @@ android {
     applicationId = 'com.chikuwadon.hissidroidplus'
     minSdk = 26
     targetSdk = 36
-    versionCode = 75
-    versionName = '1.1.0-dev.30'
+    versionCode = 76
+    versionName = '1.1.0-dev.31'
   }
   // CI loads a persistent keystore from GitHub Actions Secrets, never from Git.
   signingConfigs {

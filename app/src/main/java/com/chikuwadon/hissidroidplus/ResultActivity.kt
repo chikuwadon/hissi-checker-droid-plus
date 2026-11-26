@@ -892,6 +892,10 @@ class ResultActivity : CheckerActivity() {
             return
         }
         val request = query ?: return
+        if (!ExternalUrlPolicy.isCheckerWebOrigin(request.url)) {
+            showError("WebViewの接続先が不正です")
+            return
+        }
         fallbackAttempted = true
         edgeDiagnostic = firstError ?: "通信成功／ネイティブ解析0件"
         status.text = "エッヂ / ブラウザ方式で再取得中…"
@@ -910,6 +914,10 @@ class ResultActivity : CheckerActivity() {
             javaScriptEnabled = true
             allowFileAccess = false
             allowContentAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            safeBrowsingEnabled = true
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
             domStorageEnabled = true
             loadsImagesAutomatically = false
             blockNetworkImage = true
@@ -918,15 +926,12 @@ class ResultActivity : CheckerActivity() {
         val parsing = booleanArrayOf(false)
         val detail = arrayOf(firstError ?: "解析できるレスがありませんでした")
         CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView, incoming: WebResourceRequest
             ): Boolean {
-                val uri = incoming.url
-                val host = uri.host
-                if (!uri.scheme.equals("https", true) || host == null ||
-                    (host != "www.kyodemo.net" && host != "kyodemo.net")
-                ) {
+                if (!ExternalUrlPolicy.isCheckerWebOrigin(incoming.url.toString())) {
                     detail[0] = "外部サイトへリダイレクトされました"
                     return true
                 }
@@ -952,14 +957,18 @@ class ResultActivity : CheckerActivity() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                if (fallbackView !== view || completed[0] ||
+                    !ExternalUrlPolicy.isCheckerWebOrigin(url)) return
                 // Some pages attach posts after DOMContentLoaded; poll DOM.
                 for (delay in intArrayOf(900, 2200, 4200, 7100)) {
                     view.postDelayed({
-                        if (completed[0] || isFinishing || isDestroyed) return@postDelayed
+                        if (completed[0] || isFinishing || isDestroyed || fallbackView !== view ||
+                            !ExternalUrlPolicy.isCheckerWebOrigin(view.url)) return@postDelayed
                         view.evaluateJavascript(
                             "(function(){return document.documentElement.outerHTML})()"
                         ) { json ->
-                            if (completed[0] || parsing[0] || isFinishing || isDestroyed) {
+                            if (completed[0] || parsing[0] || isFinishing || isDestroyed ||
+                                fallbackView !== view || !ExternalUrlPolicy.isCheckerWebOrigin(view.url)) {
                                 return@evaluateJavascript
                             }
                             if (json == null || json.length > 12 * 1024 * 1024) {
@@ -984,7 +993,7 @@ class ResultActivity : CheckerActivity() {
                                         runOnUiThread {
                                             parsing[0] = false
                                             if (completed[0] || isFinishing || isDestroyed ||
-                                                fallbackView !== view
+                                                fallbackView !== view || !ExternalUrlPolicy.isCheckerWebOrigin(view.url)
                                             ) return@runOnUiThread
                                             if (wrongDay) {
                                                 completed[0] = true
@@ -1031,7 +1040,7 @@ class ResultActivity : CheckerActivity() {
         }
         web.loadUrl(request.url)
         web.postDelayed({
-            if (!completed[0] && !isFinishing && !isDestroyed) {
+            if (!completed[0] && !isFinishing && !isDestroyed && fallbackView === web) {
                 completed[0] = true
                 showError(detail[0])
                 cleanupWebView(web)
@@ -1040,12 +1049,12 @@ class ResultActivity : CheckerActivity() {
     }
 
     private fun cleanupWebView(view: WebView?) {
-        if (view == null) return
+        if (view == null || fallbackView !== view) return
+        fallbackView = null
         view.stopLoading()
         view.webViewClient = WebViewClient()
         (view.parent as? ViewGroup)?.removeView(view)
         view.destroy()
-        if (fallbackView === view) fallbackView = null
     }
 
     private fun showError(message: String?) {

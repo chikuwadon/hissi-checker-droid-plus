@@ -27,11 +27,8 @@ object BrowserLauncher {
 
     @JvmStatic
     fun open(activity: Activity, url: String?): Boolean {
-        if (url.isNullOrEmpty()) return false
-        val target = Uri.parse(url)
-        if (!target.scheme.equals("https", true) && !target.scheme.equals("http", true)) {
-            return false
-        }
+        if (!ExternalUrlPolicy.isWebUrl(url)) return false
+        val target = Uri.parse(url ?: return false)
         val base = Intent(Intent.ACTION_VIEW, target).addCategory(Intent.CATEGORY_BROWSABLE)
         val pm = activity.packageManager
 
