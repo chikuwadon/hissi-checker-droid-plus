@@ -52,6 +52,7 @@ open class HistoryActivity : Activity() {
     private lateinit var selectionActions: LinearLayout
     private val rows = ArrayList<SearchHistory.Entry>()
     private val favoriteUrls = HashSet<String>()
+    private val pendingFavorites = HashMap<String, Boolean>()
     private val adapter = EntriesAdapter()
 
     override fun attachBaseContext(base: Context) {
@@ -193,6 +194,7 @@ open class HistoryActivity : Activity() {
             dividerHeight = dp(1)
             selector = TouchFeedback.listSelector(this@HistoryActivity)
             isFastScrollEnabled = true
+            itemsCanFocus = false
             adapter = this@HistoryActivity.adapter
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -210,7 +212,9 @@ open class HistoryActivity : Activity() {
                 Toast.makeText(this, "履歴のURLが無効です", Toast.LENGTH_SHORT).show()
                 return@setOnItemClickListener
             }
-            startActivity(Intent(this, ResultActivity::class.java).setData(Uri.parse(entry.url)))
+            startActivity(Intent(this, ResultActivity::class.java).setData(Uri.parse(entry.url))
+                .putExtra(ResultActivity.EXTRA_RETURN_DESTINATION,
+                    if (favoritesScreen) MainNavigation.Destination.FAVORITES.name else MainNavigation.Destination.HISTORY.name))
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
             if (position !in rows.indices) return@setOnItemLongClickListener true
@@ -332,6 +336,30 @@ open class HistoryActivity : Activity() {
         }
     }
 
+    private fun changeFavorite(entry: SearchHistory.Entry) {
+        if (selection || pendingFavorites.containsKey(entry.url)) return
+        val desired = !favoriteUrls.contains(entry.url)
+        pendingFavorites[entry.url] = desired
+        adapter.notifyDataSetChanged()
+        SearchHistory.runAsync {
+            val success = try {
+                SearchHistory.setFavorite(this, entry, desired)
+                true
+            } catch (_: Exception) { false }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                pendingFavorites.remove(entry.url)
+                if (success) {
+                    if (desired) favoriteUrls.add(entry.url) else favoriteUrls.remove(entry.url)
+                } else {
+                    Toast.makeText(this, "お気に入りの更新に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+                adapter.notifyDataSetChanged()
+                refresh()
+            }
+        }
+    }
+
     private fun changeHistory(action: () -> Unit) {
         SearchHistory.runAsync {
             try {
@@ -361,13 +389,13 @@ open class HistoryActivity : Activity() {
         val boardInput = field("板名（部分一致）", filter.board)
         val idInput = field("ID（部分一致・大文字小文字を区別）", filter.id)
         var byPostDate = filter.byPostDate
-        val dateMode = ThemedMenu.formButton(this, if (byPostDate) "投稿対象日" else "検索した日")
+        val dateMode = ThemedMenu.formButton(this, if (byPostDate) "投稿対象日" else "検索履歴の記録日")
         content.addView(ThemedMenu.formLabel(this, "期間の基準"))
         content.addView(dateMode, LinearLayout.LayoutParams(-1, dp(44)))
         dateMode.setOnClickListener {
-            ThemedMenu.choose(this, "期間の基準", arrayOf("検索した日", "投稿対象日"), if (byPostDate) 1 else 0) {
+            ThemedMenu.choose(this, "期間の基準", arrayOf("検索履歴の記録日", "投稿対象日"), if (byPostDate) 1 else 0) {
                 byPostDate = it == 1
-                dateMode.text = if (byPostDate) "投稿対象日" else "検索した日"
+                dateMode.text = if (byPostDate) "投稿対象日" else "検索履歴の記録日"
             }
         }
         var from = filter.from
@@ -479,6 +507,7 @@ open class HistoryActivity : Activity() {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(dp(10), dp(6), dp(6), dp(6))
                     minimumHeight = dp(64)
+                    descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }
                 val number = text("", 12, getColor(R.color.text_secondary)).apply {
                     gravity = Gravity.CENTER
@@ -524,16 +553,21 @@ open class HistoryActivity : Activity() {
             holder.detail.text = entry.detail()
             holder.star.visibility = if (selection) View.GONE else View.VISIBLE
             if (!selection) {
-                val starred = favoriteUrls.contains(entry.url)
+                val starred = pendingFavorites[entry.url] ?: favoriteUrls.contains(entry.url)
                 holder.star.text = if (starred) "★" else "☆"
                 holder.star.setTextColor(getColor(
                     if (starred) R.color.accent else R.color.text_secondary
                 ))
                 holder.star.contentDescription = if (starred) "お気に入りを解除" else "お気に入りに登録"
-                holder.star.setOnClickListener {
-                    changeHistory { SearchHistory.toggleFavorite(this@HistoryActivity, entry) }
-                }
-            } else holder.star.setOnClickListener(null)
+                holder.star.setOnClickListener { changeFavorite(entry) }
+                holder.star.isClickable = true
+                holder.star.isFocusable = false
+                holder.star.isFocusableInTouchMode = false
+                holder.star.isEnabled = !pendingFavorites.containsKey(entry.url)
+            } else {
+                holder.star.setOnClickListener(null)
+                holder.star.isClickable = false
+            }
             return holder.root
         }
     }

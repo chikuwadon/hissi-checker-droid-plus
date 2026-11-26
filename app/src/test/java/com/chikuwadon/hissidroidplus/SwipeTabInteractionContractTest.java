@@ -80,7 +80,7 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(home.contains("selector = TouchFeedback.listSelector(this@HomeActivity)"));
         assertTrue(home.contains("TouchFeedback.foreground(close"));
         assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
-        assertTrue(result.contains("R.id.toolbar_back, R.id.toolbar_more"));
+        assertTrue(result.contains("R.id.toolbar_more, R.id.stat_summary"));
         assertTrue(result.contains("TouchFeedback.pulse(it)"));
         assertTrue(result.contains("showEntryAfterRipple(index)"));
         assertFalse(result.contains("TouchFeedback.foreground(body, 4)"));

@@ -239,6 +239,7 @@ class HomeActivity : Activity() {
                 } else {
                     hissiAnyDate.isChecked = false
                     startActivity(Intent(this, ResultActivity::class.java)
+                        .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, !AppSettings.standalone(this))
                         .putExtra("board", request.board)
                         .putExtra("date", request.date)
                         .putExtra("id", request.id))
@@ -286,6 +287,7 @@ class HomeActivity : Activity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (found.day != null) {
                     startActivity(Intent(this, ResultActivity::class.java)
+                        .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, finishAfterDeepLink && !AppSettings.standalone(this))
                         .putExtra("board", code)
                         .putExtra("date", found.day)
                         .putExtra("id", user))
@@ -349,6 +351,7 @@ class HomeActivity : Activity() {
                     if (ready != null) {
                         startActivity(Intent(this, ResultActivity::class.java)
                             .setData(Uri.parse(ready.checkerUrl))
+                            .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, finishAfterDeepLink && !AppSettings.standalone(this))
                             .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE, !anyDate))
                         if (finishAfterDeepLink) finish()
                     } else {

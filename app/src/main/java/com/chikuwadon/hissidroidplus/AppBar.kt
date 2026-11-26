@@ -15,7 +15,7 @@ import android.widget.TextView
 
 /** Shared title typography and native vector toolbar actions. */
 object AppBar {
-    enum class Icon { SEARCH, SELECT, DONE }
+    enum class Icon { SEARCH, SELECT, DONE, MORE }
 
     fun title(a: Activity, label: String, padded: Boolean = true): TextView =
         TextView(a).apply {
@@ -69,6 +69,11 @@ object AppBar {
                     canvas.drawRoundRect(3f, 14f, 10f, 21f, 1.2f, 1.2f, pen)
                     line(14f, 7.5f, 21f, 7.5f)
                     line(14f, 17.5f, 21f, 17.5f)
+                }
+                Icon.MORE -> {
+                    pen.style = Paint.Style.FILL
+                    for (y in listOf(5f, 12f, 19f)) canvas.drawCircle(12f, y, 1.7f, pen)
+                    pen.style = Paint.Style.STROKE
                 }
                 Icon.DONE -> { val path = Path().apply { moveTo(4f, 12f); lineTo(10f, 18f); lineTo(21f, 6f) }; canvas.drawPath(path, pen) }
             }

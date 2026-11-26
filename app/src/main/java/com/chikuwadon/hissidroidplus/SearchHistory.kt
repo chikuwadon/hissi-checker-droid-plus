@@ -232,6 +232,15 @@ object SearchHistory {
         db(context).delete("favorites", "url = ?", arrayOf(url))
     }
 
+    @JvmStatic fun setFavorite(context: Context, entry: Entry, enabled: Boolean) {
+        val database = db(context)
+        if (enabled) {
+            check(database.insertWithOnConflict("favorites", null, values(entry), SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+        } else {
+            database.delete("favorites", "url = ?", arrayOf(entry.url))
+        }
+    }
+
     @JvmStatic fun toggleFavorite(context: Context, entry: Entry) {
         val database = db(context)
         if (database.delete("favorites", "url = ?", arrayOf(entry.url)) == 0) {

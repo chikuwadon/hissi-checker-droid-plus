@@ -43,6 +43,7 @@ import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -59,6 +60,8 @@ import org.json.JSONArray
 /** Native 5ch/Edge result reader, with validated WebView fallback for Edge. */
 class ResultActivity : Activity() {
     companion object {
+        const val EXTRA_CONNECTED_ORIGIN = "connected_origin"
+        const val EXTRA_RETURN_DESTINATION = "return_destination"
         const val EXTRA_VERIFY_EDGE_SEARCH_DATE = "verify_edge_search_date"
 
         /** Preserve an active text-selection controller when a row is recycled. */
@@ -122,7 +125,6 @@ class ResultActivity : Activity() {
         if (redirectNonCheckerWebLink()) return
         if (routeStandaloneLinkToOwnTask()) return
         setContentView(R.layout.activity_results)
-        AppTitle.apply(findViewById(R.id.toolbar_title))
         AppSettings.configureBars(this)
         findViewById<View>(R.id.stat_summary).setOnClickListener {
             val chart = findViewById<View>(R.id.hourly_chart)
@@ -185,10 +187,10 @@ class ResultActivity : Activity() {
         // Foreground ripples preserve the selected tab's underline and background.
         intArrayOf(
             R.id.tab_posts, R.id.tab_threads, R.id.tab_names,
-            R.id.toolbar_back, R.id.toolbar_more, R.id.stat_summary,
+            R.id.toolbar_more, R.id.stat_summary,
             R.id.edge_analysis_link
         ).forEach { TouchFeedback.foreground(findViewById(it)) }
-        findViewById<View>(R.id.toolbar_back).setOnClickListener { exitResults() }
+        AppBar.setIcon(this, findViewById<ImageButton>(R.id.toolbar_more), AppBar.Icon.MORE, false)
         findViewById<View>(R.id.toolbar_more).setOnClickListener { anchor ->
             val edge = query?.site == CheckerQuery.Site.EDGE
             val labels = if (edge) arrayOf(
@@ -244,6 +246,11 @@ class ResultActivity : Activity() {
         }
         val initial = query ?: return
         MainNavigation.registerResult(this)
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) { backFromResult() }
+        }
         MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
         inboundEdgeSearch = initial.site == CheckerQuery.Site.EDGE && initial.url.isEmpty()
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
@@ -405,7 +412,33 @@ class ResultActivity : Activity() {
     }
 
     private fun launchedExternally(): Boolean =
-        intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW
+        intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW ||
+            intent.getBooleanExtra(EXTRA_CONNECTED_ORIGIN, false)
+
+    private var backDestination = MainNavigation.Destination.HOME
+    private var enteredViaNavigation = false
+
+    fun setBackDestination(destination: MainNavigation.Destination) {
+        backDestination = destination
+        enteredViaNavigation = true
+    }
+
+    private fun backFromResult() {
+        if (!::list.isInitialized || query == null ||
+            (launchedExternally() && !AppSettings.standalone(this) && !enteredViaNavigation)) {
+            exitResults()
+        } else {
+            val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
+            val destination = if (enteredViaNavigation) backDestination else
+                MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
+                    ?: MainNavigation.Destination.HOME
+            MainNavigation.navigate(this, destination)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @SuppressLint("GestureBackNavigation")
+    override fun onBackPressed() { backFromResult() }
 
     /** Retain this result when navigating to the home screen. */
     private fun openHome() {

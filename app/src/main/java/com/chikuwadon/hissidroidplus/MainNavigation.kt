@@ -90,7 +90,14 @@ object MainNavigation {
         val intent = when (destination) {
             Destination.HOME -> Intent(a, HomeActivity::class.java)
             Destination.RESULT -> {
-                if (result(a) == null) return
+                val retained = result(a) ?: return
+                retained.setBackDestination(when (a) {
+                    is FavoritesActivity -> Destination.FAVORITES
+                    is HistoryActivity -> Destination.HISTORY
+                    is ArchiveActivity -> Destination.ARCHIVE
+                    is SettingsActivity -> Destination.SETTINGS
+                    else -> Destination.HOME
+                })
                 Intent(a, ResultActivity::class.java)
             }
             Destination.ARCHIVE -> Intent(a, ArchiveActivity::class.java)
