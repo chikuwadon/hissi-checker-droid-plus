@@ -591,7 +591,8 @@ class HomeActivity : CheckerActivity() {
     private fun showCategories(groups: List<BoardMenu.Category>, source: String) {
         val labels = groups.map { it.name + "  （" + it.boards.size + "）" }
         showList("カテゴリを選択\n" + source, labels,
-            { index -> showCategory(groups, source, index) }, null, true)
+            { index -> showCategory(groups, source, index) }, null, true,
+            search = { showBoardSearch(groups, source) })
     }
 
     private fun showCategory(groups: List<BoardMenu.Category>, source: String, index: Int) {
@@ -599,13 +600,19 @@ class HomeActivity : CheckerActivity() {
         val labels = category.boards.map { it.toString() }
         showList(category.name + "  ·  " + labels.size + "板", labels,
             { position -> board.setText(category.boards[position].code) },
-            { showCategories(groups, source) })
+            { showCategories(groups, source) }, search = { showBoardSearch(groups, source) })
+    }
+
+    private fun showBoardSearch(groups: List<BoardMenu.Category>, source: String) {
+        BoardSearchDialog.show(this, groups, { showCategories(groups, source) }) { entry ->
+            board.setText(entry.code)
+        }
     }
 
     /** Scrollable centered dialog, never a bottom sheet. */
     private fun showList(
         title: String, labels: List<String>, pick: (Int) -> Unit,
-        back: (() -> Unit)?, refresh: Boolean = false
+        back: (() -> Unit)?, refresh: Boolean = false, search: (() -> Unit)? = null
     ) {
         if (isFinishing || isDestroyed) return
         val panel = LinearLayout(this).apply {
@@ -625,6 +632,11 @@ class HomeActivity : CheckerActivity() {
             setPadding(dp(18), dp(17), 0, dp(11))
         }
         titleRow.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+        val searchIcon = search?.let {
+            BoardSearchDialog.icon(this).also { icon ->
+                titleRow.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+            }
+        }
         val update = TextView(this).apply {
             text = "⟳"
             contentDescription = "5ch公式メニューを手動更新"
@@ -675,6 +687,10 @@ class HomeActivity : CheckerActivity() {
                     min((resources.displayMetrics.heightPixels * 0.77f).toInt(), dp(700)))
             }
             show()
+        }
+        searchIcon?.setOnClickListener {
+            dialog.dismiss()
+            search?.invoke()
         }
         update.setOnClickListener {
             dialog.dismiss()

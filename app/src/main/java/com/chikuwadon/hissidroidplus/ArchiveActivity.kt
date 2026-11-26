@@ -16,9 +16,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.CheckBox
@@ -498,98 +495,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }
 
-    private fun boardSearchIcon(): View = object : View(host) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = host.getColor(R.color.text_secondary)
-            style = Paint.Style.STROKE
-            strokeWidth = dp(2).toFloat()
-            strokeCap = Paint.Cap.ROUND
-        }
-        override fun onDraw(canvas: Canvas) {
-            val x = width / 2f - dp(2)
-            val y = height / 2f - dp(2)
-            canvas.drawCircle(x, y, dp(7).toFloat(), paint)
-            canvas.drawLine(x + dp(5), y + dp(5), x + dp(11), y + dp(11), paint)
-        }
-    }.apply {
-        contentDescription = "板を検索"
-        isFocusable = true
-        TouchFeedback.foreground(this, 8)
-    }
+    private fun boardSearchIcon(): View = BoardSearchDialog.icon(host)
 
     private fun showBoardSearch(groups: List<BoardMenu.Category>) {
         if (disposed || loading || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
-        val panel = ThemedMenu.formPanel(host)
-        panel.addView(ThemedMenu.formTitle(host, "板を検索"))
-        val input = ThemedMenu.formInput(host, "").apply {
-            hint = "板名・板コード"
-            setHintTextColor(host.getColor(R.color.text_secondary))
-            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-        }
-        panel.addView(input, LinearLayout.LayoutParams(-1, dp(44)))
-        val status = ThemedMenu.formLabel(host, "")
-        panel.addView(status)
-        val index = BoardPickerSearch.index(groups)
-        var hits = index
-        val rows = object : BaseAdapter() {
-            override fun getCount() = hits.size
-            override fun getItem(position: Int) = hits[position]
-            override fun getItemId(position: Int) = position.toLong()
-            override fun getView(position: Int, convert: View?, parent: ViewGroup): View {
-                val label = convert as? TextView ?: TextView(host).apply {
-                    textSize = 14f
-                    setTextColor(host.getColor(R.color.text_primary))
-                    gravity = Gravity.CENTER_VERTICAL
-                    minHeight = dp(49)
-                    setPadding(dp(12), dp(6), dp(12), dp(6))
-                }
-                val entry = getItem(position)
-                label.text = entry.name + " (" + entry.code + ")"
-                return label
-            }
-        }
-        val choices = ListView(host).apply {
-            divider = android.graphics.drawable.ColorDrawable(host.getColor(R.color.divider))
-            dividerHeight = dp(1)
-            selector = TouchFeedback.listSelector(host)
-            adapter = rows
-        }
-        panel.addView(choices, LinearLayout.LayoutParams(-1,
-            minOf(dp(280), (host.resources.displayMetrics.heightPixels * 0.30f).toInt())))
-        val close = ThemedMenu.formAction(host, "カテゴリに戻る")
-        panel.addView(close, LinearLayout.LayoutParams(-1, dp(46)))
-        val dialog = ThemedMenu.showForm(host, panel)
-        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        fun filter() {
-            hits = BoardPickerSearch.filter(index, input.text.toString())
-            status.text = hits.size.toString() + "板"
-            rows.notifyDataSetChanged()
-            choices.setSelection(0)
-        }
-        input.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            override fun afterTextChanged(s: Editable?) = filter()
-        })
-        input.setOnEditorActionListener { _, action, _ ->
-            if (action == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
-                    ?.hideSoftInputFromWindow(input.windowToken, 0)
-                true
-            } else false
-        }
-        choices.setOnItemClickListener { _, _, position, _ ->
-            val entry = hits.getOrNull(position) ?: return@setOnItemClickListener
-            dialog.dismiss()
+        BoardSearchDialog.show(host, groups, { showBoardCategories(groups) }) { entry ->
             selectBoard(entry.code, entry.name)
-        }
-        close.setOnClickListener { dialog.dismiss(); showBoardCategories(groups) }
-        filter()
-        input.requestFocus()
-        input.post {
-            if (dialog.isShowing) (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
-                ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 

@@ -15,7 +15,7 @@ import android.widget.Toast
 class SettingsActivity : MainSectionActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        val body = screen("設定", MainNavigation.Destination.SETTINGS)
+        val body = screen(null, MainNavigation.Destination.SETTINGS)
         SettingsContent(this).populate(body)
     }
 }

@@ -44,7 +44,7 @@ class SettingsFragment : Fragment() {
             setBackgroundColor(host.getColor(R.color.surface))
         }
         val content = SettingsContent(host)
-        content.populate(content.build(root, "設定"))
+        content.populate(content.build(root, null))
         return root
     }
 }
