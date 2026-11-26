@@ -14,6 +14,10 @@ public class AboutAndDocumentationTest {
         String menu = read("src/main/java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         assertTrue(menu.contains("PackageQueries.packageInfo(a.packageManager, a.packageName).versionName"));
         assertTrue(menu.contains("ArchiveProvider.entries.joinToString"));
+        assertFalse(menu.contains("\uFF0F"));
+        assertFalse(read("src/main/java/com/chikuwadon/hissidroidplus/ResultActivity.kt").contains("\uFF0F"));
+        assertTrue(menu.contains("日付指定あり / なし"));
+        assertTrue(menu.contains("Kotlin / AndroidX"));
         assertTrue(menu.contains("履歴保存件数（100～10,000件・無制限）"));
         assertTrue(menu.contains("過去ログ検索欄の上下配置"));
         assertTrue(menu.contains("Android 8.0以降"));

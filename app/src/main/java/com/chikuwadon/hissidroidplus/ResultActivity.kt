@@ -897,7 +897,7 @@ class ResultActivity : CheckerActivity() {
             return
         }
         fallbackAttempted = true
-        edgeDiagnostic = firstError ?: "通信成功／ネイティブ解析0件"
+        edgeDiagnostic = firstError ?: "通信成功 / ネイティブ解析0件"
         status.text = "エッヂ / ブラウザ方式で再取得中…"
         val web = WebView(this).apply {
             alpha = 0.01f
