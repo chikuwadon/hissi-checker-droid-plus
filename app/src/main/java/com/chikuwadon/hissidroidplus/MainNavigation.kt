@@ -23,6 +23,12 @@ object MainNavigation {
         HOME("ホーム"), RESULT("結果"), ARCHIVE("過去ログ"), HISTORY("履歴"), FAVORITES("お気に入り"), SETTINGS("設定")
     }
 
+    const val EXTRA_DESTINATION = "main_navigation_destination"
+    val hosted = listOf(Destination.HOME, Destination.ARCHIVE, Destination.SETTINGS)
+
+    fun hostDestination(name: String?): Destination =
+        hosted.firstOrNull { it.name == name } ?: Destination.HOME
+
     private const val RESULT_TAG = "main_navigation_result"
     private const val BAR_TAG = "main_navigation_bar"
     val configurable = listOf(Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES)
@@ -65,6 +71,21 @@ object MainNavigation {
         item.alpha = if (available) 1f else 0.4f
     }
 
+    fun setSelected(a: Activity, selected: Destination) {
+        val bar = a.window.decorView.findViewWithTag<LinearLayout>(BAR_TAG) ?: return
+        Destination.values().forEachIndexed { index, destination ->
+            val item = bar.getChildAt(index) as? TextView ?: return@forEachIndexed
+            val active = destination == selected
+            item.isSelected = active
+            val color = a.getColor(if (active) R.color.accent else R.color.text_secondary)
+            item.setTextColor(color)
+            val symbol = NavIcon(destination, color)
+            symbol.setBounds(0, 0, dp(a, 24), dp(a, 24))
+            item.setCompoundDrawables(null, symbol, null, null)
+        }
+        refresh(a)
+    }
+
     fun dp(a: Activity, value: Int): Int =
         (a.resources.displayMetrics.density * value).roundToInt()
 
@@ -96,7 +117,7 @@ object MainNavigation {
                 setCompoundDrawables(null, symbol, null, null)
                 compoundDrawablePadding = dp(a, 3)
                 TouchFeedback.foreground(this, 10)
-                setOnClickListener { if (!active) navigate(a, destination) }
+                setOnClickListener { if (!isSelected) navigate(a, destination) }
             }
             bar.addView(item, LinearLayout.LayoutParams(0, -1, 1f))
         }
@@ -107,11 +128,17 @@ object MainNavigation {
     @Suppress("DEPRECATION")
     fun navigate(a: Activity, destination: Destination) {
         if (a.isFinishing || a.isDestroyed) return
+        if (a is HomeActivity && destination in hosted) {
+            a.showDestination(destination)
+            return
+        }
         val intent = when (destination) {
-            Destination.HOME -> Intent(a, HomeActivity::class.java)
+            Destination.HOME, Destination.ARCHIVE, Destination.SETTINGS ->
+                Intent(a, HomeActivity::class.java).putExtra(EXTRA_DESTINATION, destination.name)
             Destination.RESULT -> {
                 val retained = result(a) ?: return
                 retained.setBackDestination(when (a) {
+                    is HomeActivity -> a.activeDestination
                     is FavoritesActivity -> Destination.FAVORITES
                     is HistoryActivity -> Destination.HISTORY
                     is ArchiveActivity -> Destination.ARCHIVE
@@ -120,10 +147,8 @@ object MainNavigation {
                 })
                 Intent(a, ResultActivity::class.java)
             }
-            Destination.ARCHIVE -> Intent(a, ArchiveActivity::class.java)
             Destination.HISTORY -> Intent(a, HistoryActivity::class.java)
             Destination.FAVORITES -> Intent(a, FavoritesActivity::class.java)
-            Destination.SETTINGS -> Intent(a, SettingsActivity::class.java)
         }
         // Bottom destinations are peers, not a push/pop detail stack.
         // Suppress the window slide/scale for this explicit navigation only.

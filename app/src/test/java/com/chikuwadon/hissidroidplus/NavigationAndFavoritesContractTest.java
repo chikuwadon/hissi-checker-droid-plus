@@ -42,7 +42,7 @@ public class NavigationAndFavoritesContractTest {
         assertTrue(nav.contains("if (destination !in configurable) return"));
         assertTrue(nav.contains("destination !in configurable ||"));
         assertTrue(nav.contains("visibility = if (isVisible(a, destination)) View.VISIBLE else View.GONE"));
-        assertTrue(source("SettingsActivity.kt").contains("MainNavigation.refresh(this@SettingsActivity)"));
+        assertTrue(source("SettingsActivity.kt").contains("MainNavigation.refresh(host)"));
     }
     @Test public void retentionValuesShareOneRowAndBrowserLabelIsCompact() throws Exception {
         String s = source("SettingsActivity.kt");

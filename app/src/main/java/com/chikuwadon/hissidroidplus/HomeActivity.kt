@@ -17,6 +17,10 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
+import androidx.fragment.app.FragmentContainerView
+import androidx.lifecycle.Lifecycle
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -56,6 +60,12 @@ class HomeActivity : CheckerActivity() {
     private var boardGroups: List<BoardMenu.Category>? = null
     private var boardSource = ""
     private var themeAtCreation: String? = null
+    private lateinit var homeContent: View
+    private lateinit var sectionContainer: FragmentContainerView
+    private lateinit var sectionBack: OnBackPressedCallback
+    private var pendingDestination: MainNavigation.Destination? = null
+    var activeDestination = MainNavigation.Destination.HOME
+        private set
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
@@ -63,11 +73,30 @@ class HomeActivity : CheckerActivity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        setContentView(R.layout.activity_home)
+        val shell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.surface))
+        }
+        val area = FrameLayout(this)
+        homeContent = layoutInflater.inflate(R.layout.activity_home, area, false)
+        area.addView(homeContent, FrameLayout.LayoutParams(-1, -1))
+        sectionContainer = FragmentContainerView(this).apply {
+            id = R.id.main_section_container
+            visibility = View.GONE
+        }
+        area.addView(sectionContainer, FrameLayout.LayoutParams(-1, -1))
+        shell.addView(area, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(shell)
         AppTitle.apply(findViewById(R.id.app_title))
         AppSettings.configureBars(this)
         themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
-        MainNavigation.attach(this, findViewById(R.id.home_root), MainNavigation.Destination.HOME)
+        MainNavigation.attach(this, shell, MainNavigation.Destination.HOME)
+        sectionBack = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                showDestination(MainNavigation.Destination.HOME)
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, sectionBack)
         applyInsets()
         board = findViewById(R.id.board)
         id = findViewById(R.id.user_id)
@@ -198,7 +227,70 @@ class HomeActivity : CheckerActivity() {
                 }
             })
         }
-        handleHissiScheme()
+        val restored = state?.getString("main_destination")
+        val requested = restored ?: intent.getStringExtra(MainNavigation.EXTRA_DESTINATION)
+        showDestination(MainNavigation.hostDestination(requested))
+        if (state == null) handleHissiScheme()
+    }
+
+    /** First migration stage: these three destinations share one window and bar. */
+    fun showDestination(destination: MainNavigation.Destination) {
+        if (destination !in MainNavigation.hosted || isFinishing || isDestroyed) return
+        if (supportFragmentManager.isStateSaved) {
+            pendingDestination = destination
+            return
+        }
+        val target = if (MainNavigation.isVisible(this, destination)) destination
+            else MainNavigation.Destination.HOME
+        pendingDestination = null
+        val manager = supportFragmentManager
+        val transaction = manager.beginTransaction().setReorderingAllowed(true)
+        for (section in listOf(MainNavigation.Destination.ARCHIVE, MainNavigation.Destination.SETTINGS)) {
+            val fragment = manager.findFragmentByTag(section.name)
+            if (section == target) {
+                val screen = fragment ?: if (section == MainNavigation.Destination.ARCHIVE)
+                    ArchiveFragment() else SettingsFragment()
+                if (fragment == null) transaction.add(R.id.main_section_container, screen, section.name)
+                else transaction.show(screen)
+                transaction.setMaxLifecycle(screen, Lifecycle.State.RESUMED)
+            } else if (fragment != null) {
+                transaction.hide(fragment)
+                transaction.setMaxLifecycle(fragment, Lifecycle.State.STARTED)
+            }
+        }
+        transaction.commitNow()
+        activeDestination = target
+        homeContent.visibility = if (target == MainNavigation.Destination.HOME) View.VISIBLE else View.GONE
+        sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
+        sectionBack.isEnabled = target != MainNavigation.Destination.HOME
+        MainNavigation.setSelected(this, target)
+        if (target != MainNavigation.Destination.HOME) {
+            currentFocus?.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(homeContent.windowToken, 0)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("main_destination", activeDestination.name)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        if (newIntent.action == Intent.ACTION_VIEW &&
+            newIntent.data?.scheme?.equals("hissi", ignoreCase = true) == true) {
+            showDestination(MainNavigation.Destination.HOME)
+            handleHissiScheme()
+        } else {
+            showDestination(MainNavigation.hostDestination(newIntent.getStringExtra(MainNavigation.EXTRA_DESTINATION)))
+        }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        pendingDestination?.let { showDestination(it) }
     }
 
     private fun toast(message: String, duration: Int = Toast.LENGTH_SHORT) {

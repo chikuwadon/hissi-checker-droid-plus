@@ -10,7 +10,7 @@ public class AndroidXFoundationContractTest {
     }
     @Test public void screensUseSharedLifecycleAndInsets() throws Exception {
         String base = source("CheckerActivity.kt");
-        assertTrue(base.contains("ComponentActivity()"));
+        assertTrue(base.contains("FragmentActivity()"));
         assertTrue(base.contains("onBackPressedDispatcher.addCallback(this"));
         assertTrue(base.contains("ViewCompat.setOnApplyWindowInsetsListener"));
         assertTrue(base.contains("if (Build.VERSION.SDK_INT < 30) return"));

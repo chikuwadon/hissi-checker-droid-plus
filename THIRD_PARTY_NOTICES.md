@@ -35,7 +35,7 @@ SOFTWARE.
 
 ## AndroidX (Apache License 2.0)
 
-- Core 1.19.1, Activity 1.13.0, Lifecycle Runtime / ViewModel 2.11.1
+- Core 1.19.1, Activity 1.13.0, Lifecycle Runtime / ViewModel 2.11.1, Fragment 1.9.1
 - Project and transitive AndroidX modules: https://developer.android.com/jetpack/androidx
 - Source: https://android.googlesource.com/platform/frameworks/support/
 - Copyright The Android Open Source Project and contributors
