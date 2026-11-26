@@ -66,7 +66,8 @@ public final class SecurityAndPerformanceContractTest {
         assertTrue(history.contains("convert.tag is HistoryRow"));
         assertTrue(history.contains("favoriteUrls.contains(entry.url)"));
         assertTrue(history.contains("favoriteUrls.clear()"));
-        assertTrue(history.contains("val favorites = SearchHistory.favorites(host)"));
+        assertTrue(history.contains("SearchHistory.screenSnapshot(host, requestedTab != 0, requestedFilter, requestedSort)"));
+        assertTrue(source("SearchHistory.kt").contains("database.query(\"favorites\", arrayOf(\"url\")"));
         assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
     }
     @Test public void postReadsRequestHeadersBeforeConnecting() throws Exception {

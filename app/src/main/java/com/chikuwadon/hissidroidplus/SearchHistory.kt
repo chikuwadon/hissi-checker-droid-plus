@@ -50,6 +50,8 @@ object SearchHistory {
         }
     }
     private val RESULT_DAY = Pattern.compile("/read\\.php/[A-Za-z0-9_]+/(\\d{8})/")
+    private val DAY = Regex("\\d{8}")
+    private val ID_PREFIX = Regex("(?i)^ID\\s*[:：]\\s*")
 
     /** Fields and JSON keys deliberately remain compatible with the Java version. */
     class Entry(
@@ -65,18 +67,18 @@ object SearchHistory {
             " / " + (if (board.isEmpty()) "不明な板" else board)
 
         fun effectiveDate(): String {
-            if (date.matches(Regex("\\d{8}"))) return date
+            if (date.matches(DAY)) return date
             val matched = RESULT_DAY.matcher(url)
             return if (matched.find()) matched.group(1) else date
         }
 
         fun detail(): String {
             val day = effectiveDate()
-            val label = if (day.matches(Regex("\\d{8}"))) {
+            val label = if (day.matches(DAY)) {
                 day.substring(0, 4) + "/" + day.substring(4, 6) + "/" + day.substring(6)
             } else day
             val idLabel = if (id.isEmpty()) "" else
-                "  ID:" + id.replaceFirst(Regex("(?i)^ID\\s*[:：]\\s*"), "")
+                "  ID:" + id.replaceFirst(ID_PREFIX, "")
             return label + idLabel + "  レス: " + posts
         }
     }
@@ -141,9 +143,11 @@ object SearchHistory {
         return database
     }
 
-    private fun load(context: Context, table: String): List<Entry> {
+    private fun load(context: Context, table: String): List<Entry> = load(db(context), table)
+
+    private fun load(database: SQLiteDatabase, table: String): List<Entry> {
         val out = ArrayList<Entry>()
-        db(context).query(table, arrayOf("url", "site", "board", "day", "user_id", "viewed_at", "posts"),
+        database.query(table, arrayOf("url", "site", "board", "day", "user_id", "viewed_at", "posts"),
             null, null, null, null, "viewed_at DESC, url ASC").use { cursor ->
             while (cursor.moveToNext()) {
                 out.add(Entry(cursor.getString(0), cursor.getString(1), cursor.getString(2),
@@ -151,6 +155,37 @@ object SearchHistory {
             }
         }
         return out
+    }
+
+    data class ScreenSnapshot(
+        val rows: List<Entry>, val recentCount: Int, val favoriteCount: Int,
+        val favoriteUrls: Set<String>, val totalCount: Int
+    )
+
+    private fun count(database: SQLiteDatabase, table: String): Int =
+        database.rawQuery("SELECT COUNT(*) FROM " + table, null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+
+    private fun favoriteKeys(database: SQLiteDatabase): Set<String> {
+        val keys = HashSet<String>()
+        database.query("favorites", arrayOf("url"), null, null, null, null, null).use { cursor ->
+            while (cursor.moveToNext()) keys.add(cursor.getString(0))
+        }
+        return keys
+    }
+
+    /** Called on the history worker. Only the visible collection is decoded into Entry objects. */
+    fun screenSnapshot(context: Context, favoritesScreen: Boolean, filter: HistoryFilter, sort: Int): ScreenSnapshot {
+        val database = db(context)
+        val source = load(database, if (favoritesScreen) "favorites" else "recent")
+        val recentCount = if (favoritesScreen) count(database, "recent") else source.size
+        val keys = if (favoritesScreen) source.mapTo(HashSet()) { it.url } else favoriteKeys(database)
+        val favoriteCount = keys.size
+        // load() is already newest first, with a deterministic URL tie-break.
+        val matched = if (filter.active()) source.filter { filter.matches(it) } else source
+        val rows = if (sort == 0) matched else sorted(matched, sort)
+        return ScreenSnapshot(rows, recentCount, favoriteCount, keys, source.size)
     }
 
     private fun trim(database: SQLiteDatabase, limit: Int) {
@@ -262,10 +297,12 @@ object SearchHistory {
     fun sorted(source: List<Entry>, mode: Int): List<Entry> =
         when (mode) {
             1 -> source.sortedBy { it.viewedAt }
-            2 -> source.sortedWith(compareBy<Entry> { it.board.lowercase(Locale.ROOT) }
-                .thenByDescending { it.viewedAt })
-            3 -> source.sortedWith(compareByDescending<Entry> { it.effectiveDate() }
-                .thenByDescending { it.viewedAt })
+            2 -> source.map { it to it.board.lowercase(Locale.ROOT) }
+                .sortedWith(compareBy<Pair<Entry, String>> { it.second }.thenByDescending { it.first.viewedAt })
+                .map { it.first }
+            3 -> source.map { it to it.effectiveDate() }
+                .sortedWith(compareByDescending<Pair<Entry, String>> { it.second }.thenByDescending { it.first.viewedAt })
+                .map { it.first }
             else -> source.sortedByDescending { it.viewedAt }
         }
 }

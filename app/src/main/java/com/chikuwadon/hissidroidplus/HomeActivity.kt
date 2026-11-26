@@ -25,7 +25,6 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -575,18 +574,8 @@ class HomeActivity : CheckerActivity() {
         }
     }
 
-    private fun readCached(input: InputStream): String {
-        ByteArrayOutputStream().use { output ->
-            val buffer = ByteArray(8192)
-            while (true) {
-                val n = input.read(buffer)
-                if (n == -1) break
-                if (output.size() + n > 4 * 1024 * 1024) throw IOException("Too large")
-                output.write(buffer, 0, n)
-            }
-            return output.toString(StandardCharsets.UTF_8.name())
-        }
-    }
+    private fun readCached(input: InputStream): String =
+        String(HttpResponseReader.read(input, 4 * 1024 * 1024, -1), StandardCharsets.UTF_8)
 
     private fun showCategories(groups: List<BoardMenu.Category>, source: String) {
         val labels = groups.map { it.name + "  （" + it.boards.size + "）" }

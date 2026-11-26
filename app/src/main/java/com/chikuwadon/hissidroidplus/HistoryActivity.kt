@@ -370,21 +370,17 @@ internal class HistoryContent(
         val requestedFilter = filter
         SearchHistory.runAsync {
             try {
-                val recents = SearchHistory.recents(host)
-                val favorites = SearchHistory.favorites(host)
-                val source = if (requestedTab == 0) recents else favorites
-                val filtered = SearchHistory.sorted(source.filter { requestedFilter.matches(it) }, requestedSort)
-                val stars = favorites.mapTo(HashSet()) { it.url }
+                val snapshot = SearchHistory.screenSnapshot(host, requestedTab != 0, requestedFilter, requestedSort)
                 runOnUiThread {
                     if (isFinishing || isDestroyed || generation != refreshGeneration) return@runOnUiThread
                     rows.clear()
-                    rows.addAll(filtered)
-                    totalCount = source.size
+                    rows.addAll(snapshot.rows)
+                    totalCount = snapshot.totalCount
                     chosen.retainAll(rows.mapTo(HashSet()) { it.url })
                     favoriteUrls.clear()
-                    favoriteUrls.addAll(stars)
-                    recentTab.text = getString(R.string.history_recent_count, recents.size)
-                    favoriteTab.text = getString(R.string.history_favorite_count, favorites.size)
+                    favoriteUrls.addAll(snapshot.favoriteUrls)
+                    recentTab.text = getString(R.string.history_recent_count, snapshot.recentCount)
+                    favoriteTab.text = getString(R.string.history_favorite_count, snapshot.favoriteCount)
                     updateSelectionUi()
                     restoredPosition?.let { (position, offset) ->
                         if (rows.isNotEmpty()) list.setSelectionFromTop(position.coerceIn(0, rows.lastIndex), offset)
