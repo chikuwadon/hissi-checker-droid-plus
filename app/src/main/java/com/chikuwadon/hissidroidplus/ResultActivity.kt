@@ -396,8 +396,9 @@ class ResultActivity : CheckerActivity() {
 
     private fun backFromResult() {
         val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
+        val connected = origin == null && launchedExternally() && !AppSettings.standalone(this)
         if (!::list.isInitialized || query == null ||
-            (origin == null && launchedExternally() && !AppSettings.standalone(this) && !enteredViaNavigation)) {
+            NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))) {
             exitResults()
         } else {
             val destination = if (enteredViaNavigation) backDestination else

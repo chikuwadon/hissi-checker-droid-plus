@@ -58,7 +58,8 @@ public class HostedNavigationContractTest {
         assertTrue(home.contains("supportFragmentManager.isStateSaved"));
         assertTrue(home.contains("override fun onPostResume()"));
         assertTrue(home.contains("override fun onNewIntent(newIntent: Intent)"));
-        assertTrue(home.contains("sectionBack.isEnabled = target != MainNavigation.Destination.HOME"));
+        assertTrue(home.contains("sectionBack = object : OnBackPressedCallback(true)"));
+        assertTrue(home.contains("MainNavigation.exitFromHome(this@HomeActivity)"));
         assertTrue(source("MainNavigation.kt").contains("is HomeActivity -> a.activeDestination"));
     }
 }

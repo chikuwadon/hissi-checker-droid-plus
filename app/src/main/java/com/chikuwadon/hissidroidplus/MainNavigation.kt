@@ -42,6 +42,29 @@ object MainNavigation {
         AppSettings.prefs(context).edit().putBoolean("navigation_visible_" + destination.name, visible).apply()
     }
     private val results = HashMap<Int, WeakReference<ResultActivity>>()
+    private val homes = HashMap<Int, WeakReference<HomeActivity>>()
+
+    fun registerHome(a: HomeActivity) {
+        homes[a.taskId] = WeakReference(a)
+    }
+
+    fun unregisterHome(a: HomeActivity) {
+        if (homes[a.taskId]?.get() === a) homes.remove(a.taskId)
+    }
+
+    fun hasHome(a: Activity): Boolean =
+        homes[a.taskId]?.get()?.let { !it.isFinishing && !it.isDestroyed } == true
+
+    /** Back from the root home leaves the checker, rather than revealing its retained peer. */
+    fun exitFromHome(a: HomeActivity) {
+        val retained = result(a)
+        if (retained != null) {
+            results.remove(a.taskId)
+            retained.finish()
+        }
+        // Finish only our two activities in this task; never finish the caller's task.
+        a.finish()
+    }
 
     private fun result(a: Activity): ResultActivity? {
         val current = results[a.taskId]?.get()

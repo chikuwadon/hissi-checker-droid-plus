@@ -91,14 +91,19 @@ class HomeActivity : CheckerActivity() {
         AppSettings.configureBars(this)
         themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
         MainNavigation.attach(this, shell, MainNavigation.Destination.HOME)
-        sectionBack = object : OnBackPressedCallback(false) {
+        sectionBack = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val active = supportFragmentManager.findFragmentByTag(activeDestination.name)
                 if ((active as? HistoryFragment)?.handleBack() == true) return
-                showDestination(MainNavigation.Destination.HOME)
+                if (activeDestination != MainNavigation.Destination.HOME) {
+                    showDestination(MainNavigation.Destination.HOME)
+                } else {
+                    MainNavigation.exitFromHome(this@HomeActivity)
+                }
             }
         }
         onBackPressedDispatcher.addCallback(this, sectionBack)
+        MainNavigation.registerHome(this)
         applyInsets()
         board = findViewById(R.id.board)
         id = findViewById(R.id.user_id)
@@ -269,7 +274,6 @@ class HomeActivity : CheckerActivity() {
         activeDestination = target
         homeContent.visibility = if (target == MainNavigation.Destination.HOME) View.VISIBLE else View.GONE
         sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
-        sectionBack.isEnabled = target != MainNavigation.Destination.HOME
         MainNavigation.setSelected(this, target)
         if (target != MainNavigation.Destination.HOME) {
             currentFocus?.clearFocus()
@@ -704,6 +708,7 @@ class HomeActivity : CheckerActivity() {
     }
 
     override fun onDestroy() {
+        MainNavigation.unregisterHome(this)
         worker.shutdownNow()
         super.onDestroy()
     }
