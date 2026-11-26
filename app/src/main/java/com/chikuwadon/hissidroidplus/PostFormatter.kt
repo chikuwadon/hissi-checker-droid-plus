@@ -10,6 +10,8 @@ object PostFormatter {
     private val ID = Pattern.compile("(?i)\\bID\\s*[:：]\\s*([A-Za-z0-9+./_-]+)")
     private val NUMBER = Pattern.compile("^\\s*(\\d{1,6})(?:\\(\\d+\\))?\\s*[:：]?\\s*")
     private val DATE = Pattern.compile("20\\d{2}/\\d{1,2}/\\d{1,2}")
+    private val WHITESPACE = Regex("\\s+")
+    private val ID_PREFIX = Regex("(?i)ID\\s*[:：]\\s*")
 
     @JvmStatic
     fun normalizedInfo(info: String?): String {
@@ -17,7 +19,7 @@ object PostFormatter {
         var normalized = EMPTY_MAIL.matcher(info).replaceAll(" ")
         normalized = MAIL.matcher(normalized).replaceAll(" $1 ")
         normalized = DATE_SEPARATOR.matcher(normalized).replaceAll(" ")
-        return normalized.replace(Regex("\\s+"), " ").trim()
+        return normalized.replace(WHITESPACE, " ").trim()
     }
 
     @JvmStatic
@@ -39,9 +41,9 @@ object PostFormatter {
         val id = ID.matcher(source)
         if (id.find()) {
             source = source.substring(0, id.end())
-            source = source.replaceFirst(Regex("(?i)ID\\s*[:：]\\s*"), "ID:")
+            source = source.replaceFirst(ID_PREFIX, "ID:")
         }
-        return source.trim().replace(Regex("\\s+"), " ")
+        return source.trim().replace(WHITESPACE, " ")
     }
 
     @JvmStatic

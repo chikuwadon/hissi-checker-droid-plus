@@ -80,9 +80,11 @@ class ResultActivity : CheckerActivity() {
     private var query: CheckerQuery? = null
     private var inboundEdgeSearch = false
     private var result = CheckerResult()
-    private var threadRows: List<Map.Entry<String, String>> = emptyList()
-    private var threadCounts: Map<String, Int> = emptyMap()
+    private var threadRows: List<PostIndex.ThreadRow> = emptyList()
+    private var postKeys: List<String> = emptyList()
     private var nameCounts: Map<String, Int> = emptyMap()
+    private val headerCache = android.util.LruCache<CheckerResult.Post, String>(128)
+    private val leadingPostNumber = Pattern.compile("^\\d+")
     private var tab = 0
     private val positions = IntArray(3)
     private val offsets = IntArray(3)
@@ -836,10 +838,13 @@ class ResultActivity : CheckerActivity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 
     private fun rebuildIndexes() {
-        PostIndex.collectNames(result)
-        threadRows = ArrayList(PostIndex.uniqueThreads(result).entries)
-        threadCounts = PostIndex.threadPostCounts(result)
-        nameCounts = PostIndex.namePostCounts(result)
+        val index = PostIndex.displayIndex(result)
+        threadRows = index.threads
+        postKeys = index.postKeys
+        nameCounts = index.nameCounts
+        result.names.clear()
+        result.names.addAll(index.names)
+        headerCache.evictAll()
     }
 
     private fun applySystemInsets() {
@@ -1190,9 +1195,12 @@ class ResultActivity : CheckerActivity() {
 
     /** Muted reference badge is UI-only, excluded from copied data and name aggregation. */
     private fun displayHeader(post: CheckerResult.Post): CharSequence {
-        val header = PostFormatter.header(post)
+        val header = headerCache.get(post) ?: PostFormatter.header(post).also {
+            // Do not retain oversized headers; normal scrolling only needs recent rows.
+            if (it.length <= 4096) headerCache.put(post, it)
+        }
         if (post.referenceCount <= 0) return header
-        val number = Pattern.compile("^\\d+").matcher(header)
+        val number = leadingPostNumber.matcher(header)
         if (!number.find()) return header
         val at = number.end()
         val mark = "(" + post.referenceCount + ")"
@@ -1255,9 +1263,7 @@ class ResultActivity : CheckerActivity() {
             when (tab) {
                 0 -> {
                     val post = result.posts[index]
-                    val sameThread = index > 0 &&
-                        PostIndex.threadKey(post.link) ==
-                        PostIndex.threadKey(result.posts[index - 1].link)
+                    val sameThread = index > 0 && postKeys[index] == postKeys[index - 1]
                     title.visibility = if (sameThread) View.GONE else View.VISIBLE
                     bindResultText(title, post.title, reused)
                     subtitle.visibility = View.VISIBLE
@@ -1268,7 +1274,7 @@ class ResultActivity : CheckerActivity() {
                 1 -> {
                     title.visibility = View.VISIBLE
                     val entry = threadRows[index]
-                    val count = threadCounts.getOrDefault(PostIndex.threadKey(entry.key), 0)
+                    val count = entry.count
                     bindResultText(title, labelWithCount(entry.value, count), reused)
                     subtitle.visibility = View.GONE
                     body.visibility = View.GONE
