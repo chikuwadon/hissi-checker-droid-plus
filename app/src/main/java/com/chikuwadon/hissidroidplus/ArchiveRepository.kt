@@ -47,9 +47,22 @@ data class ArchiveFormOptions(val sorts: List<ArchiveSortOption>, val fuzzyValue
 data class ArchivePage @JvmOverloads constructor(
     val items: List<ArchiveThread>, val total: Long, val page: Int, val hasNext: Boolean,
     val form: ArchiveFormOptions? = null
-)
+) {
+    /** The Edge archive serves 50 results per page. Range refers to server results,
+     *  not the locally filtered upper-bound subset. */
+    val totalPages: Int get() = if (total <= 0) 0 else
+        ((total - 1) / ArchiveRepository.PAGE_SIZE + 1).coerceAtMost(ArchiveRepository.MAX_PAGE.toLong()).toInt()
+    val firstIndex: Long get() = if (total <= 0 || page !in 1..totalPages) 0 else
+        (page.toLong() - 1) * ArchiveRepository.PAGE_SIZE + 1
+    val lastIndex: Long get() = if (firstIndex == 0L) 0 else
+        minOf(total, page.toLong() * ArchiveRepository.PAGE_SIZE)
+}
+
+
 
 object ArchiveRepository {
+    const val PAGE_SIZE = 50
+    const val MAX_PAGE = 1000000
     private val count = Regex("検索結果[：:]\\s*([0-9,]+)\\s*件")
     private val titleCount = Regex("^(.*?)\\s*\\(([0-9,]+)\\)\\s*$")
     private val date = Regex("20\\d{2}/\\d{1,2}/\\d{1,2}\\s+\\d{1,2}:\\d{2}:\\d{2}")
@@ -58,7 +71,7 @@ object ArchiveRepository {
     @JvmStatic
     fun url(query: ArchiveQuery, page: Int): String {
         query.validate()
-        require(page in 1..1000000)
+        require(page in 1..MAX_PAGE)
         // Only known server parameters are sent. The optional upper bound is filtered locally.
         val parameters = linkedMapOf("keyword" to query.keyword.trim(), "keyword_exclude" to query.exclude.trim(),
             "NoR" to query.minimum, "start_date" to query.from, "end_date" to query.to,

@@ -2,6 +2,11 @@ package com.chikuwadon.hissidroidplus
 
 import android.app.Activity
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Build
+import android.widget.Toast
+import java.util.Locale
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -27,6 +32,7 @@ class ArchiveScreenState : ViewModel() {
     var result: ArchivePage? = null
     var message = ""
     var form: ArchiveFormOptions? = null
+    val pages = ArchivePageCache()
 }
 
 class ArchiveActivity : MainSectionActivity() {
@@ -65,6 +71,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var message: TextView
     private lateinit var previous: TextView
     private lateinit var next: TextView
+    private lateinit var pageJump: TextView
     private lateinit var browser: TextView
     private lateinit var list: ListView
     private val adapter = ThreadsAdapter()
@@ -87,6 +94,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 if (selected != state.provider) {
                     saveKeyword()
                     state.provider = selected
+                    state.pages.clear()
                     state.submitted = null
                     state.result = null
                     state.message = ""
@@ -144,15 +152,96 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         list.setOnItemClickListener { _, _, position, _ ->
             state.result?.items?.getOrNull(position)?.let { ThreadOpener.open(host, it.url, true) }
         }
-        val pager = LinearLayout(host)
+        list.setOnItemLongClickListener { _, _, position, _ ->
+            val entry = state.result?.items?.getOrNull(position)
+            if (entry == null) false else {
+                showCopyMenu(entry)
+                true
+            }
+        }
+        val pager = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         previous = ThemedMenu.formAction(host, "前のページ")
+        pageJump = ThemedMenu.formButton(host, "ページ指定")
         next = ThemedMenu.formAction(host, "次のページ")
         pager.addView(previous, LinearLayout.LayoutParams(0, dp(44), 1f))
+        pager.addView(pageJump, LinearLayout.LayoutParams(0, dp(40), 1.15f))
         pager.addView(next, LinearLayout.LayoutParams(0, dp(44), 1f))
         root.addView(pager, LinearLayout.LayoutParams(-1, -2))
         previous.setOnClickListener { state.submitted?.let { q -> state.result?.let { if (it.page > 1) load(q, it.page - 1) } } }
         next.setOnClickListener { state.submitted?.let { q -> state.result?.let { if (it.hasNext) load(q, it.page + 1) } } }
+        pageJump.setOnClickListener { showPageJump() }
         refresh()
+        val restored = state.submitted?.let { query -> state.result?.let { state.pages.get(state.provider, query, it.page) } }
+        restored?.let { restorePosition(it.position) }
+    }
+
+    private fun showCopyMenu(entry: ArchiveThread) {
+        ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
+            val value = when (index) {
+                0 -> entry.title + "\n" + entry.url
+                1 -> entry.title
+                2 -> entry.url
+                else -> return@choose
+            }
+            val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@choose
+            clipboard.setPrimaryClip(ClipData.newPlainText("過去ログ検索", value))
+            if (Build.VERSION.SDK_INT < 33) Toast.makeText(host, "コピーしました", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showPageJump() {
+        if (loading || disposed) return
+        val page = state.result ?: return
+        val query = state.submitted ?: return
+        if (page.totalPages <= 1) return
+        val panel = ThemedMenu.formPanel(host)
+        panel.addView(ThemedMenu.formTitle(host, "ページ指定"))
+        panel.addView(ThemedMenu.formLabel(host, "1～" + number(page.totalPages.toLong()) + "ページ"))
+        val input = ThemedMenu.formInput(host, page.page.toString()).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            selectAll()
+        }
+        panel.addView(input, LinearLayout.LayoutParams(-1, dp(48)))
+        val buttons = LinearLayout(host)
+        val cancel = ThemedMenu.formAction(host, "キャンセル")
+        val go = ThemedMenu.formAction(host, "移動")
+        buttons.addView(cancel, LinearLayout.LayoutParams(0, dp(46), 1f))
+        buttons.addView(go, LinearLayout.LayoutParams(0, dp(46), 1f))
+        panel.addView(buttons)
+        val dialog = ThemedMenu.showForm(host, panel)
+        cancel.setOnClickListener { dialog.dismiss() }
+        go.setOnClickListener {
+            val target = input.text.toString().toIntOrNull()
+            if (target == null || target !in 1..page.totalPages) {
+                input.error = "1～" + number(page.totalPages.toLong()) + "を指定してください"
+                return@setOnClickListener
+            }
+            dialog.dismiss()
+            if (target != page.page) load(query, target)
+        }
+    }
+
+    private fun number(value: Long): String = String.format(Locale.JAPAN, "%,d", value)
+
+    private fun rememberPosition() {
+        if (!::list.isInitialized) return
+        val query = state.submitted ?: return
+        val page = state.result ?: return
+        state.pages.rememberPosition(state.provider, query, page.page, list.firstVisiblePosition,
+            list.getChildAt(0)?.let { it.top - list.paddingTop } ?: 0)
+    }
+
+    private fun restorePosition(position: ArchivePageCache.Position) {
+        if (adapter.count > 0) list.setSelectionFromTop(position.index.coerceIn(0, adapter.count - 1), position.offset)
+    }
+
+    private fun displayPage(query: ArchiveQuery, cached: ArchivePageCache.Cached) {
+        state.result = cached.result
+        cached.result.form?.let { state.form = it }
+        state.submitted = query
+        state.message = ""
+        refresh()
+        restorePosition(cached.position)
     }
 
     private fun saveKeyword() {
@@ -299,13 +388,20 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(keyword.windowToken, 0)
         keyword.clearFocus()
-        load(query, 1)
+        load(query, 1, fresh = true)
     }
 
-    private fun load(query: ArchiveQuery, page: Int) {
+    private fun load(query: ArchiveQuery, page: Int, fresh: Boolean = false) {
         if (loading || disposed || !state.provider.nativeSearch) return
-        loading = true
+        rememberPosition()
         val requested = state.provider
+        if (!fresh) {
+            state.pages.get(requested, query, page)?.let {
+                displayPage(query, it)
+                return
+            }
+        }
+        loading = true
         val request = ++generation
         refresh()
         worker.execute {
@@ -314,16 +410,13 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
                 loading = false
                 outcome.onSuccess {
-                    state.result = it
-                    it.form?.let { current -> state.form = current }
-                    state.submitted = query
-                    state.message = ""
-                    adapter.notifyDataSetChanged()
-                    list.setSelection(0)
+                    if (fresh) state.pages.clear()
+                    state.pages.put(requested, query, it)
+                    displayPage(query, ArchivePageCache.Cached(it))
                 }.onFailure {
                     state.message = "取得できませんでした: " + (it.message ?: "通信エラー")
+                    refresh()
                 }
-                refresh()
             }
         }
     }
@@ -344,16 +437,23 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             state.message.isNotEmpty() -> state.message
             page != null -> {
                 val submitted = state.submitted
-                if (!submitted?.maximum.isNullOrEmpty()) {
-                    "サイト検索：${page.total}件　${page.page}ページ / 範囲内：${page.items.size}件"
-                } else {
-                    "検索結果：${page.total}件　${page.page}ページ" + if (page.total == 0L) "（該当なし）" else ""
+                if (page.total == 0L) "検索結果：0件（該当なし）"
+                else {
+                    val range = number(page.firstIndex) + "～" + number(page.lastIndex) + "件目 / 全" + number(page.total) + "件"
+                    if (!submitted?.maximum.isNullOrEmpty() || !submitted?.minimum.isNullOrEmpty()) {
+                        range + "（サイト）\n範囲内：" + number(page.items.size.toLong()) + "件"
+                    } else range
                 }
             }
             else -> "スレタイを入力して検索してください"
         }
         previous.isEnabled = !loading && native && page != null && page.page > 1
-        next.isEnabled = !loading && native && page?.hasNext == true
+        next.isEnabled = !loading && native && page?.hasNext == true && page.page < page.totalPages
+        pageJump.isEnabled = !loading && native && page != null && page.totalPages > 1
+        pageJump.text = if (page == null) "ページ指定" else
+            (if (page.totalPages == 0) "0" else number(page.page.toLong())) + " / " + number(page.totalPages.toLong())
+        pageJump.contentDescription = "ページ指定：" + pageJump.text
+        pageJump.alpha = if (pageJump.isEnabled) 1f else 0.55f
         previous.alpha = if (previous.isEnabled) 1f else 0.45f
         next.alpha = if (next.isEnabled) 1f else 0.45f
         adapter.notifyDataSetChanged()
@@ -361,6 +461,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     fun dispose() {
         saveKeyword()
+        rememberPosition()
         disposed = true
         generation++
         worker.shutdownNow()
