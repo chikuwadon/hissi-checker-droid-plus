@@ -466,20 +466,36 @@ object ThemedMenu {
             "5chとエッヂのID別投稿を、レス・スレ・名前ごとに確認できる非公式のAndroidアプリです。独立して開発しています。", secondary)
         aboutHeading(a, content, "主な機能")
         aboutLine(a, content,
-            "ID検索、板選択、レス・スレ・名前の一覧、投稿のコピー、ChMate連携、時間帯別の投稿グラフ。エッヂのID検索と書き込み分析にも対応しています。", secondary)
+            "・5ch・エッヂのID別投稿検索（日付指定あり／なし）\n" +
+                "・レス・スレ・名前の一覧、投稿のコピー、時間帯別投稿グラフ、エッヂの書き込み分析\n" +
+                "・板名・板コード・カテゴリ検索、板のお気に入り、オフライン板一覧\n" +
+                "・履歴・お気に入りの絞り込み、並べ替え、複数選択削除\n" +
+                "・ChMate・Haiagaru・対応する専ブラ・ブラウザとの連携", secondary)
+        aboutHeading(a, content, "過去ログ検索")
+        aboutLine(a, content,
+            "スレタイから過去ログを検索し、結果をアプリ内で閲覧できます。\n" +
+                ArchiveProvider.entries.joinToString("\n") { "・" + it.label } +
+                "\nサービス別の詳細条件、ページ指定、検索履歴、板のお気に入り、外部ブラウザに対応しています。", secondary)
+        aboutHeading(a, content, "表示・操作設定")
+        aboutLine(a, content,
+            "ダーク／ライト／端末の設定に合わせる、タブ切替アニメーション、ナビゲーションバーの表示項目、過去ログ検索欄の上下配置、履歴保存件数（100～10,000件・無制限）を変更できます。", secondary)
         aboutHeading(a, content, "アプリ情報")
         aboutLine(a, content,
             "バージョン：" + version + "\n対応OS：Android 8.0以降\nアプリID：" +
                 a.packageName + "\n開発：chikuwadon", secondary)
         aboutHeading(a, content, "データと通信")
         aboutLine(a, content,
-            "検索時は指定先サイトへアクセスします。板や検索条件の一部は端末内に保存されます。各サイトとの通信や取得結果は、接続先の仕様に依存します。", secondary)
+            "ID検索履歴、過去ログ検索履歴、板・検索結果のお気に入り、設定、板一覧キャッシュは端末内に保存されます。独自のアカウント登録・同期・広告SDKはありません。検索結果は外部サイトの仕様に依存し、hissi.orgではHTTP通信を使用する場合があります。", secondary)
         aboutHeading(a, content, "開発とライセンス")
         aboutLine(a, content,
-            "アプリのコードとアイコンは独自に制作しています。\nHTML解析：jsoup（MIT License）\nAndroidX（Apache License 2.0）\n掲示板や外部アプリの公式製品ではありません。", secondary)
+            "オリジナルの必死チェッカーdroidを参考に独立して開発しています。\n本プロジェクト：MIT License\nアプリ本体：Kotlin／AndroidX\nHTML解析：jsoup（MIT License）\nAndroidX（Apache License 2.0）\n掲示板や外部アプリの公式製品ではありません。", secondary)
         aboutHeading(a, content, "プロジェクト")
         aboutLink(a, content, "GitHub リポジトリ",
             "https://github.com/chikuwadon/hissi-checker-droid-plus")
+        aboutLink(a, content, "変更履歴",
+            "https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/CHANGELOG.md")
+        aboutLink(a, content, "プライバシーポリシー",
+            "https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/PRIVACY.md")
         aboutLink(a, content, "第三者ライセンス情報",
             "https://github.com/chikuwadon/hissi-checker-droid-plus/blob/main/THIRD_PARTY_NOTICES.md")
         val holder = arrayOfNulls<AlertDialog>(1)
