@@ -58,6 +58,8 @@ class HistoryActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        tab = state?.getInt("navigation_tab") ?: if (intent.getBooleanExtra(MainNavigation.FAVORITES_EXTRA, false)) 1 else 0
+        sort = state?.getInt("navigation_sort") ?: 0
         AppSettings.configureBars(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -91,6 +93,7 @@ class HistoryActivity : Activity() {
             contentDescription = "戻る"
         }
         toolbar.addView(back, LinearLayout.LayoutParams(dp(44), dp(48)))
+        back.visibility = View.GONE
         back.setOnClickListener { navigateBack() }
         TouchFeedback.foreground(back, 10)
         toolbarTitle = text("検索履歴", 18, getColor(R.color.text_primary))
@@ -127,6 +130,7 @@ class HistoryActivity : Activity() {
         }
         val tabs = LinearLayout(this).apply { setPadding(dp(4), 0, dp(4), 0) }
         root.addView(tabs, LinearLayout.LayoutParams(-1, dp(44)))
+        tabs.visibility = View.GONE
         recentTab = text("履歴", 14, getColor(R.color.accent))
         favoriteTab = text("お気に入り", 14, getColor(R.color.text_secondary))
         recentTab.gravity = Gravity.CENTER
@@ -180,6 +184,7 @@ class HistoryActivity : Activity() {
             adapter = this@HistoryActivity.adapter
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        MainNavigation.attach(this, root, if (tab == 0) MainNavigation.Destination.HISTORY else MainNavigation.Destination.FAVORITES)
         list.setOnItemClickListener { _, _, position, _ ->
             if (position !in rows.indices) return@setOnItemClickListener
             val entry = rows[position]
@@ -258,6 +263,12 @@ class HistoryActivity : Activity() {
             })
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("navigation_tab", tab)
+        outState.putInt("navigation_sort", sort)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onResume() {
         super.onResume()
         if (::list.isInitialized) refresh()
@@ -289,8 +300,8 @@ class HistoryActivity : Activity() {
         favoriteTab.setTextColor(getColor(if (tab == 1) R.color.accent else R.color.text_secondary))
         sortLabel.text = getString(R.string.history_sort_label, sorts[sort])
         sortLabel.visibility = if (selection) View.GONE else View.VISIBLE
-        menuButton.visibility = if (selection) View.GONE else View.VISIBLE
-        toolbarTitle.text = if (selection) "履歴を選択" else "検索履歴"
+        menuButton.visibility = if (selection || tab == 1) View.GONE else View.VISIBLE
+        toolbarTitle.text = if (selection) "履歴を選択" else if (tab == 0) "検索履歴 (${rows.size})" else "お気に入り (${rows.size})"
         selectionActions.visibility = if (selection) View.VISIBLE else View.GONE
         selectedActions.text = getString(R.string.history_selected_count, chosen.size)
         deleteSelected.isEnabled = chosen.isNotEmpty()

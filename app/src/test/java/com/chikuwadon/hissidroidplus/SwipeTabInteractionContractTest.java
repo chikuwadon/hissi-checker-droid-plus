@@ -42,7 +42,7 @@ public final class SwipeTabInteractionContractTest {
     @Test public void animationSettingFitsOnOneLine() throws Exception {
         String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
-        assertTrue(home.contains("\"タブ切替アニメーション\""));
+        assertTrue(source("java/com/chikuwadon/hissidroidplus/SettingsActivity.kt").contains("\"タブ切替アニメーション\""));
         assertTrue(menu.contains("val toggleTextWidth = items.getOrNull(toggleIndex)"));
         assertTrue(menu.contains("val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 70)"));
         assertTrue(menu.contains("val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)"));
@@ -76,7 +76,7 @@ public final class SwipeTabInteractionContractTest {
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
         String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
         String history = source("java/com/chikuwadon/hissidroidplus/HistoryActivity.kt");
-        assertTrue(home.contains("TouchFeedback.foreground(findViewById(R.id.home_more)"));
+        assertTrue(home.contains("MainNavigation.attach(this, findViewById(R.id.home_root)"));
         assertTrue(home.contains("selector = TouchFeedback.listSelector(this@HomeActivity)"));
         assertTrue(home.contains("TouchFeedback.foreground(close"));
         assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
@@ -136,7 +136,7 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(menu.contains("row.contentDescription = value + if (enabled)"));
         assertFalse(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("onToggle(enabled)"));
-        assertTrue(home.contains("ThemedMenu.showOverflowToggle(this, anchor,"));
+        assertTrue(home.contains("MainNavigation.Destination.HOME"));
         assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
     }
 }

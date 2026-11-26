@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent" android:layout_height="match_parent"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/home_root" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent">
+<ScrollView android:id="@+id/home_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
     android:fillViewport="true" android:background="@color/surface" tools:ignore="Overdraw">
     <LinearLayout android:orientation="vertical" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:paddingStart="16dp"
@@ -12,10 +13,7 @@
                 android:fontFamily="sans-serif-medium" android:singleLine="true"
                 android:ellipsize="end" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_height="wrap_content" />
-            <TextView android:id="@+id/home_more" android:text="@string/more_menu_symbol" android:textSize="26sp"
-                android:contentDescription="@string/settings_description" android:gravity="center" android:textColor="@color/text_primary"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:layout_width="48dp" android:layout_height="48dp" />
+
         </LinearLayout>
         <TextView android:text="@string/search_posts_by_id" android:textColor="@color/text_secondary"
             android:textSize="12sp" android:layout_marginTop="2dp"
@@ -111,3 +109,4 @@
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
+</LinearLayout>

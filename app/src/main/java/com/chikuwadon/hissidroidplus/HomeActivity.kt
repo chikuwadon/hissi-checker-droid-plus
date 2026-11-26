@@ -57,6 +57,7 @@ class HomeActivity : Activity() {
     private var finishAfterDeepLink = false
     private var boardGroups: List<BoardMenu.Category>? = null
     private var boardSource = ""
+    private var themeAtCreation: String? = null
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
@@ -67,8 +68,8 @@ class HomeActivity : Activity() {
         setContentView(R.layout.activity_home)
         AppTitle.apply(findViewById(R.id.app_title))
         AppSettings.configureBars(this)
-        findViewById<View>(R.id.home_more).setOnClickListener { showSettings(it) }
-        TouchFeedback.foreground(findViewById(R.id.home_more), 12)
+        themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
+        MainNavigation.attach(this, findViewById(R.id.home_root), MainNavigation.Destination.HOME)
         applyInsets()
         board = findViewById(R.id.board)
         id = findViewById(R.id.user_id)
@@ -247,57 +248,6 @@ class HomeActivity : Activity() {
             }
         } catch (bad: IllegalArgumentException) {
             toast(bad.message ?: "hissiリンクが不正です", Toast.LENGTH_LONG)
-        }
-    }
-
-    /** Toolbar overflow stays attached to the three-dot anchor. */
-    private fun showSettings(anchor: View) {
-        ThemedMenu.showOverflowToggle(this, anchor,
-            arrayOf("検索履歴", "テーマ", "スレの開き方", "リンクの開き方",
-                "タブ切替アニメーション", "このアプリについて"),
-            4, AppSettings.tabAnimations(this),
-            { enabled -> AppSettings.setTabAnimations(this, enabled) }
-        ) { index ->
-            when (index) {
-                0 -> startActivity(Intent(this, HistoryActivity::class.java))
-                1 -> showThemePicker()
-                2 -> showThreadModePicker()
-                3 -> showLinkModePicker()
-                else -> ThemedMenu.showAbout(this)
-            }
-        }
-    }
-
-    private fun showThemePicker() {
-        val values = arrayOf(AppSettings.THEME_DARK, AppSettings.THEME_LIGHT,
-            AppSettings.THEME_SYSTEM)
-        val labels = arrayOf("ダーク", "ライト", "端末の設定に合わせる")
-        val current = AppSettings.prefs(this).getString(AppSettings.THEME,
-            AppSettings.THEME_DARK)
-        ThemedMenu.choose(this, "テーマ", labels, values.indexOf(current)) { index ->
-            AppSettings.prefs(this).edit().putString(AppSettings.THEME, values[index]).apply()
-            recreate()
-        }
-    }
-
-    private fun showThreadModePicker() {
-        val labels = arrayOf("毎回選択", "ChMateで開く", "Haiagaruで開く",
-            "他のアプリで開く", "外部ブラウザで開く")
-        val current = AppSettings.threadOpenMode(this)
-        ThemedMenu.choose(this, "スレの開き方", labels,
-            AppSettings.THREAD_MODES.indexOf(current)) { index ->
-            AppSettings.setThreadOpenMode(this, AppSettings.THREAD_MODES[index])
-        }
-    }
-
-    private fun showLinkModePicker() {
-        val labels = arrayOf("ChMate連携（元の画面へ戻る）", "単独アプリ（別タスクで開く）")
-        ThemedMenu.choose(this, "リンクの開き方", labels,
-            if (AppSettings.standalone(this)) 1 else 0) { index ->
-            AppSettings.prefs(this).edit().putString(
-                AppSettings.LINK_MODE,
-                if (index == 1) AppSettings.MODE_STANDALONE else AppSettings.MODE_CONNECTED
-            ).apply()
         }
     }
 
@@ -657,6 +607,13 @@ class HomeActivity : Activity() {
                 WindowInsets.CONSUMED
             }
             root.requestApplyInsets()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!isFinishing && themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
+            recreate()
         }
     }
 
