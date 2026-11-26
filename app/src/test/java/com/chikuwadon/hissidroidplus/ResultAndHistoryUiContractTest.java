@@ -25,7 +25,7 @@ public class ResultAndHistoryUiContractTest {
         assertTrue(history.contains("holder.star.setOnClickListener { changeFavorite(entry) }"));
         assertTrue(history.contains("holder.star.isFocusable = false"));
         assertTrue(history.contains("ViewGroup.FOCUS_BLOCK_DESCENDANTS"));
-        assertTrue(history.contains("SearchHistory.setFavorite(this, entry, desired)"));
+        assertTrue(history.contains("SearchHistory.setFavorite(host, entry, desired)"));
         assertTrue(history.contains("pendingFavorites[entry.url] ?: favoriteUrls.contains(entry.url)"));
         assertTrue(source("SearchHistory.kt").contains("fun setFavorite(context: Context, entry: Entry, enabled: Boolean)"));
     }

@@ -11,7 +11,7 @@ public class HostedNavigationContractTest {
         return new String(Files.readAllBytes(Paths.get("src/main/java/com/chikuwadon/hissidroidplus/" + name)), StandardCharsets.UTF_8);
     }
 
-    @Test public void homeArchiveSettingsShareOneWindowAndNavigationBar() throws Exception {
+    @Test public void topLevelSectionsShareOneWindowAndNavigationBar() throws Exception {
         String home = source("HomeActivity.kt");
         String nav = source("MainNavigation.kt");
         assertTrue(home.contains("FragmentContainerView(this)"));
@@ -23,10 +23,33 @@ public class HostedNavigationContractTest {
         assertTrue(nav.contains("a.showDestination(destination)"));
         assertFalse(nav.contains("Intent(a, ArchiveActivity::class.java)"));
         assertFalse(nav.contains("Intent(a, SettingsActivity::class.java)"));
+        assertFalse(nav.contains("Intent(a, HistoryActivity::class.java)"));
+        assertFalse(nav.contains("Intent(a, FavoritesActivity::class.java)"));
+        assertTrue(home.contains("MainNavigation.Destination.HISTORY -> HistoryFragment()"));
+        assertTrue(home.contains("MainNavigation.Destination.FAVORITES -> FavoritesFragment()"));
+        assertTrue(home.contains("val target = destination"));
         assertTrue(nav.contains("if (!isSelected) navigate(a, destination)"));
         assertTrue(source("HostedSections.kt").contains("class SettingsFragment : Fragment()"));
         assertTrue(source("HostedSections.kt").contains("class ArchiveFragment : Fragment()"));
         assertFalse(source("HostedSections.kt").contains("MainNavigation.attach"));
+    }
+
+    @Test public void historyViewsHaveSeparateStateAndSafeLifetimes() throws Exception {
+        String hosted = source("HostedSections.kt");
+        String history = source("HistoryActivity.kt");
+        String home = source("HomeActivity.kt");
+        assertTrue(hosted.contains("class FavoritesFragment : HistoryFragment()"));
+        assertTrue(hosted.contains("ViewModelProvider(this)[HistoryScreenState::class.java]"));
+        assertTrue(hosted.contains("override fun onResume()"));
+        assertTrue(hosted.contains("content?.resume()"));
+        assertTrue(hosted.contains("override fun onDestroyView()"));
+        assertTrue(hosted.contains("content?.dispose()"));
+        assertTrue(hosted.contains("content = null"));
+        assertTrue(history.contains("disposed || host.isDestroyed"));
+        assertTrue(history.contains("generation != refreshGeneration"));
+        assertTrue(history.contains("list.setSelectionFromTop(position.coerceIn(0, rows.lastIndex), offset)"));
+        assertTrue(home.contains("(active as? HistoryFragment)?.handleBack() == true"));
+        assertTrue(history.contains("if (!selection) return false"));
     }
 
     @Test public void savedDestinationAndNewIntentAreHandled() throws Exception {

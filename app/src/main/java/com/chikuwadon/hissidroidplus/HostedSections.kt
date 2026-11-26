@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 
 /** Hosted destinations do not own a Window or a bottom navigation bar. */
 class ArchiveFragment : Fragment() {
@@ -32,4 +33,38 @@ class SettingsFragment : Fragment() {
         content.populate(content.build(root, "設定"))
         return root
     }
+}
+
+/** The same content is used by legacy activities and the shared navigation host. */
+open class HistoryFragment : Fragment() {
+    protected open val favoritesScreen = false
+    private var content: HistoryContent? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
+        val screen = HistoryContent(requireActivity(), ViewModelProvider(this)[HistoryScreenState::class.java], favoritesScreen)
+        content = screen
+        return screen.build(state)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        content?.resume()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        content?.save(outState)
+        super.onSaveInstanceState(outState)
+    }
+
+    fun handleBack(): Boolean = content?.handleBack() ?: false
+
+    override fun onDestroyView() {
+        content?.dispose()
+        content = null
+        super.onDestroyView()
+    }
+}
+
+class FavoritesFragment : HistoryFragment() {
+    override val favoritesScreen = true
 }

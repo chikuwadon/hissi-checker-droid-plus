@@ -87,7 +87,7 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(history.contains("TouchFeedback.foreground(recentTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(favoriteTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(deleteSelected)"));
-        assertTrue(history.contains("TouchFeedback.listSelector(this@HistoryActivity)"));
+        assertTrue(history.contains("TouchFeedback.listSelector(host)"));
     }
 
     @Test public void selectableResultRowsTriggerVisibleTouchRipple() throws Exception {

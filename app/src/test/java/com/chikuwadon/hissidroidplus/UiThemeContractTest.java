@@ -22,7 +22,7 @@ public class UiThemeContractTest {
     @Test public void sectionAndHistoryShareToolbarTitle() throws Exception {
         assertTrue(source("MainSectionActivity.kt").contains("AppBar.title(host, title)"));
         String history = source("HistoryActivity.kt");
-        assertTrue(history.contains("AppBar.title(this, if (favoritesScreen)"));
+        assertTrue(history.contains("AppBar.title(host, if (favoritesScreen)"));
         assertTrue(history.contains("AppBar.Icon.SEARCH"));
         assertTrue(history.contains("AppBar.Icon.SELECT"));
         assertTrue(history.contains("AppBar.Icon.DONE"));
@@ -32,8 +32,8 @@ public class UiThemeContractTest {
         assertFalse(source("HomeActivity.kt").contains("DatePickerDialog"));
         String history = source("HistoryActivity.kt");
         assertFalse(history.contains("DatePickerDialog"));
-        assertTrue(history.contains("ThemedMenu.showForm(this, panel)"));
-        assertTrue(history.contains("CalendarDialog.show(this, day)"));
+        assertTrue(history.contains("ThemedMenu.showForm(host, panel)"));
+        assertTrue(history.contains("CalendarDialog.show(host, day)"));
         String calendar = source("CalendarDialog.kt");
         assertTrue(calendar.contains("ThemedMenu.formPanel(a)"));
         assertTrue(calendar.contains("R.color.panel_pressed"));

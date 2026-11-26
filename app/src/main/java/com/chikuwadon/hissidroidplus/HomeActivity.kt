@@ -93,6 +93,8 @@ class HomeActivity : CheckerActivity() {
         MainNavigation.attach(this, shell, MainNavigation.Destination.HOME)
         sectionBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
+                val active = supportFragmentManager.findFragmentByTag(activeDestination.name)
+                if ((active as? HistoryFragment)?.handleBack() == true) return
                 showDestination(MainNavigation.Destination.HOME)
             }
         }
@@ -233,23 +235,28 @@ class HomeActivity : CheckerActivity() {
         if (state == null) handleHissiScheme()
     }
 
-    /** First migration stage: these three destinations share one window and bar. */
+    /** Top-level native sections share one window and navigation bar. */
     fun showDestination(destination: MainNavigation.Destination) {
         if (destination !in MainNavigation.hosted || isFinishing || isDestroyed) return
         if (supportFragmentManager.isStateSaved) {
             pendingDestination = destination
             return
         }
-        val target = if (MainNavigation.isVisible(this, destination)) destination
-            else MainNavigation.Destination.HOME
+        // A hidden navigation item remains accessible via an explicit result menu or Back.
+        val target = destination
         pendingDestination = null
         val manager = supportFragmentManager
         val transaction = manager.beginTransaction().setReorderingAllowed(true)
-        for (section in listOf(MainNavigation.Destination.ARCHIVE, MainNavigation.Destination.SETTINGS)) {
+        for (section in MainNavigation.hosted.filter { it != MainNavigation.Destination.HOME }) {
             val fragment = manager.findFragmentByTag(section.name)
             if (section == target) {
-                val screen = fragment ?: if (section == MainNavigation.Destination.ARCHIVE)
-                    ArchiveFragment() else SettingsFragment()
+                val screen = fragment ?: when (section) {
+                    MainNavigation.Destination.ARCHIVE -> ArchiveFragment()
+                    MainNavigation.Destination.HISTORY -> HistoryFragment()
+                    MainNavigation.Destination.FAVORITES -> FavoritesFragment()
+                    MainNavigation.Destination.SETTINGS -> SettingsFragment()
+                    else -> error("Unsupported hosted section: $section")
+                }
                 if (fragment == null) transaction.add(R.id.main_section_container, screen, section.name)
                 else transaction.show(screen)
                 transaction.setMaxLifecycle(screen, Lifecycle.State.RESUMED)

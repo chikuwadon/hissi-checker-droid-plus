@@ -29,8 +29,8 @@ public class NavigationAndFavoritesContractTest {
     @Test public void favoritesSelectionNeverDeletesNormalHistory() throws Exception {
         String h = source("HistoryActivity.kt");
         assertTrue(h.contains("menuButton.visibility = View.VISIBLE"));
-        assertTrue(h.contains("if (favorite) SearchHistory.removeFavorites(this, selected)"));
-        assertTrue(h.contains("if (favorite) SearchHistory.clearFavorites(this)"));
+        assertTrue(h.contains("if (favorite) SearchHistory.removeFavorites(host, selected)"));
+        assertTrue(h.contains("if (favorite) SearchHistory.clearFavorites(host)"));
         String store = source("SearchHistory.kt");
         assertTrue(store.contains("deleteEntries(context, \"favorites\", urls)"));
         assertTrue(store.contains("deleteEntries(context, \"recent\", urls)"));

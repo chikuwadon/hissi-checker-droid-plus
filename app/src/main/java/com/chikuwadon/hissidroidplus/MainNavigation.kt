@@ -24,7 +24,7 @@ object MainNavigation {
     }
 
     const val EXTRA_DESTINATION = "main_navigation_destination"
-    val hosted = listOf(Destination.HOME, Destination.ARCHIVE, Destination.SETTINGS)
+    val hosted = listOf(Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS)
 
     fun hostDestination(name: String?): Destination =
         hosted.firstOrNull { it.name == name } ?: Destination.HOME
@@ -133,7 +133,7 @@ object MainNavigation {
             return
         }
         val intent = when (destination) {
-            Destination.HOME, Destination.ARCHIVE, Destination.SETTINGS ->
+            Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS ->
                 Intent(a, HomeActivity::class.java).putExtra(EXTRA_DESTINATION, destination.name)
             Destination.RESULT -> {
                 val retained = result(a) ?: return
@@ -147,8 +147,6 @@ object MainNavigation {
                 })
                 Intent(a, ResultActivity::class.java)
             }
-            Destination.HISTORY -> Intent(a, HistoryActivity::class.java)
-            Destination.FAVORITES -> Intent(a, FavoritesActivity::class.java)
         }
         // Bottom destinations are peers, not a push/pop detail stack.
         // Suppress the window slide/scale for this explicit navigation only.
