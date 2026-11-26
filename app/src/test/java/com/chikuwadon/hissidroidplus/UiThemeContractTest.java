@@ -20,7 +20,7 @@ public class UiThemeContractTest {
         assertTrue(xml.contains("android:layout_height=\"56dp\""));
     }
     @Test public void sectionAndHistoryShareToolbarTitle() throws Exception {
-        assertTrue(source("MainSectionActivity.kt").contains("AppBar.title(this, title)"));
+        assertTrue(source("MainSectionActivity.kt").contains("AppBar.title(host, title)"));
         String history = source("HistoryActivity.kt");
         assertTrue(history.contains("AppBar.title(this, if (favoritesScreen)"));
         assertTrue(history.contains("AppBar.Icon.SEARCH"));
