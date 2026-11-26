@@ -223,11 +223,15 @@ object ThemedMenu {
             setText(value)
         }
 
-    internal fun formButton(a: Activity, label: String): TextView =
+    internal fun formButton(a: Activity, label: String, outlined: Boolean = true): TextView =
         text(a, label, 14, a.getColor(R.color.text_primary)).apply {
             gravity = Gravity.CENTER
             setPadding(dp(a, 8), 0, dp(a, 8), 0)
-            background = panelBackground(a, 9).apply { setColor(a.getColor(R.color.button_surface)) }
+            background = if (outlined) panelBackground(a, 9).apply { setColor(a.getColor(R.color.button_surface)) }
+            else GradientDrawable().apply {
+                setColor(a.getColor(R.color.button_surface))
+                cornerRadius = dp(a, 9).toFloat()
+            }
             applyTouch(a, this)
         }
 

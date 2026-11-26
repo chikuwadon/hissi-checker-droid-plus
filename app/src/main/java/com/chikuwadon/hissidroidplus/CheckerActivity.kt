@@ -16,7 +16,7 @@ abstract class CheckerActivity : FragmentActivity() {
         })
     }
 
-    protected fun applyContentInsets(root: View) {
+    protected fun applyContentInsets(root: View, resizeForIme: Boolean = false) {
         // Preserve platform fitting on API 26–29 in this migration.
         if (Build.VERSION.SDK_INT < 30) return
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -26,7 +26,13 @@ abstract class CheckerActivity : FragmentActivity() {
         val bottom = root.paddingBottom
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(left + bars.left, top + bars.top, right + bars.right, bottom + bars.bottom)
+            val ime = if (resizeForIme) insets.getInsets(WindowInsetsCompat.Type.ime()).bottom else 0
+            val archive = this is ArchiveActivity ||
+                (this is HomeActivity && activeDestination == MainNavigation.Destination.ARCHIVE)
+            if (resizeForIme) MainNavigation.setArchiveImeVisible(this,
+                archive && AppSettings.archiveSearchAtBottom(this) && insets.isVisible(WindowInsetsCompat.Type.ime()))
+            view.setPadding(left + bars.left, top + bars.top, right + bars.right,
+                bottom + ImeInsets.bottom(bars.bottom, ime))
             WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(root)

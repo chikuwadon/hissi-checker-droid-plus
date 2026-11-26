@@ -31,6 +31,7 @@ object MainNavigation {
 
     private const val RESULT_TAG = "main_navigation_result"
     private const val BAR_TAG = "main_navigation_bar"
+    private const val DIVIDER_TAG = "main_navigation_divider"
     val configurable = listOf(Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES)
 
     fun isVisible(context: Context, destination: Destination): Boolean =
@@ -94,7 +95,14 @@ object MainNavigation {
         item.alpha = if (available) 1f else 0.4f
     }
 
+    fun setArchiveImeVisible(a: Activity, visible: Boolean) {
+        val visibility = if (visible) View.GONE else View.VISIBLE
+        a.window.decorView.findViewWithTag<View>(BAR_TAG)?.visibility = visibility
+        a.window.decorView.findViewWithTag<View>(DIVIDER_TAG)?.visibility = visibility
+    }
+
     fun setSelected(a: Activity, selected: Destination) {
+        if (selected != Destination.ARCHIVE) setArchiveImeVisible(a, false)
         val bar = a.window.decorView.findViewWithTag<LinearLayout>(BAR_TAG) ?: return
         Destination.values().forEachIndexed { index, destination ->
             val item = bar.getChildAt(index) as? TextView ?: return@forEachIndexed
@@ -113,7 +121,10 @@ object MainNavigation {
         (a.resources.displayMetrics.density * value).roundToInt()
 
     fun attach(a: Activity, root: LinearLayout, selected: Destination) {
-        val divider = View(a).apply { setBackgroundColor(a.getColor(R.color.divider)) }
+        val divider = View(a).apply {
+            tag = DIVIDER_TAG
+            setBackgroundColor(a.getColor(R.color.divider))
+        }
         root.addView(divider, LinearLayout.LayoutParams(-1, dp(a, 1)))
         val bar = LinearLayout(a).apply {
             tag = BAR_TAG

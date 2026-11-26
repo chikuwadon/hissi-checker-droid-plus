@@ -271,6 +271,7 @@ class HomeActivity : CheckerActivity() {
         homeContent.visibility = if (target == MainNavigation.Destination.HOME) View.VISIBLE else View.GONE
         sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
         MainNavigation.setSelected(this, target)
+        androidx.core.view.ViewCompat.requestApplyInsets(findViewById(android.R.id.content))
         if (target != MainNavigation.Destination.HOME) {
             currentFocus?.clearFocus()
             (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
@@ -692,7 +693,7 @@ class HomeActivity : CheckerActivity() {
     private fun dp(n: Int): Int = (n * resources.displayMetrics.density).roundToInt()
 
     private fun applyInsets() {
-        applyContentInsets(findViewById(android.R.id.content))
+        applyContentInsets(findViewById(android.R.id.content), resizeForIme = true)
     }
 
     override fun onResume() {

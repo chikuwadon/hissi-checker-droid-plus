@@ -16,6 +16,9 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.CheckBox
@@ -55,7 +58,7 @@ class ArchiveActivity : MainSectionActivity() {
         content?.buildScreen(root)
         MainNavigation.attach(this, root, MainNavigation.Destination.ARCHIVE)
         setContentView(root)
-        applyContentInsets(root)
+        applyContentInsets(root, resizeForIme = true)
     }
 
     override fun onResume() {
@@ -99,13 +102,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var list: ListView
     private val adapter = ThreadsAdapter()
 
+    private fun archiveButton(label: String): TextView = ThemedMenu.formButton(host, label, outlined = false)
+
     fun buildScreen(root: LinearLayout) {
         val controls = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(4))
         }
         root.addView(controls, LinearLayout.LayoutParams(-1, -2))
-        provider = ThemedMenu.formButton(host, state.provider.label + " ▾")
+        provider = archiveButton(state.provider.label + " ▾")
         controls.addView(provider, LinearLayout.LayoutParams(-1, dp(44)))
         provider.setOnClickListener {
             if (loading) return@setOnClickListener
@@ -131,15 +136,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         boardRow = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         controls.addView(boardRow, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
-        boardButton = ThemedMenu.formButton(host, "板を選択 ▾")
+        boardButton = archiveButton("板を選択 ▾")
         boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1f))
         boardButton.setOnClickListener { showBoards() }
-        saveBoardButton = ThemedMenu.formButton(host, "☆ 保存").apply {
+        saveBoardButton = archiveButton("☆ 保存").apply {
             contentDescription = "選択した板をお気に入りに保存"
             setOnClickListener { saveFavoriteBoard() }
         }
         boardRow.addView(saveBoardButton, LinearLayout.LayoutParams(dp(82), -1).apply { marginStart = dp(4) })
-        favoriteBoardsButton = ThemedMenu.formButton(host, "★").apply {
+        favoriteBoardsButton = archiveButton("★").apply {
             contentDescription = "板のお気に入り"
             setOnClickListener { showFavoriteBoards() }
         }
@@ -184,7 +189,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             setOnClickListener { showKeywordHistory() }
         }
         line.addView(searchHistoryButton, LinearLayout.LayoutParams(dp(44), dp(44)))
-        search = ThemedMenu.formButton(host, "検索")
+        search = archiveButton("検索")
         line.addView(search, LinearLayout.LayoutParams(dp(72), dp(44)).apply { marginStart = dp(6) })
         search.setOnClickListener { startSearch() }
         val links = LinearLayout(host)
@@ -242,9 +247,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 true
             }
         }
-        val pager = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
+        val pager = LinearLayout(host).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(8), dp(4), dp(4))
+        }
         previous = ThemedMenu.formAction(host, "前のページ")
-        pageJump = ThemedMenu.formButton(host, "ページ指定")
+        pageJump = archiveButton("ページ指定")
         next = ThemedMenu.formAction(host, "次のページ")
         pager.addView(previous, LinearLayout.LayoutParams(0, dp(44), 1f))
         pager.addView(pageJump, LinearLayout.LayoutParams(0, dp(40), 1.15f))
@@ -392,9 +400,11 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showBoardCategories(groups: List<BoardMenu.Category>) {
-        showBoardList("カテゴリを選択", groups.map { it.name + "（" + it.boards.size + "）" }, null) { index ->
+        showBoardList("カテゴリを選択", groups.map { it.name + "（" + it.boards.size + "）" }, null,
+            search = { showBoardSearch(groups) }) { index ->
             val category = groups[index]
-            showBoardList(category.name, category.boards.map { it.toString() }, { showBoardCategories(groups) }) { position ->
+            showBoardList(category.name, category.boards.map { it.toString() }, { showBoardCategories(groups) },
+                search = { showBoardSearch(groups) }) { position ->
                 if (disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return@showBoardList
                 val board = category.boards[position]
                 selectBoard(board.code, board.name)
@@ -457,9 +467,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         favoriteBoardsButton.isEnabled = !loading
     }
 
-    private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?, pick: (Int) -> Unit) {
+    private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?,
+                              search: (() -> Unit)? = null, pick: (Int) -> Unit) {
         val panel = ThemedMenu.formPanel(host)
-        panel.addView(ThemedMenu.formTitle(host, title))
+        val heading = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
+        heading.addView(ThemedMenu.formTitle(host, title), LinearLayout.LayoutParams(0, -2, 1f))
+        panel.addView(heading)
+        val searchIcon = if (search != null) boardSearchIcon().also {
+            heading.addView(it, LinearLayout.LayoutParams(dp(48), dp(48)))
+        } else null
         val choices = ListView(host).apply {
             divider = android.graphics.drawable.ColorDrawable(host.getColor(R.color.divider))
             dividerHeight = dp(1)
@@ -479,6 +495,102 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val dialog = ThemedMenu.showForm(host, panel)
         choices.setOnItemClickListener { _, _, position, _ -> dialog.dismiss(); pick(position) }
         close.setOnClickListener { dialog.dismiss(); back?.invoke() }
+        searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
+    }
+
+    private fun boardSearchIcon(): View = object : View(host) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = host.getColor(R.color.text_secondary)
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2).toFloat()
+            strokeCap = Paint.Cap.ROUND
+        }
+        override fun onDraw(canvas: Canvas) {
+            val x = width / 2f - dp(2)
+            val y = height / 2f - dp(2)
+            canvas.drawCircle(x, y, dp(7).toFloat(), paint)
+            canvas.drawLine(x + dp(5), y + dp(5), x + dp(11), y + dp(11), paint)
+        }
+    }.apply {
+        contentDescription = "板を検索"
+        isFocusable = true
+        TouchFeedback.foreground(this, 8)
+    }
+
+    private fun showBoardSearch(groups: List<BoardMenu.Category>) {
+        if (disposed || loading || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        val panel = ThemedMenu.formPanel(host)
+        panel.addView(ThemedMenu.formTitle(host, "板を検索"))
+        val input = ThemedMenu.formInput(host, "").apply {
+            hint = "板名・板コード"
+            setHintTextColor(host.getColor(R.color.text_secondary))
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        }
+        panel.addView(input, LinearLayout.LayoutParams(-1, dp(44)))
+        val status = ThemedMenu.formLabel(host, "")
+        panel.addView(status)
+        val index = BoardPickerSearch.index(groups)
+        var hits = index
+        val rows = object : BaseAdapter() {
+            override fun getCount() = hits.size
+            override fun getItem(position: Int) = hits[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun getView(position: Int, convert: View?, parent: ViewGroup): View {
+                val label = convert as? TextView ?: TextView(host).apply {
+                    textSize = 14f
+                    setTextColor(host.getColor(R.color.text_primary))
+                    gravity = Gravity.CENTER_VERTICAL
+                    minHeight = dp(49)
+                    setPadding(dp(12), dp(6), dp(12), dp(6))
+                }
+                val entry = getItem(position)
+                label.text = entry.name + " (" + entry.code + ")"
+                return label
+            }
+        }
+        val choices = ListView(host).apply {
+            divider = android.graphics.drawable.ColorDrawable(host.getColor(R.color.divider))
+            dividerHeight = dp(1)
+            selector = TouchFeedback.listSelector(host)
+            adapter = rows
+        }
+        panel.addView(choices, LinearLayout.LayoutParams(-1,
+            minOf(dp(280), (host.resources.displayMetrics.heightPixels * 0.30f).toInt())))
+        val close = ThemedMenu.formAction(host, "カテゴリに戻る")
+        panel.addView(close, LinearLayout.LayoutParams(-1, dp(46)))
+        val dialog = ThemedMenu.showForm(host, panel)
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        fun filter() {
+            hits = BoardPickerSearch.filter(index, input.text.toString())
+            status.text = hits.size.toString() + "板"
+            rows.notifyDataSetChanged()
+            choices.setSelection(0)
+        }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) = filter()
+        })
+        input.setOnEditorActionListener { _, action, _ ->
+            if (action == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                    ?.hideSoftInputFromWindow(input.windowToken, 0)
+                true
+            } else false
+        }
+        choices.setOnItemClickListener { _, _, position, _ ->
+            val entry = hits.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            selectBoard(entry.code, entry.name)
+        }
+        close.setOnClickListener { dialog.dismiss(); showBoardCategories(groups) }
+        filter()
+        input.requestFocus()
+        input.post {
+            if (dialog.isShowing) (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
     }
 
     private fun showKeywordHistory() {
@@ -590,7 +702,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             fun day(label: String, start: Boolean) {
                 panel.addView(ThemedMenu.formLabel(host, label))
                 val row = LinearLayout(host)
-                val pick = ThemedMenu.formButton(host, (if (start) draft.from else draft.to).ifEmpty { "指定なし" })
+                val pick = archiveButton((if (start) draft.from else draft.to).ifEmpty { "指定なし" })
                 val clear = ThemedMenu.formAction(host, "解除")
                 row.addView(pick, LinearLayout.LayoutParams(0, dp(44), 1f))
                 row.addView(clear, LinearLayout.LayoutParams(dp(64), dp(44)))
@@ -614,7 +726,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 fun choice(label: String, values: List<String>, labels: List<String>, selected: String, apply: (String) -> Unit) {
                     panel.addView(ThemedMenu.formLabel(host, label))
                     var index = values.indexOf(selected).coerceAtLeast(0)
-                    val button = ThemedMenu.formButton(host, labels[index] + " ▾")
+                    val button = archiveButton(labels[index] + " ▾")
                     panel.addView(button, LinearLayout.LayoutParams(-1, dp(44)))
                     button.setOnClickListener {
                         ThemedMenu.choose(host, label, labels.toTypedArray(), index) { selectedIndex ->
@@ -687,7 +799,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val choices = form?.sorts.orEmpty()
         var sort = state.draft.sort
         fields.addView(ThemedMenu.formLabel(host, "ソート"))
-        val sortButton = ThemedMenu.formButton(host,
+        val sortButton = archiveButton(
             (choices.firstOrNull { it.value == sort }?.label ?: "新しい順") + " ▾")
         sortButton.isEnabled = choices.isNotEmpty()
         sortButton.alpha = if (sortButton.isEnabled) 1f else 0.5f
@@ -721,7 +833,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             var day = initial
             fields.addView(ThemedMenu.formLabel(host, label))
             val row = LinearLayout(host)
-            val pick = ThemedMenu.formButton(host, day.ifEmpty { "指定なし" })
+            val pick = archiveButton(day.ifEmpty { "指定なし" })
             val clear = ThemedMenu.formAction(host, "解除")
             row.addView(pick, LinearLayout.LayoutParams(0, dp(44), 1f))
             row.addView(clear, LinearLayout.LayoutParams(dp(64), dp(44)))
