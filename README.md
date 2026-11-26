@@ -4,8 +4,8 @@
 
 **Hissi Checker Droid Plus**
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.0.4-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.4)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.4/HissiCheckerDroidPlus-v1.0.4.apk)
+[![Latest Release](https://img.shields.io/badge/Release-v1.0.5-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.5)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.5/HissiCheckerDroidPlus-v1.0.5.apk)
 
 </div>
 
@@ -92,7 +92,7 @@ ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを
 ## 動作環境
 
 - Android 8.0以降
-- バージョン：1.0.4
+- バージョン：1.0.5
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意
