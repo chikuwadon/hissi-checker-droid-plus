@@ -33,8 +33,8 @@ public final class ResultMenuContractTest {
         assertTrue(code.contains("title.setOnClickListener(showActions)"));
         assertTrue(code.contains("subtitle.setOnClickListener(showActions)"));
         assertTrue(code.contains("body.setOnClickListener(showActions)"));
-        assertTrue(code.contains("list.postDelayed({"));
-        assertTrue(code.contains("if (!isFinishing && !isDestroyed && tappedTab == tab) showEntry(index)"));
+        assertTrue(code.contains("list.postOnAnimation {"));
+        assertTrue(code.contains("if (!isFinishing && !isDestroyed && hasWindowFocus() && tappedTab == tab) showEntry(index)"));
     }
 
     @Test public void longPressHasComfortableDelayAndTapHandling() throws Exception {

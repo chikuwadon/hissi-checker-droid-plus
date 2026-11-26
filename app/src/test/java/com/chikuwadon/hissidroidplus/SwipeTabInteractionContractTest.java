@@ -65,8 +65,11 @@ public final class SwipeTabInteractionContractTest {
         assertFalse(menu.contains("menuRowBackground("));
         assertFalse(menu.contains("StateListDrawable"));
         assertFalse(menu.contains("row.isActivated = enabled"));
-        assertTrue(menu.contains("row.postDelayed({"));
-        assertTrue(menu.contains("}, 120L)"));
+        assertTrue(menu.contains("row.postOnAnimation {"));
+        assertFalse(menu.contains("}, 120L)"));
+        assertFalse(menu.contains("}, 125L)"));
+        assertTrue(menu.contains("close.postOnAnimation"));
+        assertTrue(menu.contains("create()\n            window?.apply"));
     }
 
     @Test public void allMainNavigationAndHistoryActionsUseRipple() throws Exception {
@@ -98,8 +101,9 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(row.contains("val handled = super.dispatchTouchEvent(event)"));
         assertTrue(row.contains("postDelayed(clearPress, 160L)"));
         assertTrue(row.contains("isPressed = false"));
-        assertTrue(result.contains("list.postDelayed({"));
-        assertTrue(result.contains("}, 150L)"));
+        assertTrue(result.contains("list.postOnAnimation {"));
+        assertFalse(result.contains("}, 150L)"));
+        assertTrue(result.contains("hasWindowFocus() && tappedTab == tab"));
         assertFalse(result.contains("TouchFeedback.foreground(body, 4)"));
     }
 
