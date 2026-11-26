@@ -13,8 +13,13 @@ public class ArchiveBoardSearchTest {
         // percent-encodes them. Both decode to exactly the same Windows-31J bytes.
         assertEquals(prefix + "%88%C0%94%7B%90%57%8E%4F", url);
         assertEquals("安倍晋三", java.net.URLDecoder.decode(url.substring(prefix.length()), "windows-31j"));
-        assertEquals(java.net.URLDecoder.decode("%88%C0%94%7B%90W%8EO", "windows-31j"),
-            java.net.URLDecoder.decode(url.substring(prefix.length()), "windows-31j"));
+        // Decode escapes to bytes before interpreting the multibyte character set,
+        // since a browser may leave a Shift_JIS trail byte as literal ASCII.
+        byte[] saved = java.net.URLDecoder.decode("%88%C0%94%7B%90W%8EO", "ISO-8859-1")
+            .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        byte[] generated = java.net.URLDecoder.decode(url.substring(prefix.length()), "ISO-8859-1")
+            .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertArrayEquals(saved, generated);
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO,q,3).contains("/101?"));
         assertThrows(IllegalArgumentException.class, () -> ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO,new ArchiveQuery("x")));
         assertThrows(IllegalArgumentException.class, () -> new ArchiveQuery("x","","","","","","new","",false,false,"../x","").validate());
