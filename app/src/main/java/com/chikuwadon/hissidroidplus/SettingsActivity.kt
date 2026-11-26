@@ -7,6 +7,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.SeekBar
+import android.widget.Toast
 
 /** Settings previously accessible only through the home overflow menu. */
 class SettingsActivity : MainSectionActivity() {
@@ -83,6 +85,61 @@ class SettingsActivity : MainSectionActivity() {
                     if (it == 1) AppSettings.MODE_STANDALONE else AppSettings.MODE_CONNECTED).apply()
             }
         }
+        caption(body, "履歴管理")
+        val savedLimit = SearchHistory.limit(this)
+        var currentLimit = savedLimit
+        var pendingLimit = savedLimit
+        val limitLabel = TextView(this).apply {
+            text = "履歴の保存件数：${HistoryRetention.label(currentLimit)}"
+            textSize = 15f
+            setTextColor(getColor(R.color.text_primary))
+            setPadding(dp(12), dp(8), dp(12), 0)
+        }
+        body.addView(limitLabel)
+        val slider = SeekBar(this).apply {
+            max = HistoryRetention.LAST_PROGRESS
+            progress = HistoryRetention.toProgress(currentLimit)
+            progressTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
+            thumbTintList = progressTintList
+            contentDescription = "履歴の保存件数"
+        }
+        body.addView(slider, LinearLayout.LayoutParams(-1, dp(48)))
+        caption(body, "100件～10000件（100件単位）、右端：無制限")
+        val applyLimit = row(body, "保存件数を適用") {
+            if (pendingLimit != currentLimit) {
+                val requested = pendingLimit
+                val apply = Runnable {
+                    slider.isEnabled = false
+                    SearchHistory.updateLimit(this, requested) { success ->
+                        runOnUiThread {
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            currentLimit = SearchHistory.limit(this)
+                            pendingLimit = currentLimit
+                            slider.progress = HistoryRetention.toProgress(currentLimit)
+                            slider.isEnabled = true
+                            limitLabel.text = "履歴の保存件数：${HistoryRetention.label(currentLimit)}"
+                            Toast.makeText(this, if (success) "保存件数を更新しました" else "保存件数の更新に失敗しました", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                if (HistoryRetention.reduced(currentLimit, requested)) {
+                    ThemedMenu.confirm(this, "履歴の保存件数",
+                        "上限を超える古い履歴は削除されます。お気に入りは削除されません。", "適用", apply)
+                } else apply.run()
+            }
+        }
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                pendingLimit = HistoryRetention.fromProgress(progress)
+                limitLabel.text = "履歴の保存件数：${HistoryRetention.label(pendingLimit)}"
+                applyLimit.isEnabled = pendingLimit != currentLimit
+                applyLimit.alpha = if (applyLimit.isEnabled) 1f else 0.5f
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+        applyLimit.isEnabled = false
+        applyLimit.alpha = 0.5f
         caption(body, "アプリ情報")
         row(body, "このアプリについて") { ThemedMenu.showAbout(this) }
     }

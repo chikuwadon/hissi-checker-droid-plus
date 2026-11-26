@@ -2,6 +2,8 @@ package com.chikuwadon.hissidroidplus
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -15,6 +17,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.BaseAdapter
+import android.widget.EditText
+import android.widget.Button
+import android.widget.CheckBox
+import android.widget.ScrollView
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -22,7 +31,12 @@ import android.widget.Toast
 import kotlin.math.roundToInt
 
 /** Recent visits, independent favorites and explicit destructive actions. */
-class HistoryActivity : Activity() {
+open class HistoryActivity : Activity() {
+    protected open val favoritesScreen = false
+    private var filter = HistoryFilter()
+    private var refreshGeneration = 0
+    private lateinit var searchButton: TextView
+    private var totalCount = 0
     private var tab = 0
     private var sort = 0
     private var selection = false
@@ -58,7 +72,9 @@ class HistoryActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        tab = state?.getInt("navigation_tab") ?: if (intent.getBooleanExtra(MainNavigation.FAVORITES_EXTRA, false)) 1 else 0
+        tab = if (favoritesScreen) 1 else 0
+        filter = HistoryFilter(state?.getString("filter_board").orEmpty(), state?.getString("filter_id").orEmpty(),
+            state?.getString("filter_from").orEmpty(), state?.getString("filter_to").orEmpty(), state?.getBoolean("filter_post_date") ?: false)
         sort = state?.getInt("navigation_sort") ?: 0
         AppSettings.configureBars(this)
         val root = LinearLayout(this).apply {
@@ -96,7 +112,10 @@ class HistoryActivity : Activity() {
         back.visibility = View.GONE
         back.setOnClickListener { navigateBack() }
         TouchFeedback.foreground(back, 10)
-        toolbarTitle = text("検索履歴", 18, getColor(R.color.text_primary))
+        toolbarTitle = text("検索履歴", 16, getColor(R.color.text_primary)).apply {
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+        }
         toolbar.addView(toolbarTitle, LinearLayout.LayoutParams(0, -2, 1f))
         sortLabel = text("新しい順 ▾", 13, getColor(R.color.accent)).apply {
             gravity = Gravity.CENTER
@@ -110,23 +129,23 @@ class HistoryActivity : Activity() {
                 refresh()
             }
         }
-        menuButton = text("⋮", 25, getColor(R.color.text_primary)).apply {
+        searchButton = text("検索", 13, getColor(R.color.accent)).apply {
             gravity = Gravity.CENTER
-            contentDescription = "履歴の操作"
+            contentDescription = "履歴内検索"
         }
-        toolbar.addView(menuButton, LinearLayout.LayoutParams(dp(44), dp(48)))
+        toolbar.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        TouchFeedback.foreground(searchButton, 10)
+        searchButton.setOnClickListener { showHistoryFilter() }
+        menuButton = text("複数選択", 13, getColor(R.color.accent)).apply {
+            gravity = Gravity.CENTER
+            contentDescription = "複数選択"
+        }
+        toolbar.addView(menuButton, LinearLayout.LayoutParams(dp(76), dp(48)))
         TouchFeedback.foreground(menuButton, 10)
         menuButton.setOnClickListener {
-            ThemedMenu.showOverflow(
-                this, menuButton, arrayOf("複数選択", "履歴を全削除")
-            ) { index ->
-                if (index == 0) {
-                    tab = 0
-                    selection = true
-                    chosen.clear()
-                    refresh()
-                } else confirmClear()
-            }
+            selection = !selection
+            chosen.clear()
+            updateSelectionUi()
         }
         val tabs = LinearLayout(this).apply { setPadding(dp(4), 0, dp(4), 0) }
         root.addView(tabs, LinearLayout.LayoutParams(-1, dp(44)))
@@ -153,16 +172,22 @@ class HistoryActivity : Activity() {
             setPadding(dp(9), 0, dp(9), 0)
         }
         root.addView(actions, LinearLayout.LayoutParams(-1, dp(48)))
-        val cancelSelection = text("解除", 13, getColor(R.color.text_primary)).apply {
+        val cancelSelection = text("全選択", 13, getColor(R.color.text_primary)).apply {
             gravity = Gravity.CENTER
         }
         actions.addView(cancelSelection, LinearLayout.LayoutParams(dp(62), dp(46)))
         TouchFeedback.foreground(cancelSelection)
         cancelSelection.setOnClickListener {
-            selection = false
-            chosen.clear()
-            refresh()
+            if (rows.isNotEmpty() && rows.all { it.url in chosen }) chosen.clear()
+            else chosen.addAll(rows.map { it.url })
+            updateSelectionUi()
         }
+        val clearAll = text("全削除", 13, getColor(R.color.text_secondary)).apply {
+            gravity = Gravity.CENTER
+        }
+        actions.addView(clearAll, LinearLayout.LayoutParams(dp(62), dp(46)))
+        TouchFeedback.foreground(clearAll)
+        clearAll.setOnClickListener { confirmClear() }
         selectedActions = text("", 13, getColor(R.color.text_secondary)).apply {
             gravity = Gravity.CENTER
         }
@@ -216,17 +241,14 @@ class HistoryActivity : Activity() {
             if (tab == 0) {
                 ThemedMenu.confirm(
                     this, "履歴の削除", "この履歴を削除しますか？\nお気に入り登録は維持されます。",
-                    "削除", Runnable { SearchHistory.deleteRecent(this, entry.url); refresh() },
+                    "削除", Runnable { changeHistory { SearchHistory.deleteRecent(this, entry.url) } },
                     clearPending
                 )
             } else {
                 ThemedMenu.confirm(
                     this, "お気に入りの解除", "お気に入り登録を解除しますか？",
                     "解除", Runnable {
-                        if (SearchHistory.isFavorite(this, entry.url)) {
-                            SearchHistory.toggleFavorite(this, entry)
-                        }
-                        refresh()
+                        changeHistory { SearchHistory.removeFavorite(this, entry.url) }
                     }, clearPending
                 )
             }
@@ -245,10 +267,11 @@ class HistoryActivity : Activity() {
         ThemedMenu.confirm(this, "選択した履歴の削除",
             "選択した" + chosen.size + "件を削除しますか？\nお気に入りは維持されます。",
             "削除", Runnable {
-                SearchHistory.deleteRecents(this, HashSet(chosen))
+                val selected = HashSet(chosen)
                 chosen.clear()
                 selection = false
-                refresh()
+                updateSelectionUi()
+                changeHistory { SearchHistory.deleteRecents(this, selected) }
             })
     }
 
@@ -256,21 +279,27 @@ class HistoryActivity : Activity() {
         ThemedMenu.confirm(this, "履歴の全削除",
             "通常履歴をすべて削除しますか？\nお気に入りは残ります。",
             "全削除", Runnable {
-                SearchHistory.clearRecents(this)
                 chosen.clear()
                 selection = false
-                refresh()
+                updateSelectionUi()
+                changeHistory { SearchHistory.clearRecents(this) }
             })
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("navigation_tab", tab)
         outState.putInt("navigation_sort", sort)
+        outState.putString("filter_board", filter.board)
+        outState.putString("filter_id", filter.id)
+        outState.putString("filter_from", filter.from)
+        outState.putString("filter_to", filter.to)
+        outState.putBoolean("filter_post_date", filter.byPostDate)
         super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
         super.onResume()
+        MainNavigation.refresh(this)
         if (::list.isInitialized) refresh()
     }
 
@@ -284,15 +313,126 @@ class HistoryActivity : Activity() {
 
     private fun refresh() {
         if (!::list.isInitialized) return
-        val recents = SearchHistory.recents(this)
-        val favorites = SearchHistory.favorites(this)
-        rows.clear()
-        rows.addAll(SearchHistory.sorted(if (tab == 0) recents else favorites, sort))
-        favoriteUrls.clear()
-        for (favorite in favorites) favoriteUrls.add(favorite.url)
-        recentTab.text = getString(R.string.history_recent_count, recents.size)
-        favoriteTab.text = getString(R.string.history_favorite_count, favorites.size)
-        updateSelectionUi()
+        val generation = ++refreshGeneration
+        val requestedTab = tab
+        val requestedSort = sort
+        val requestedFilter = filter
+        SearchHistory.runAsync {
+            try {
+                val recents = SearchHistory.recents(this)
+                val favorites = SearchHistory.favorites(this)
+                val source = if (requestedTab == 0) recents else favorites
+                val filtered = SearchHistory.sorted(source.filter { requestedFilter.matches(it) }, requestedSort)
+                val stars = favorites.mapTo(HashSet()) { it.url }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed || generation != refreshGeneration) return@runOnUiThread
+                    rows.clear()
+                    rows.addAll(filtered)
+                    totalCount = source.size
+                    chosen.retainAll(rows.mapTo(HashSet()) { it.url })
+                    favoriteUrls.clear()
+                    favoriteUrls.addAll(stars)
+                    recentTab.text = getString(R.string.history_recent_count, recents.size)
+                    favoriteTab.text = getString(R.string.history_favorite_count, favorites.size)
+                    updateSelectionUi()
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed && generation == refreshGeneration)
+                        Toast.makeText(this, "履歴の読み込みに失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun changeHistory(action: () -> Unit) {
+        SearchHistory.runAsync {
+            try {
+                action()
+                runOnUiThread { if (!isFinishing && !isDestroyed) refresh() }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed)
+                        Toast.makeText(this, "履歴の更新に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun showHistoryFilter() {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        val boardInput = EditText(this).apply {
+            hint = "板名（部分一致）"
+            setSingleLine(true)
+            setText(filter.board)
+        }
+        val idInput = EditText(this).apply {
+            hint = "ID（部分一致・大文字小文字を区別）"
+            setSingleLine(true)
+            setText(filter.id)
+        }
+        panel.addView(boardInput)
+        panel.addView(idInput)
+        val postDate = CheckBox(this).apply {
+            text = "投稿対象日で検索（OFF：検索した日）"
+            isChecked = filter.byPostDate
+            buttonTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
+        }
+        panel.addView(postDate)
+        var from = filter.from
+        var to = filter.to
+        val format = DateTimeFormatter.BASIC_ISO_DATE
+        fun dateButton(heading: String, value: String, set: (String) -> Unit) {
+            val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            val button = Button(this).apply { text = "$heading：${value.ifEmpty { "指定なし" }}" }
+            line.addView(button, LinearLayout.LayoutParams(0, -2, 1f))
+            val clear = Button(this).apply { text = "解除" }
+            line.addView(clear)
+            var selected = value
+            button.setOnClickListener {
+                val day = try { LocalDate.parse(selected, format) }
+                    catch (_: Exception) { LocalDate.now(ZoneId.of("Asia/Tokyo")) }
+                DatePickerDialog(this, { _, year, month, dayOfMonth ->
+                    selected = LocalDate.of(year, month + 1, dayOfMonth).format(format)
+                    button.text = "$heading：$selected"
+                    set(selected)
+                }, day.year, day.monthValue - 1, day.dayOfMonth).show()
+            }
+            clear.setOnClickListener {
+                selected = ""
+                set("")
+                button.text = "$heading：指定なし"
+            }
+            panel.addView(line)
+        }
+        dateButton("開始日", from) { from = it }
+        dateButton("終了日", to) { to = it }
+        val scroll = ScrollView(this).apply { addView(panel) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("履歴内検索")
+            .setView(scroll)
+            .setNegativeButton("キャンセル", null)
+            .setNeutralButton("条件を解除") { _, _ ->
+                filter = HistoryFilter()
+                chosen.clear()
+                refresh()
+            }
+            .setPositiveButton("検索", null)
+            .create()
+        dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            if (from.isNotEmpty() && to.isNotEmpty() && from > to) {
+                Toast.makeText(this, "開始日は終了日以前にしてください", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            filter = HistoryFilter(boardInput.text.toString().trim(), idInput.text.toString().trim(), from, to, postDate.isChecked)
+            chosen.clear()
+            refresh()
+            dialog.dismiss()
+        }
     }
 
     private fun updateSelectionUi() {
@@ -300,8 +440,13 @@ class HistoryActivity : Activity() {
         favoriteTab.setTextColor(getColor(if (tab == 1) R.color.accent else R.color.text_secondary))
         sortLabel.text = getString(R.string.history_sort_label, sorts[sort])
         sortLabel.visibility = if (selection) View.GONE else View.VISIBLE
-        menuButton.visibility = if (selection || tab == 1) View.GONE else View.VISIBLE
-        toolbarTitle.text = if (selection) "履歴を選択" else if (tab == 0) "検索履歴 (${rows.size})" else "お気に入り (${rows.size})"
+        menuButton.visibility = if (tab == 1) View.GONE else View.VISIBLE
+        menuButton.text = if (selection) "完了" else "複数選択"
+        menuButton.contentDescription = menuButton.text
+        searchButton.visibility = if (selection) View.GONE else View.VISIBLE
+        searchButton.text = if (filter.active()) "検索中" else "検索"
+        val count = if (filter.active()) "${rows.size}/$totalCount" else totalCount.toString()
+        toolbarTitle.text = if (selection) "履歴を選択" else (if (tab == 0) "履歴" else "お気に入り") + " ($count)"
         selectionActions.visibility = if (selection) View.VISIBLE else View.GONE
         selectedActions.text = getString(R.string.history_selected_count, chosen.size)
         deleteSelected.isEnabled = chosen.isNotEmpty()
@@ -390,8 +535,7 @@ class HistoryActivity : Activity() {
                 ))
                 holder.star.contentDescription = if (starred) "お気に入りを解除" else "お気に入りに登録"
                 holder.star.setOnClickListener {
-                    SearchHistory.toggleFavorite(this@HistoryActivity, entry)
-                    refresh()
+                    changeHistory { SearchHistory.toggleFavorite(this@HistoryActivity, entry) }
                 }
             } else holder.star.setOnClickListener(null)
             return holder.root

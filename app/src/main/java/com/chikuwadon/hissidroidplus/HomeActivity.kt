@@ -612,6 +612,7 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        MainNavigation.refresh(this)
         if (!isFinishing && themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
             recreate()
         }

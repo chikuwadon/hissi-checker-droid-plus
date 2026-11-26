@@ -73,7 +73,7 @@ public final class ResultMenuContractTest {
         assertEquals(2,code.split(java.util.regex.Pattern.quote(adjacent),-1).length-1);
         assertTrue(code.contains("which == 0 -> openHome()"));
         assertTrue(code.contains(
-            "which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))"));
+            "which == 1 -> MainNavigation.navigate(this, MainNavigation.Destination.HISTORY)"));
         assertTrue(code.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
         assertTrue(code.contains("AppSettings.setTabAnimations(this, enabled)"));
         assertTrue(code.contains("edge && which == 3 -> openEdgeAnalysis()"));
@@ -88,6 +88,6 @@ public final class ResultMenuContractTest {
             "\"書き込みスレをコピー\", \"表示中のレスをすべてコピー\""));
         assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK or"));
         assertTrue(code.contains(
-            "Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"));
+            "MainNavigation.navigate(this, MainNavigation.Destination.HOME)"));
     }
 }

@@ -16,6 +16,11 @@ abstract class MainSectionActivity : Activity() {
         super.attachBaseContext(AppSettings.themeContext(base))
     }
 
+    override fun onResume() {
+        super.onResume()
+        MainNavigation.refresh(this)
+    }
+
     protected fun dp(n: Int) = MainNavigation.dp(this, n)
 
     protected fun screen(title: String, destination: MainNavigation.Destination): LinearLayout {

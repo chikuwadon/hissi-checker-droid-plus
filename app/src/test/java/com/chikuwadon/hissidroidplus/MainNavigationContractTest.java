@@ -8,15 +8,20 @@ public final class MainNavigationContractTest {
     private static String source(String file) throws Exception {
         return new String(Files.readAllBytes(Paths.get("src/main/java/com/chikuwadon/hissidroidplus/" + file)), StandardCharsets.UTF_8);
     }
-    @Test public void topLevelNavigationDoesNotReduceResultArea() throws Exception {
+    @Test public void resultNavigationRetainsTheLastResultWithinItsTask() throws Exception {
         String nav = source("MainNavigation.kt");
-        for (String name : new String[]{"HOME","ARCHIVE","HISTORY","FAVORITES","SETTINGS"})
+        for (String name : new String[]{"HOME","RESULT","ARCHIVE","HISTORY","FAVORITES","SETTINGS"})
             assertTrue(nav.contains(name));
         assertTrue(source("HomeActivity.kt").contains("MainNavigation.attach"));
         assertTrue(source("HistoryActivity.kt").contains("MainNavigation.attach"));
-        assertFalse(source("ResultActivity.kt").contains("MainNavigation.attach"));
+        assertTrue(source("ResultActivity.kt").contains("MainNavigation.attach"));
+        assertTrue(source("ResultActivity.kt").contains("MainNavigation.registerResult(this)"));
+        assertTrue(source("ResultActivity.kt").contains("MainNavigation.unregisterResult(this)"));
         assertFalse(source("EdgeAnalysisActivity.kt").contains("MainNavigation.attach"));
-        assertTrue(nav.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"));
+        assertTrue(nav.contains("Intent.FLAG_ACTIVITY_REORDER_TO_FRONT"));
+        assertTrue(nav.contains("HashMap<Int, WeakReference<ResultActivity>>()"));
+        assertFalse(nav.contains("FLAG_ACTIVITY_CLEAR_TOP"));
+        assertTrue(nav.contains("if (previous != null && previous !== a) previous.finish()"));
     }
     @Test public void bottomNavigationDoesNotPlayActivityTransitions() throws Exception {
         String nav = source("MainNavigation.kt");

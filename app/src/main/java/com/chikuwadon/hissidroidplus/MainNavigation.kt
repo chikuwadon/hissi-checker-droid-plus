@@ -13,15 +13,39 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
 
 /** Lightweight native navigation; detail activities keep their existing toolbar. */
 object MainNavigation {
     enum class Destination(val label: String) {
-        HOME("ホーム"), ARCHIVE("過去ログ"), HISTORY("履歴"), FAVORITES("お気に入り"), SETTINGS("設定")
+        HOME("ホーム"), RESULT("結果"), ARCHIVE("過去ログ"), HISTORY("履歴"), FAVORITES("お気に入り"), SETTINGS("設定")
     }
 
-    const val FAVORITES_EXTRA = "navigation_favorites"
+    private const val RESULT_TAG = "main_navigation_result"
+    private val results = HashMap<Int, WeakReference<ResultActivity>>()
+
+    private fun result(a: Activity): ResultActivity? {
+        val current = results[a.taskId]?.get()
+        return current?.takeUnless { it.isFinishing || it.isDestroyed }
+    }
+
+    fun registerResult(a: ResultActivity) {
+        val previous = result(a)
+        results[a.taskId] = WeakReference(a)
+        if (previous != null && previous !== a) previous.finish()
+    }
+
+    fun unregisterResult(a: ResultActivity) {
+        if (results[a.taskId]?.get() === a) results.remove(a.taskId)
+    }
+
+    fun refresh(a: Activity) {
+        val item = a.window.decorView.findViewWithTag<TextView>(RESULT_TAG) ?: return
+        val available = result(a) != null
+        item.isEnabled = available
+        item.alpha = if (available) 1f else 0.4f
+    }
 
     fun dp(a: Activity, value: Int): Int =
         (a.resources.displayMetrics.density * value).roundToInt()
@@ -44,6 +68,7 @@ object MainNavigation {
                 setTextColor(color)
                 isSingleLine = true
                 isSelected = active
+                if (destination == Destination.RESULT) tag = RESULT_TAG
                 contentDescription = destination.label
                 setPadding(0, dp(a, 6), 0, dp(a, 5))
                 val symbol = NavIcon(destination, color)
@@ -56,25 +81,27 @@ object MainNavigation {
             bar.addView(item, LinearLayout.LayoutParams(0, -1, 1f))
         }
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(a, 60)))
+        refresh(a)
     }
 
     @Suppress("DEPRECATION")
-    private fun navigate(a: Activity, destination: Destination) {
+    fun navigate(a: Activity, destination: Destination) {
         if (a.isFinishing || a.isDestroyed) return
         val intent = when (destination) {
             Destination.HOME -> Intent(a, HomeActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            Destination.RESULT -> {
+                if (result(a) == null) return
+                Intent(a, ResultActivity::class.java)
+            }
             Destination.ARCHIVE -> Intent(a, ArchiveActivity::class.java)
             Destination.HISTORY -> Intent(a, HistoryActivity::class.java)
-            Destination.FAVORITES -> Intent(a, HistoryActivity::class.java)
-                .putExtra(FAVORITES_EXTRA, true)
+            Destination.FAVORITES -> Intent(a, FavoritesActivity::class.java)
             Destination.SETTINGS -> Intent(a, SettingsActivity::class.java)
         }
         // Bottom destinations are peers, not a push/pop detail stack.
         // Suppress the window slide/scale for this explicit navigation only.
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         a.startActivity(intent, ActivityOptions.makeCustomAnimation(a, 0, 0).toBundle())
-        if (a !is HomeActivity) a.finish()
         a.overridePendingTransition(0, 0)
     }
 
@@ -102,6 +129,12 @@ object MainNavigation {
                 Destination.HOME -> {
                     path(3f, 11f, 12f, 3f, 21f, 11f)
                     path(5f, 10f, 5f, 21f, 10f, 21f, 10f, 15f, 14f, 15f, 14f, 21f, 19f, 21f, 19f, 10f)
+                }
+                Destination.RESULT -> {
+                    path(5f, 3f, 19f, 3f, 19f, 21f, 5f, 21f, 5f, 3f)
+                    line(8f, 8f, 16f, 8f)
+                    line(8f, 12f, 16f, 12f)
+                    line(8f, 16f, 13f, 16f)
                 }
                 Destination.ARCHIVE -> {
                     canvas.drawCircle(10f, 10f, 6.5f, paint)

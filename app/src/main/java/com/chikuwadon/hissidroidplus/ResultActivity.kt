@@ -209,7 +209,7 @@ class ResultActivity : Activity() {
                 if (which < 0 || which >= labels.size) return@showOverflowToggle
                 when {
                     which == 0 -> openHome()
-                    which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))
+                    which == 1 -> MainNavigation.navigate(this, MainNavigation.Destination.HISTORY)
                     edge && which == 3 -> openEdgeAnalysis()
                     else -> when (which - if (edge) 4 else 3) {
                         0 -> openExternalBrowser(resultUrl())
@@ -243,6 +243,8 @@ class ResultActivity : Activity() {
             return
         }
         val initial = query ?: return
+        MainNavigation.registerResult(this)
+        MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
         inboundEdgeSearch = initial.site == CheckerQuery.Site.EDGE && initial.url.isEmpty()
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
             "エッヂ / 取得中…" else "5ch / 取得中…"
@@ -405,14 +407,9 @@ class ResultActivity : Activity() {
     private fun launchedExternally(): Boolean =
         intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW
 
-    /** Open our own home task even when this result was launched from ChMate. */
+    /** Retain this result when navigating to the home screen. */
     private fun openHome() {
-        val home = Intent(this, HomeActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        startActivity(home)
-        finish()
+        MainNavigation.navigate(this, MainNavigation.Destination.HOME)
     }
 
     private fun exitResults() {
@@ -1161,7 +1158,13 @@ class ResultActivity : Activity() {
         copy(builder.toString(), false)
     }
 
+    override fun onResume() {
+        super.onResume()
+        MainNavigation.refresh(this)
+    }
+
     override fun onDestroy() {
+        MainNavigation.unregisterResult(this)
         if (::swipeContainer.isInitialized) swipeContainer.callback = null
         clearTabPreview(previewCompletion)
         worker.shutdownNow()
