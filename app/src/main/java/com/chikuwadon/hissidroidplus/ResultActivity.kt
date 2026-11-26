@@ -82,6 +82,7 @@ class ResultActivity : CheckerActivity() {
     private var result = CheckerResult()
     private var threadRows: List<PostIndex.ThreadRow> = emptyList()
     private var postKeys: List<String> = emptyList()
+    private var chartDated: Int? = null
     private var nameCounts: Map<String, Int> = emptyMap()
     private val headerCache = android.util.LruCache<CheckerResult.Post, String>(128)
     private val leadingPostNumber = Pattern.compile("^\\d+")
@@ -457,10 +458,14 @@ class ResultActivity : CheckerActivity() {
         block.visibility = View.VISIBLE
         findViewById<View>(R.id.edge_analysis_link).visibility =
             if (query?.site == CheckerQuery.Site.EDGE) View.VISIBLE else View.GONE
-        var dated = chart.setPosts(result.posts)
-        result.hourlyCounts?.let {
-            chart.setCounts(it)
-            dated = 1
+        val dated = chartDated ?: run {
+            val counts = result.hourlyCounts
+            val computed = if (counts != null) {
+                chart.setCounts(counts)
+                1
+            } else chart.setPosts(result.posts)
+            chartDated = computed
+            computed
         }
         val label = StringBuilder()
         if (result.rank.isNotEmpty()) label.append(result.rank).append("  ·  ")
@@ -845,6 +850,7 @@ class ResultActivity : CheckerActivity() {
         result.names.clear()
         result.names.addAll(index.names)
         headerCache.evictAll()
+        chartDated = null
     }
 
     private fun applySystemInsets() {

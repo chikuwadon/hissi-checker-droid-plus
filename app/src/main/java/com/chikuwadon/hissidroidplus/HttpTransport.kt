@@ -135,14 +135,12 @@ object HttpTransport {
                     HttpResponseReader.read(input, LIMIT, connection.contentLengthLong)
                 }
                 var chosen = charset
-                if (contentType != null) {
-                    val match = CHARSET.matcher(contentType)
-                    if (match.find()) {
-                        try { chosen = Charset.forName(match.group(1)) }
-                        catch (_: Exception) { /* fall back to caller's encoding */ }
-                    }
-                }
-                if (contentType == null || !CHARSET.matcher(contentType).find()) {
+                val headerCharset = contentType?.let { CHARSET.matcher(it) }
+                val hasHeaderCharset = headerCharset?.find() == true
+                if (hasHeaderCharset) {
+                    try { chosen = Charset.forName(headerCharset!!.group(1)) }
+                    catch (_: Exception) { /* fall back to caller's encoding */ }
+                } else {
                     val head = String(
                         data, 0, data.size.coerceAtMost(3072), StandardCharsets.ISO_8859_1
                     )

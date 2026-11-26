@@ -59,9 +59,10 @@ object ArchiveProviderParser {
     @JvmStatic
     fun nuko(html: String, page: Int): ArchivePage {
         val doc = Jsoup.parse(html, "https://n2ch.net/q/-/")
-        val total = nukoCount.find(doc.text())?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
+        val plain = doc.text()
+        val total = nukoCount.find(plain)?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
             ?: throw IOException("ぬこの検索結果件数を確認できませんでした")
-        val range = nukoRange.find(doc.text())
+        val range = nukoRange.find(plain)
         if (total > 0 && range?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull() != (page.toLong() - 1) * 20 + 1) {
             throw IOException("指定ページと取得ページが一致しません")
         }
