@@ -28,6 +28,7 @@ import java.util.concurrent.Executors
 class ArchiveScreenState : ViewModel() {
     var provider = ArchiveProvider.EDGE_ARCHIVE
     var draft = ArchiveQuery("")
+    val drafts = mutableMapOf<ArchiveProvider, ArchiveQuery>()
     var submitted: ArchiveQuery? = null
     var result: ArchivePage? = null
     var message = ""
@@ -88,12 +89,16 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         provider.setOnClickListener {
             if (loading) return@setOnClickListener
             val providers = ArchiveProvider.entries
-            val labels = providers.map { it.label + if (it.nativeSearch) "" else "（外部ブラウザのみ）" }.toTypedArray()
+            val labels = providers.map { it.label + if (it.nativeSearch) "" else "（ブラウザ検索）" }.toTypedArray()
             ThemedMenu.choose(host, "検索サービス", labels, providers.indexOf(state.provider)) { index ->
                 val selected = providers.getOrNull(index) ?: return@choose
                 if (selected != state.provider) {
                     saveKeyword()
+                    state.drafts[state.provider] = state.draft
+                    val previousKeyword = state.draft.keyword
                     state.provider = selected
+                    state.draft = state.drafts[selected] ?: ArchiveQuery(previousKeyword)
+                    keyword.setText(state.draft.keyword)
                     state.pages.clear()
                     state.submitted = null
                     state.result = null
@@ -117,7 +122,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         line.addView(keyword, LinearLayout.LayoutParams(0, dp(44), 1f))
         search = ThemedMenu.formButton(host, "検索")
-        line.addView(search, LinearLayout.LayoutParams(dp(72), dp(44)).apply { marginStart = dp(6) })
+        line.addView(search, LinearLayout.LayoutParams(dp(104), dp(44)).apply { marginStart = dp(6) })
         search.setOnClickListener { startSearch() }
         val links = LinearLayout(host)
         controls.addView(links, LinearLayout.LayoutParams(-1, dp(42)))
@@ -128,8 +133,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         options.setOnClickListener { showOptions() }
         browser.setOnClickListener {
             saveKeyword()
-            val target = if (state.provider.nativeSearch && state.draft.keyword.isNotBlank()) {
-                try { ArchiveRepository.url(state.draft, 1) } catch (_: Exception) { state.provider.url }
+            val target = if (state.draft.keyword.isNotBlank()) {
+                try { ArchiveExternalSearch.url(state.provider, state.draft) }
+                catch (error: Exception) {
+                    message.text = error.message ?: "検索条件が不正です"
+                    return@setOnClickListener
+                }
             } else state.provider.url
             if (state.provider.nativeSearch && state.draft.maximum.isNotEmpty()) {
                 android.widget.Toast.makeText(host, "レス数の上限はアプリ内表示にのみ適用されます", android.widget.Toast.LENGTH_SHORT).show()
@@ -249,8 +258,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showOptions() {
-        if (loading || disposed || !state.provider.nativeSearch) return
+        if (loading || disposed) return
         saveKeyword()
+        if (!state.provider.nativeSearch) {
+            showExternalOptions()
+            return
+        }
         if (state.form != null && state.form?.fuzzyValue != null) {
             showOptionsDialog()
             return
@@ -267,6 +280,77 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 loaded.onSuccess { state.form = it }
                 refresh()
                 if (options.isShown && host.hasWindowFocus()) showOptionsDialog()
+            }
+        }
+    }
+
+    private fun showExternalOptions() {
+        val panel = ThemedMenu.formPanel(host)
+        panel.addView(ThemedMenu.formTitle(host, "詳細条件"))
+        val nuko = state.provider == ArchiveProvider.FIVECH_NUKO
+        var draft = state.draft
+        var excluded: EditText? = null
+        var exact: CheckBox? = null
+        var external: CheckBox? = null
+        fun check(label: String, selected: Boolean): CheckBox = CheckBox(host).apply {
+            text = label
+            textSize = 14f
+            setTextColor(host.getColor(R.color.text_primary))
+            buttonTintList = ColorStateList.valueOf(host.getColor(R.color.accent))
+            isChecked = selected
+            minimumHeight = dp(44)
+            panel.addView(this, LinearLayout.LayoutParams(-1, -2))
+        }
+        if (nuko) {
+            panel.addView(ThemedMenu.formLabel(host, "過去ログ検索：ON"))
+            exact = check("完全一致", draft.exact)
+            external = check("外部板も検索", draft.externalBoards)
+        } else {
+            panel.addView(ThemedMenu.formLabel(host, "除外ワード（空白区切り）"))
+            excluded = ThemedMenu.formInput(host, draft.exclude)
+            panel.addView(excluded, LinearLayout.LayoutParams(-1, dp(44)))
+            fun day(label: String, start: Boolean) {
+                panel.addView(ThemedMenu.formLabel(host, label))
+                val row = LinearLayout(host)
+                val pick = ThemedMenu.formButton(host, (if (start) draft.from else draft.to).ifEmpty { "指定なし" })
+                val clear = ThemedMenu.formAction(host, "解除")
+                row.addView(pick, LinearLayout.LayoutParams(0, dp(44), 1f))
+                row.addView(clear, LinearLayout.LayoutParams(dp(64), dp(44)))
+                panel.addView(row)
+                fun set(value: String) {
+                    draft = if (start) draft.copy(from = value) else draft.copy(to = value)
+                    pick.text = value.ifEmpty { "指定なし" }
+                }
+                pick.setOnClickListener {
+                    val value = if (start) draft.from else draft.to
+                    CalendarDialog.show(host, value.takeIf { it.isNotEmpty() }?.let { LocalDate.parse(it) } ?: LocalDate.now()) {
+                        set(it.toString())
+                    }
+                }
+                clear.setOnClickListener { set("") }
+            }
+            day("開始日", true)
+            day("終了日", false)
+            panel.addView(ThemedMenu.formLabel(host, "複数の検索ワードは空白区切りでAND検索"))
+        }
+        val buttons = LinearLayout(host)
+        val cancel = ThemedMenu.formAction(host, "キャンセル")
+        val apply = ThemedMenu.formAction(host, "適用")
+        buttons.addView(cancel, LinearLayout.LayoutParams(0, dp(46), 1f))
+        buttons.addView(apply, LinearLayout.LayoutParams(0, dp(46), 1f))
+        panel.addView(buttons)
+        val dialog = ThemedMenu.showForm(host, panel)
+        cancel.setOnClickListener { dialog.dismiss() }
+        apply.setOnClickListener {
+            val updated = draft.copy(exclude = excluded?.text?.toString() ?: "",
+                exact = exact?.isChecked ?: false, externalBoards = external?.isChecked ?: false)
+            try {
+                updated.copy(keyword = updated.keyword.ifBlank { "x" }).validate()
+                state.draft = updated
+                dialog.dismiss()
+                refresh()
+            } catch (error: Exception) {
+                Toast.makeText(host, error.message ?: "条件が不正です", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -379,7 +463,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun startSearch() {
-        if (loading || !state.provider.nativeSearch) return
+        if (loading || disposed) return
         saveKeyword()
         val query = state.draft
         try { query.validate() } catch (error: Exception) {
@@ -388,7 +472,11 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(keyword.windowToken, 0)
         keyword.clearFocus()
-        load(query, 1, fresh = true)
+        if (state.provider.nativeSearch) {
+            load(query, 1, fresh = true)
+        } else {
+            BrowserLauncher.open(host, ArchiveExternalSearch.url(state.provider, query))
+        }
     }
 
     private fun load(query: ArchiveQuery, page: Int, fresh: Boolean = false) {
@@ -425,15 +513,16 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val native = state.provider.nativeSearch
         provider.text = state.provider.label + " ▾"
         provider.isEnabled = !loading
-        keyword.isEnabled = native && !loading
-        search.isEnabled = native && !loading
-        options.isEnabled = native && !loading
+        keyword.isEnabled = !loading
+        search.isEnabled = !loading
+        search.text = if (native) "検索" else "ブラウザ検索"
+        options.isEnabled = !loading
         search.alpha = if (search.isEnabled) 1f else 0.45f
         options.alpha = if (options.isEnabled) 1f else 0.45f
         val page = state.result
         message.text = when {
             loading -> "検索中…"
-            !native -> "このサービスのアプリ内検索は未対応です。外部ブラウザをご利用ください。"
+            !native -> "検索条件を入力するとブラウザで結果を開きます（アプリ内結果表示は未対応）"
             state.message.isNotEmpty() -> state.message
             page != null -> {
                 val submitted = state.submitted
@@ -481,7 +570,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
             val entry = getItem(position)
             (row.getChildAt(0) as TextView).text = entry.title
-            (row.getChildAt(1) as TextView).text = "レス: ${entry.replies}" + if (entry.date.isEmpty()) "" else "　" + entry.date
+            (row.getChildAt(1) as TextView).text = ArchiveExternalSearch.metadata(entry)
             return row
         }
     }

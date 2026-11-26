@@ -10,9 +10,9 @@ import java.time.LocalDate
 /** Archive providers share a request/result model; native support is enabled individually. */
 enum class ArchiveProvider(val label: String, val url: String, val nativeSearch: Boolean) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/", true),
-    EDGE_KYODEMO("エッヂ / Kyodemo", "https://www.kyodemo.net/sdemo/", false),
-    FIVECH_KYODEMO("5ch / Kyodemo", "https://www.kyodemo.net/sdemo/", false),
-    FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/?guid=ON", false)
+    EDGE_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", false),
+    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/s?bs=&kt=5_&fr=&to=&k=", false),
+    FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/q/-/?kako=1&guid=ON", false)
 }
 
 data class ArchiveQuery @JvmOverloads constructor(
@@ -23,7 +23,9 @@ data class ArchiveQuery @JvmOverloads constructor(
     val to: String = "",
     val maximum: String = "",
     val sort: String = "new",
-    val fuzzy: String = ""
+    val fuzzy: String = "",
+    val exact: Boolean = false,
+    val externalBoards: Boolean = false
 ) {
     fun validate() {
         require(keyword.isNotBlank() && keyword.length <= 200) { "スレタイを1～200文字で入力してください" }
