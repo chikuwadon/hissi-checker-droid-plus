@@ -198,6 +198,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         links.addView(browser, LinearLayout.LayoutParams(0, -1, 1f))
         options.setOnClickListener { showOptions() }
         browser.setOnClickListener {
+            if (loading || disposed) return@setOnClickListener
             saveKeyword()
             if (state.provider == ArchiveProvider.FIVECH_KYODEMO && state.draft.boardCode.isEmpty()) {
                 showBoards()
@@ -839,6 +840,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         keyword.isEnabled = !loading
         search.isEnabled = !loading
         options.isEnabled = !loading
+        browser.isEnabled = !loading
+        browser.alpha = if (browser.isEnabled) 1f else 0.45f
         search.alpha = if (search.isEnabled) 1f else 0.45f
         options.alpha = if (options.isEnabled) 1f else 0.45f
         val page = state.result

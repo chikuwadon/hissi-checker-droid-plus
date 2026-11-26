@@ -82,7 +82,8 @@ internal class HistoryContent(
     private var filter: HistoryFilter
         get() = screenState.filter
         set(value) { screenState.filter = value }
-    private var refreshGeneration = 0
+    @Volatile private var refreshGeneration = 0
+    private var refreshing = false
     private lateinit var searchButton: ImageButton
     private var totalCount = 0
     private var tab = 0
@@ -200,6 +201,7 @@ internal class HistoryContent(
         actions.addView(cancelSelection, LinearLayout.LayoutParams(dp(62), dp(46)))
         TouchFeedback.foreground(cancelSelection)
         cancelSelection.setOnClickListener {
+            if (refreshing) return@setOnClickListener
             if (rows.isNotEmpty() && rows.all { it.url in chosen }) chosen.clear()
             else chosen.addAll(rows.map { it.url })
             updateSelectionUi()
@@ -241,7 +243,7 @@ internal class HistoryContent(
             FrameLayout.LayoutParams(dp(12), -1, Gravity.RIGHT))
         root.addView(listFrame, LinearLayout.LayoutParams(-1, 0, 1f))
         list.setOnItemClickListener { _, _, position, _ ->
-            if (position !in rows.indices) return@setOnItemClickListener
+            if (refreshing || position !in rows.indices) return@setOnItemClickListener
             val entry = rows[position]
             if (selection) {
                 toggleSelection(entry.url)
@@ -258,7 +260,7 @@ internal class HistoryContent(
                     if (favoritesScreen) MainNavigation.Destination.FAVORITES.name else MainNavigation.Destination.HISTORY.name))
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
-            if (position !in rows.indices) return@setOnItemLongClickListener true
+            if (refreshing || position !in rows.indices) return@setOnItemLongClickListener true
             val entry = rows[position]
             if (selection) {
                 toggleSelection(entry.url)
@@ -297,7 +299,7 @@ internal class HistoryContent(
     }
 
     private fun confirmSelected() {
-        if (chosen.isEmpty()) return
+        if (refreshing || chosen.isEmpty()) return
         val selected = HashSet(chosen)
         val favorite = favoritesScreen
         ThemedMenu.confirm(host, if (favorite) "選択したお気に入りの解除" else "選択した履歴の削除",
@@ -315,6 +317,7 @@ internal class HistoryContent(
     }
 
     private fun confirmClear() {
+        if (refreshing) return
         val favorite = favoritesScreen
         ThemedMenu.confirm(host, if (favorite) "お気に入りの全解除" else "履歴の全削除",
             if (favorite) "お気に入りをすべて解除しますか？\n通常履歴は残ります。"
@@ -365,14 +368,19 @@ internal class HistoryContent(
     private fun refresh() {
         if (disposed || !::list.isInitialized) return
         val generation = ++refreshGeneration
+        refreshing = true
+        updateSelectionUi()
         val requestedTab = tab
         val requestedSort = sort
         val requestedFilter = filter
         SearchHistory.runAsync {
+            // Superseded requests need not queue another full database scan.
+            if (generation != refreshGeneration) return@runAsync
             try {
                 val snapshot = SearchHistory.screenSnapshot(host, requestedTab != 0, requestedFilter, requestedSort)
                 runOnUiThread {
                     if (isFinishing || isDestroyed || generation != refreshGeneration) return@runOnUiThread
+                    refreshing = false
                     rows.clear()
                     rows.addAll(snapshot.rows)
                     totalCount = snapshot.totalCount
@@ -389,8 +397,16 @@ internal class HistoryContent(
                 }
             } catch (_: Exception) {
                 runOnUiThread {
-                    if (!isFinishing && !isDestroyed && generation == refreshGeneration)
+                    if (!isFinishing && !isDestroyed && generation == refreshGeneration) {
+                        refreshing = false
+                        // Do not expose stale rows under newly selected filter conditions.
+                        rows.clear()
+                        chosen.clear()
+                        favoriteUrls.clear()
+                        totalCount = 0
+                        updateSelectionUi()
                         Toast.makeText(host, "履歴の読み込みに失敗しました", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -398,6 +414,7 @@ internal class HistoryContent(
 
     private fun changeFavorite(entry: SearchHistory.Entry) {
         if (favoritesScreen || selection || pendingFavorites.containsKey(entry.url)) return
+        if (refreshing) return
         val desired = !favoriteUrls.contains(entry.url)
         pendingFavorites[entry.url] = desired
         adapter.notifyDataSetChanged()
@@ -533,8 +550,8 @@ internal class HistoryContent(
         toolbarTitle.text = if (selection) (if (favoritesScreen) "お気に入りを選択" else "履歴を選択") else (if (tab == 0) "履歴" else "お気に入り") + " ($count)"
         selectionActions.visibility = if (selection) View.VISIBLE else View.GONE
         selectedActions.text = getString(R.string.history_selected_count, chosen.size)
-        deleteSelected.isEnabled = chosen.isNotEmpty()
-        deleteSelected.alpha = if (chosen.isEmpty()) 0.45f else 1f
+        deleteSelected.isEnabled = !refreshing && chosen.isNotEmpty()
+        deleteSelected.alpha = if (deleteSelected.isEnabled) 1f else 0.45f
         adapter.notifyDataSetChanged()
     }
 
@@ -618,7 +635,7 @@ internal class HistoryContent(
                 holder.star.isClickable = true
                 holder.star.isFocusable = false
                 holder.star.isFocusableInTouchMode = false
-                holder.star.isEnabled = !pendingFavorites.containsKey(entry.url)
+                holder.star.isEnabled = !refreshing && !pendingFavorites.containsKey(entry.url)
             } else {
                 holder.star.setOnClickListener(null)
                 holder.star.isClickable = false

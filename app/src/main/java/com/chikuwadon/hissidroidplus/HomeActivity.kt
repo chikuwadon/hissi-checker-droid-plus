@@ -244,6 +244,12 @@ class HomeActivity : CheckerActivity() {
         }
         // A hidden navigation item remains accessible via an explicit result menu or Back.
         val target = destination
+        if (target != activeDestination) {
+            // Clear the outgoing editor before hiding its fragment, including Archive -> Home.
+            currentFocus?.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(homeContent.windowToken, 0)
+        }
         pendingDestination = null
         val manager = supportFragmentManager
         val transaction = manager.beginTransaction().setReorderingAllowed(true)
@@ -271,11 +277,6 @@ class HomeActivity : CheckerActivity() {
         sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
         MainNavigation.setSelected(this, target)
         androidx.core.view.ViewCompat.requestApplyInsets(findViewById(android.R.id.content))
-        if (target != MainNavigation.Destination.HOME) {
-            currentFocus?.clearFocus()
-            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
-                .hideSoftInputFromWindow(homeContent.windowToken, 0)
-        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
