@@ -61,6 +61,32 @@ public final class SecurityAndPerformanceContractTest {
         assertTrue(history.contains("val favorites = SearchHistory.favorites(this)"));
         assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
     }
+    @Test public void postReadsRequestHeadersBeforeConnecting() throws Exception {
+        String transport = code("HttpTransport.kt");
+        int headerRead = transport.indexOf("val hadCookie = connection.getRequestProperty");
+        int output = transport.indexOf("connection.outputStream.use");
+        assertTrue(headerRead >= 0 && output > headerRead);
+        assertEquals(1, transport.split("getRequestProperty", -1).length - 1);
+    }
+    @Test public void historySelectionDoesNotReloadOrSortStoredHistory() throws Exception {
+        String history = code("HistoryActivity.kt");
+        int start = history.indexOf("private fun toggleSelection");
+        int end = history.indexOf("private fun confirmSelected", start);
+        assertTrue(start >= 0 && end > start);
+        String toggle = history.substring(start, end);
+        assertTrue(toggle.contains("updateSelectionUi()"));
+        assertFalse(toggle.contains("refresh()"));
+        assertFalse(history.contains("holder.root.background = RippleDrawable("));
+    }
+    @Test public void multitouchDoesNotTriggerResultTapOrLongPress() throws Exception {
+        String selectable = code("SelectableResultTextView.kt");
+        int start = selectable.indexOf("MotionEvent.ACTION_POINTER_DOWN ->");
+        int end = selectable.indexOf("MotionEvent.ACTION_UP ->", start);
+        assertTrue(start >= 0 && end > start);
+        String pointer = selectable.substring(start, end);
+        assertTrue(pointer.contains("moved = true"));
+        assertTrue(pointer.contains("clearPending()"));
+    }
     @Test public void analysisHtmlParsingUsesWorkerAndDropsStaleResponses() throws Exception {
         String source=code("EdgeAnalysisActivity.kt");
         assertTrue(source.contains("parserWorker.execute {"));
