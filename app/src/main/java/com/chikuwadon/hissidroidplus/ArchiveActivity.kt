@@ -8,6 +8,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
+import android.widget.CheckBox
+import android.content.res.ColorStateList
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -24,6 +26,7 @@ class ArchiveScreenState : ViewModel() {
     var submitted: ArchiveQuery? = null
     var result: ArchivePage? = null
     var message = ""
+    var form: ArchiveFormOptions? = null
 }
 
 class ArchiveActivity : MainSectionActivity() {
@@ -120,6 +123,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             val target = if (state.provider.nativeSearch && state.draft.keyword.isNotBlank()) {
                 try { ArchiveRepository.url(state.draft, 1) } catch (_: Exception) { state.provider.url }
             } else state.provider.url
+            if (state.provider.nativeSearch && state.draft.maximum.isNotEmpty()) {
+                android.widget.Toast.makeText(host, "レス数の上限はアプリ内表示にのみ適用されます", android.widget.Toast.LENGTH_SHORT).show()
+            }
             BrowserLauncher.open(host, target)
         }
         message = TextView(host).apply {
@@ -154,20 +160,90 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showOptions() {
-        if (loading || !state.provider.nativeSearch) return
+        if (loading || disposed || !state.provider.nativeSearch) return
         saveKeyword()
+        if (state.form != null && state.form?.fuzzyValue != null) {
+            showOptionsDialog()
+            return
+        }
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "サイトの検索条件を取得中…"
+        worker.execute {
+            val loaded = runCatching { ArchiveRepository.fetchForm() }
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                loaded.onSuccess { state.form = it }
+                refresh()
+                if (options.isShown && host.hasWindowFocus()) showOptionsDialog()
+            }
+        }
+    }
+
+    private fun showOptionsDialog() {
+        if (disposed || !state.provider.nativeSearch) return
         val panel = ThemedMenu.formPanel(host)
         panel.addView(ThemedMenu.formTitle(host, "詳細条件"))
         val scroll = ScrollView(host)
         val fields = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(fields)
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, -2))
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, minOf(dp(440), (host.resources.displayMetrics.heightPixels * 0.55f).toInt())))
         fun field(label: String, value: String): EditText {
             fields.addView(ThemedMenu.formLabel(host, label))
             return ThemedMenu.formInput(host, value).also { fields.addView(it, LinearLayout.LayoutParams(-1, dp(44))) }
         }
         val excluded = field("スレタイ除外ワード", state.draft.exclude)
-        val min = field("最低レス数", state.draft.minimum).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER }
+        fields.addView(ThemedMenu.formLabel(host, "レス数範囲"))
+        val range = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
+        val min = ThemedMenu.formInput(host, state.draft.minimum).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            hint = "以上"
+            setHintTextColor(host.getColor(R.color.text_secondary))
+        }
+        val max = ThemedMenu.formInput(host, state.draft.maximum).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            hint = "以下"
+            setHintTextColor(host.getColor(R.color.text_secondary))
+        }
+        range.addView(min, LinearLayout.LayoutParams(0, dp(44), 1f))
+        range.addView(ThemedMenu.formLabel(host, "～"), LinearLayout.LayoutParams(dp(28), -2))
+        range.addView(max, LinearLayout.LayoutParams(0, dp(44), 1f))
+        fields.addView(range)
+        fields.addView(ThemedMenu.formLabel(host, "上限は取得ページごとに絞り込みます"))
+        val form = state.form
+        val choices = form?.sorts.orEmpty()
+        var sort = state.draft.sort
+        fields.addView(ThemedMenu.formLabel(host, "ソート"))
+        val sortButton = ThemedMenu.formButton(host,
+            (choices.firstOrNull { it.value == sort }?.label ?: "新しい順") + " ▾")
+        sortButton.isEnabled = choices.isNotEmpty()
+        sortButton.alpha = if (sortButton.isEnabled) 1f else 0.5f
+        fields.addView(sortButton, LinearLayout.LayoutParams(-1, dp(44)))
+        sortButton.setOnClickListener {
+            ThemedMenu.choose(host, "ソート", choices.map { it.label }.toTypedArray(),
+                choices.indexOfFirst { it.value == sort }) { index ->
+                choices.getOrNull(index)?.let { choice ->
+                    sort = choice.value
+                    sortButton.text = choice.label + " ▾"
+                }
+            }
+        }
+        val fuzzy = CheckBox(host).apply {
+            text = "半角全角あいまい検索"
+            textSize = 14f
+            setTextColor(host.getColor(R.color.text_primary))
+            buttonTintList = ColorStateList.valueOf(host.getColor(R.color.accent))
+            isChecked = state.draft.fuzzy.isNotEmpty()
+            isEnabled = form?.fuzzyValue != null
+            alpha = if (isEnabled) 1f else 0.5f
+            minimumHeight = dp(44)
+        }
+        fields.addView(fuzzy, LinearLayout.LayoutParams(-1, -2))
+        if (form == null || form.fuzzyValue == null) {
+            fields.addView(ThemedMenu.formLabel(host, "一部のサイト検索条件を取得できませんでした。詳細条件を開き直して再確認してください。"))
+        }
         var from = state.draft.from
         var to = state.draft.to
         fun dateRow(label: String, initial: String, change: (String) -> Unit) {
@@ -199,7 +275,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val dialog = ThemedMenu.showForm(host, panel)
         cancel.setOnClickListener { dialog.dismiss() }
         apply.setOnClickListener {
-            val updated = state.draft.copy(exclude = excluded.text.toString(), minimum = min.text.toString(), from = from, to = to)
+            val updated = state.draft.copy(exclude = excluded.text.toString(), minimum = min.text.toString(),
+                maximum = max.text.toString(), from = from, to = to, sort = sort,
+                fuzzy = if (fuzzy.isChecked) form?.fuzzyValue ?: state.draft.fuzzy else "")
             try {
                 updated.copy(keyword = updated.keyword.ifBlank { "x" }).validate()
                 state.draft = updated
@@ -237,6 +315,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 loading = false
                 outcome.onSuccess {
                     state.result = it
+                    it.form?.let { current -> state.form = current }
                     state.submitted = query
                     state.message = ""
                     adapter.notifyDataSetChanged()
@@ -263,8 +342,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             loading -> "検索中…"
             !native -> "このサービスのアプリ内検索は未対応です。外部ブラウザをご利用ください。"
             state.message.isNotEmpty() -> state.message
-            page != null -> "検索結果：${page.total}件　${page.page}ページ" + if (page.total == 0L) "（該当なし）" else ""
-            else -> "スレタイを入力して検索してください（新しい順）"
+            page != null -> {
+                val submitted = state.submitted
+                if (!submitted?.maximum.isNullOrEmpty()) {
+                    "サイト検索：${page.total}件　${page.page}ページ / 範囲内：${page.items.size}件"
+                } else {
+                    "検索結果：${page.total}件　${page.page}ページ" + if (page.total == 0L) "（該当なし）" else ""
+                }
+            }
+            else -> "スレタイを入力して検索してください"
         }
         previous.isEnabled = !loading && native && page != null && page.page > 1
         next.isEnabled = !loading && native && page?.hasNext == true

@@ -15,17 +15,26 @@ enum class ArchiveProvider(val label: String, val url: String, val nativeSearch:
     FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/?guid=ON", false)
 }
 
-data class ArchiveQuery(
+data class ArchiveQuery @JvmOverloads constructor(
     val keyword: String,
     val exclude: String = "",
     val minimum: String = "",
     val from: String = "",
-    val to: String = ""
+    val to: String = "",
+    val maximum: String = "",
+    val sort: String = "new",
+    val fuzzy: String = ""
 ) {
     fun validate() {
         require(keyword.isNotBlank() && keyword.length <= 200) { "スレタイを1～200文字で入力してください" }
         require(exclude.length <= 200) { "除外ワードは200文字以内で入力してください" }
         require(minimum.isEmpty() || (minimum.toIntOrNull() ?: -1) in 0..1000000) { "レス数が不正です" }
+        require(maximum.isEmpty() || (maximum.toIntOrNull() ?: -1) in 0..1000000) { "最大レス数が不正です" }
+        require(minimum.isEmpty() || maximum.isEmpty() || minimum.toInt() <= maximum.toInt()) {
+            "最小レス数は最大レス数以下にしてください"
+        }
+        require(sort.isNotEmpty() && sort.length <= 64 && sort.none { it.isISOControl() }) { "ソートが不正です" }
+        require(fuzzy.length <= 64 && fuzzy.none { it.isISOControl() }) { "あいまい検索が不正です" }
         val start = if (from.isEmpty()) null else LocalDate.parse(from)
         val end = if (to.isEmpty()) null else LocalDate.parse(to)
         require(start == null || end == null || !start.isAfter(end)) { "開始日は終了日以前にしてください" }
@@ -33,7 +42,12 @@ data class ArchiveQuery(
 }
 
 data class ArchiveThread(val title: String, val url: String, val replies: Int, val date: String)
-data class ArchivePage(val items: List<ArchiveThread>, val total: Long, val page: Int, val hasNext: Boolean)
+data class ArchiveSortOption(val value: String, val label: String)
+data class ArchiveFormOptions(val sorts: List<ArchiveSortOption>, val fuzzyValue: String?)
+data class ArchivePage @JvmOverloads constructor(
+    val items: List<ArchiveThread>, val total: Long, val page: Int, val hasNext: Boolean,
+    val form: ArchiveFormOptions? = null
+)
 
 object ArchiveRepository {
     private val count = Regex("検索結果[：:]\\s*([0-9,]+)\\s*件")
@@ -45,10 +59,10 @@ object ArchiveRepository {
     fun url(query: ArchiveQuery, page: Int): String {
         query.validate()
         require(page in 1..1000000)
-        // Names are taken from the provider's public pagination links. Default sort is new.
+        // Only known server parameters are sent. The optional upper bound is filtered locally.
         val parameters = linkedMapOf("keyword" to query.keyword.trim(), "keyword_exclude" to query.exclude.trim(),
             "NoR" to query.minimum, "start_date" to query.from, "end_date" to query.to,
-            "onor" to "", "fuzzy" to "", "sort" to "new", "page" to page.toString())
+            "onor" to "", "fuzzy" to query.fuzzy, "sort" to query.sort, "page" to page.toString())
         return ArchiveProvider.EDGE_ARCHIVE.url + "?" + parameters.entries.joinToString("&") {
             it.key + "=" + URLEncoder.encode(it.value, StandardCharsets.UTF_8.name())
         }
@@ -56,7 +70,39 @@ object ArchiveRepository {
 
     fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int): ArchivePage {
         require(provider == ArchiveProvider.EDGE_ARCHIVE) { "アプリ内検索は未対応です" }
-        return parse(HttpTransport.get(url(query, page), StandardCharsets.UTF_8), page)
+        val result = parse(HttpTransport.get(url(query, page), StandardCharsets.UTF_8), page)
+        return filterRange(result, query)
+    }
+
+    /** Read option values from the current site rather than guessing undocumented codes. */
+    @JvmStatic
+    fun parseForm(html: String): ArchiveFormOptions? = formOptions(Jsoup.parse(html))
+
+    private fun formOptions(doc: org.jsoup.nodes.Document): ArchiveFormOptions? {
+        val select = doc.selectFirst("select[name=sort]") ?: return null
+        val choices = select.select("option").filterNot { it.hasAttr("disabled") }.mapNotNull {
+            val label = it.text().trim()
+            val value = if (it.hasAttr("value")) it.attr("value") else label
+            if (label.isEmpty() || value.isEmpty() || value.length > 64 || value.any { c -> c.isISOControl() }) null
+            else ArchiveSortOption(value, label)
+        }.distinctBy { it.value }
+        if (choices.isEmpty()) return null
+        val checkbox = doc.selectFirst("input[name=fuzzy][type=checkbox]")
+        val fuzzyValue = checkbox?.let { if (it.hasAttr("value")) it.attr("value") else "on" }
+            ?.takeIf { it.isNotEmpty() && it.length <= 64 && it.none { c -> c.isISOControl() } }
+        return ArchiveFormOptions(choices, fuzzyValue)
+    }
+
+    fun fetchForm(): ArchiveFormOptions =
+        parseForm(HttpTransport.get(ArchiveProvider.EDGE_ARCHIVE.url, StandardCharsets.UTF_8))
+            ?: throw IOException("サイトの検索条件を取得できませんでした")
+
+    @JvmStatic
+    fun filterRange(page: ArchivePage, query: ArchiveQuery): ArchivePage {
+        val min = query.minimum.toIntOrNull() ?: 0
+        val max = query.maximum.toIntOrNull() ?: Int.MAX_VALUE
+        // Keep the original page count and navigation even when this page has no matches.
+        return page.copy(items = page.items.filter { it.replies in min..max })
     }
 
     @JvmStatic
@@ -90,6 +136,6 @@ object ArchiveRepository {
             threads.putIfAbsent(canonical, ArchiveThread(name, canonical, replies, time))
         }
         if (total > 0 && threads.isEmpty()) throw IOException("スレッド一覧を解析できませんでした")
-        return ArchivePage(threads.values.toList(), total, page, hasNext && threads.isNotEmpty())
+        return ArchivePage(threads.values.toList(), total, page, hasNext && threads.isNotEmpty(), formOptions(doc))
     }
 }
