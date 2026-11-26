@@ -28,7 +28,7 @@ class SettingsActivity : MainSectionActivity() {
         val animationRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            minHeight = dp(52)
+            minimumHeight = dp(52)
             setPadding(dp(12), 0, dp(4), 0)
             isFocusable = true
             contentDescription = animationLabel
