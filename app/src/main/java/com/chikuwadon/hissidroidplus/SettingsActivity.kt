@@ -1,7 +1,12 @@
 package com.chikuwadon.hissidroidplus
 
 import android.os.Bundle
+import android.view.Gravity
+import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.CheckBox
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /** Settings previously accessible only through the home overflow menu. */
 class SettingsActivity : MainSectionActivity() {
@@ -19,17 +24,49 @@ class SettingsActivity : MainSectionActivity() {
             }
         }
         caption(body, "操作")
-        body.addView(CheckBox(this).apply {
-            text = "タブ切替アニメーション"
+        val animationLabel = "タブ切替アニメーション"
+        val animationRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minHeight = dp(52)
+            setPadding(dp(12), 0, dp(4), 0)
+            isFocusable = true
+            contentDescription = animationLabel
+            TouchFeedback.foreground(this)
+        }
+        val label = TextView(this).apply {
+            text = animationLabel
             textSize = 15f
             setTextColor(getColor(R.color.text_primary))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val checkbox = CheckBox(this).apply {
             buttonTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
             isChecked = AppSettings.tabAnimations(this@SettingsActivity)
-            minHeight = dp(52)
+            minimumWidth = 0
+            minimumHeight = 0
+            setPadding(0, 0, 0, 0)
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             setOnCheckedChangeListener { _, enabled ->
                 AppSettings.setTabAnimations(this@SettingsActivity, enabled)
             }
-        })
+        }
+        animationRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        animationRow.addView(checkbox, LinearLayout.LayoutParams(dp(40), dp(48)))
+        animationRow.setOnClickListener { checkbox.isChecked = !checkbox.isChecked }
+        animationRow.accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = CheckBox::class.java.name
+                info.isCheckable = true
+                info.isChecked = checkbox.isChecked
+            }
+        }
+        body.addView(animationRow, LinearLayout.LayoutParams(-1, -2))
+        body.addView(View(this).apply { setBackgroundColor(getColor(R.color.divider)) },
+            LinearLayout.LayoutParams(-1, dp(1)))
         caption(body, "外部アプリ連携")
         row(body, "スレの開き方") {
             val labels = arrayOf("毎回選択", "ChMateで開く", "Haiagaruで開く",

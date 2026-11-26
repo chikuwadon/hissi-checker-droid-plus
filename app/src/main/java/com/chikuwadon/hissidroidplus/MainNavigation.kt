@@ -1,6 +1,7 @@
 package com.chikuwadon.hissidroidplus
 
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.ColorFilter
@@ -57,6 +58,7 @@ object MainNavigation {
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(a, 60)))
     }
 
+    @Suppress("DEPRECATION")
     private fun navigate(a: Activity, destination: Destination) {
         if (a.isFinishing || a.isDestroyed) return
         val intent = when (destination) {
@@ -68,8 +70,12 @@ object MainNavigation {
                 .putExtra(FAVORITES_EXTRA, true)
             Destination.SETTINGS -> Intent(a, SettingsActivity::class.java)
         }
-        a.startActivity(intent)
+        // Bottom destinations are peers, not a push/pop detail stack.
+        // Suppress the window slide/scale for this explicit navigation only.
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        a.startActivity(intent, ActivityOptions.makeCustomAnimation(a, 0, 0).toBundle())
         if (a !is HomeActivity) a.finish()
+        a.overridePendingTransition(0, 0)
     }
 
     private class NavIcon(private val destination: Destination, color: Int) : Drawable() {
