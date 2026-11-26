@@ -32,17 +32,11 @@ abstract class MainSectionActivity : Activity() {
         val scroll = ScrollView(this).apply { isFillViewport = true }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(18))
+            setPadding(dp(16), dp(8), dp(16), dp(18))
         }
+        root.addView(AppBar.title(this, title), LinearLayout.LayoutParams(-1, dp(56)))
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        body.addView(TextView(this).apply {
-            text = title
-            textSize = 20f
-            setTextColor(getColor(R.color.text_primary))
-            gravity = Gravity.CENTER_VERTICAL
-            minHeight = dp(48)
-        })
         MainNavigation.attach(this, root, destination)
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {

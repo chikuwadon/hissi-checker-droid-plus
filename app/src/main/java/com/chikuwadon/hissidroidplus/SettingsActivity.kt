@@ -104,7 +104,6 @@ class SettingsActivity : MainSectionActivity() {
             contentDescription = "履歴の保存件数"
         }
         body.addView(slider, LinearLayout.LayoutParams(-1, dp(48)))
-        caption(body, "100件～10000件（100件単位）、右端：無制限")
         val applyLimit = row(body, "保存件数を適用") {
             if (pendingLimit != currentLimit) {
                 val requested = pendingLimit

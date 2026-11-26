@@ -3,7 +3,6 @@ package com.chikuwadon.hissidroidplus
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -18,8 +17,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.BaseAdapter
 import android.widget.EditText
-import android.widget.Button
-import android.widget.CheckBox
+import android.widget.ImageButton
 import android.widget.ScrollView
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -35,7 +33,7 @@ open class HistoryActivity : Activity() {
     protected open val favoritesScreen = false
     private var filter = HistoryFilter()
     private var refreshGeneration = 0
-    private lateinit var searchButton: TextView
+    private lateinit var searchButton: ImageButton
     private var totalCount = 0
     private var tab = 0
     private var sort = 0
@@ -47,7 +45,7 @@ open class HistoryActivity : Activity() {
     private lateinit var favoriteTab: TextView
     private lateinit var sortLabel: TextView
     private lateinit var toolbarTitle: TextView
-    private lateinit var menuButton: TextView
+    private lateinit var menuButton: ImageButton
     private lateinit var selectedActions: TextView
     private lateinit var deleteSelected: TextView
     private lateinit var list: ListView
@@ -101,9 +99,9 @@ open class HistoryActivity : Activity() {
         }
         val toolbar = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(8), 0)
+            setPadding(dp(16), 0, dp(8), 0)
         }
-        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(52)))
+        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
         val back = text("‹", 32, getColor(R.color.text_primary)).apply {
             gravity = Gravity.CENTER
             contentDescription = "戻る"
@@ -112,10 +110,7 @@ open class HistoryActivity : Activity() {
         back.visibility = View.GONE
         back.setOnClickListener { navigateBack() }
         TouchFeedback.foreground(back, 10)
-        toolbarTitle = text("検索履歴", 16, getColor(R.color.text_primary)).apply {
-            isSingleLine = true
-            ellipsize = TextUtils.TruncateAt.END
-        }
+        toolbarTitle = AppBar.title(this, if (favoritesScreen) "お気に入り" else "履歴", false)
         toolbar.addView(toolbarTitle, LinearLayout.LayoutParams(0, -2, 1f))
         sortLabel = text("新しい順 ▾", 13, getColor(R.color.accent)).apply {
             gravity = Gravity.CENTER
@@ -129,19 +124,11 @@ open class HistoryActivity : Activity() {
                 refresh()
             }
         }
-        searchButton = text("検索", 13, getColor(R.color.accent)).apply {
-            gravity = Gravity.CENTER
-            contentDescription = "履歴内検索"
-        }
+        searchButton = AppBar.action(this, AppBar.Icon.SEARCH, "履歴内検索")
         toolbar.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
-        TouchFeedback.foreground(searchButton, 10)
         searchButton.setOnClickListener { showHistoryFilter() }
-        menuButton = text("複数選択", 13, getColor(R.color.accent)).apply {
-            gravity = Gravity.CENTER
-            contentDescription = "複数選択"
-        }
-        toolbar.addView(menuButton, LinearLayout.LayoutParams(dp(76), dp(48)))
-        TouchFeedback.foreground(menuButton, 10)
+        menuButton = AppBar.action(this, AppBar.Icon.SELECT, "複数選択")
+        toolbar.addView(menuButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         menuButton.setOnClickListener {
             selection = !selection
             chosen.clear()
@@ -360,75 +347,83 @@ open class HistoryActivity : Activity() {
     }
 
     private fun showHistoryFilter() {
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
+        val panel = ThemedMenu.formPanel(this)
+        panel.addView(ThemedMenu.formTitle(this, "履歴内検索"))
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply { addView(content) }
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, -2))
+        fun field(label: String, value: String): EditText {
+            content.addView(ThemedMenu.formLabel(this, label))
+            return ThemedMenu.formInput(this, value).also {
+                content.addView(it, LinearLayout.LayoutParams(-1, dp(48)))
+            }
         }
-        val boardInput = EditText(this).apply {
-            hint = "板名（部分一致）"
-            setSingleLine(true)
-            setText(filter.board)
+        val boardInput = field("板名（部分一致）", filter.board)
+        val idInput = field("ID（部分一致・大文字小文字を区別）", filter.id)
+        var byPostDate = filter.byPostDate
+        val dateMode = ThemedMenu.formButton(this, if (byPostDate) "投稿対象日" else "検索した日")
+        content.addView(ThemedMenu.formLabel(this, "期間の基準"))
+        content.addView(dateMode, LinearLayout.LayoutParams(-1, dp(44)))
+        dateMode.setOnClickListener {
+            ThemedMenu.choose(this, "期間の基準", arrayOf("検索した日", "投稿対象日"), if (byPostDate) 1 else 0) {
+                byPostDate = it == 1
+                dateMode.text = if (byPostDate) "投稿対象日" else "検索した日"
+            }
         }
-        val idInput = EditText(this).apply {
-            hint = "ID（部分一致・大文字小文字を区別）"
-            setSingleLine(true)
-            setText(filter.id)
-        }
-        panel.addView(boardInput)
-        panel.addView(idInput)
-        val postDate = CheckBox(this).apply {
-            text = "投稿対象日で検索（OFF：検索した日）"
-            isChecked = filter.byPostDate
-            buttonTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
-        }
-        panel.addView(postDate)
         var from = filter.from
         var to = filter.to
         val format = DateTimeFormatter.BASIC_ISO_DATE
+        val display = DateTimeFormatter.ofPattern("yyyy/MM/dd")
         fun dateButton(heading: String, value: String, set: (String) -> Unit) {
             val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            val button = Button(this).apply { text = "$heading：${value.ifEmpty { "指定なし" }}" }
-            line.addView(button, LinearLayout.LayoutParams(0, -2, 1f))
-            val clear = Button(this).apply { text = "解除" }
-            line.addView(clear)
             var selected = value
+            fun label(): String = if (selected.isEmpty()) "$heading：指定なし"
+                else "$heading：${LocalDate.parse(selected, format).format(display)}"
+            val button = ThemedMenu.formButton(this, label())
+            line.addView(button, LinearLayout.LayoutParams(0, dp(44), 1f))
+            val clear = ThemedMenu.formButton(this, "解除")
+            line.addView(clear, LinearLayout.LayoutParams(dp(60), dp(44)).apply { marginStart = dp(8) })
             button.setOnClickListener {
                 val day = try { LocalDate.parse(selected, format) }
                     catch (_: Exception) { LocalDate.now(ZoneId.of("Asia/Tokyo")) }
-                DatePickerDialog(this, { _, year, month, dayOfMonth ->
-                    selected = LocalDate.of(year, month + 1, dayOfMonth).format(format)
-                    button.text = "$heading：$selected"
+                CalendarDialog.show(this, day) {
+                    selected = it.format(format)
                     set(selected)
-                }, day.year, day.monthValue - 1, day.dayOfMonth).show()
+                    button.text = label()
+                }
             }
             clear.setOnClickListener {
                 selected = ""
                 set("")
-                button.text = "$heading：指定なし"
+                button.text = label()
             }
-            panel.addView(line)
+            content.addView(line, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         }
         dateButton("開始日", from) { from = it }
         dateButton("終了日", to) { to = it }
-        val scroll = ScrollView(this).apply { addView(panel) }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("履歴内検索")
-            .setView(scroll)
-            .setNegativeButton("キャンセル", null)
-            .setNeutralButton("条件を解除") { _, _ ->
-                filter = HistoryFilter()
-                chosen.clear()
-                refresh()
-            }
-            .setPositiveButton("検索", null)
-            .create()
-        dialog.show()
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        val actions = LinearLayout(this).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        panel.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        val reset = ThemedMenu.formAction(this, "条件を解除")
+        actions.addView(reset, LinearLayout.LayoutParams(-2, dp(48)))
+        actions.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        val cancel = ThemedMenu.formAction(this, "キャンセル")
+        actions.addView(cancel, LinearLayout.LayoutParams(-2, dp(48)))
+        val apply = ThemedMenu.formAction(this, "検索")
+        actions.addView(apply, LinearLayout.LayoutParams(-2, dp(48)))
+        val dialog = ThemedMenu.showForm(this, panel)
+        reset.setOnClickListener {
+            filter = HistoryFilter()
+            chosen.clear()
+            refresh()
+            dialog.dismiss()
+        }
+        cancel.setOnClickListener { dialog.dismiss() }
+        apply.setOnClickListener {
             if (from.isNotEmpty() && to.isNotEmpty() && from > to) {
                 Toast.makeText(this, "開始日は終了日以前にしてください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            filter = HistoryFilter(boardInput.text.toString().trim(), idInput.text.toString().trim(), from, to, postDate.isChecked)
+            filter = HistoryFilter(boardInput.text.toString().trim(), idInput.text.toString().trim(), from, to, byPostDate)
             chosen.clear()
             refresh()
             dialog.dismiss()
@@ -441,10 +436,11 @@ open class HistoryActivity : Activity() {
         sortLabel.text = getString(R.string.history_sort_label, sorts[sort])
         sortLabel.visibility = if (selection) View.GONE else View.VISIBLE
         menuButton.visibility = if (tab == 1) View.GONE else View.VISIBLE
-        menuButton.text = if (selection) "完了" else "複数選択"
-        menuButton.contentDescription = menuButton.text
+        AppBar.setIcon(this, menuButton, if (selection) AppBar.Icon.DONE else AppBar.Icon.SELECT, selection)
+        menuButton.contentDescription = if (selection) "完了" else "複数選択"
         searchButton.visibility = if (selection) View.GONE else View.VISIBLE
-        searchButton.text = if (filter.active()) "検索中" else "検索"
+        AppBar.setIcon(this, searchButton, AppBar.Icon.SEARCH, filter.active())
+        searchButton.contentDescription = if (filter.active()) "履歴内検索（絞り込み中）" else "履歴内検索"
         val count = if (filter.active()) "${rows.size}/$totalCount" else totalCount.toString()
         toolbarTitle.text = if (selection) "履歴を選択" else (if (tab == 0) "履歴" else "お気に入り") + " ($count)"
         selectionActions.visibility = if (selection) View.VISIBLE else View.GONE

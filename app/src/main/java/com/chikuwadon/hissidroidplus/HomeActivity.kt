@@ -2,7 +2,6 @@ package com.chikuwadon.hissidroidplus
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -103,12 +102,12 @@ class HomeActivity : Activity() {
         if (savedEdgeDay > 0) edgeSelected.timeInMillis = savedEdgeDay
         refreshEdgeDate()
         edgeDateSummary.setOnClickListener {
-            DatePickerDialog(this, { _, year, month, day ->
-                edgeSelected.set(year, month, day)
+            CalendarDialog.show(this, LocalDate.of(edgeSelected.get(Calendar.YEAR),
+                edgeSelected.get(Calendar.MONTH) + 1, edgeSelected.get(Calendar.DAY_OF_MONTH))) { day ->
+                edgeSelected.set(day.year, day.monthValue - 1, day.dayOfMonth)
                 prefs.edit().putLong("edge_last_date", edgeSelected.timeInMillis).apply()
                 refreshEdgeDate()
-            }, edgeSelected.get(Calendar.YEAR), edgeSelected.get(Calendar.MONTH),
-                edgeSelected.get(Calendar.DAY_OF_MONTH)).show()
+            }
         }
         findViewById<View>(R.id.edge_search).setOnClickListener {
             try {
@@ -133,12 +132,12 @@ class HomeActivity : Activity() {
         }
         edgeId.setText(prefs.getString("edge_last_id", ""))
         dateSummary.setOnClickListener {
-            DatePickerDialog(this, { _, year, month, day ->
-                selected.set(year, month, day)
+            CalendarDialog.show(this, LocalDate.of(selected.get(Calendar.YEAR),
+                selected.get(Calendar.MONTH) + 1, selected.get(Calendar.DAY_OF_MONTH))) { day ->
+                selected.set(day.year, day.monthValue - 1, day.dayOfMonth)
                 refreshDate()
                 prefs.edit().putLong("last_date", selected.timeInMillis).apply()
-            }, selected.get(Calendar.YEAR), selected.get(Calendar.MONTH),
-                selected.get(Calendar.DAY_OF_MONTH)).show()
+            }
         }
         findViewById<View>(R.id.search).setOnClickListener {
             try {

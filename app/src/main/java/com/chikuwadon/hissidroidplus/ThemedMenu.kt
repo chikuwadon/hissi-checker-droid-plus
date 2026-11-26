@@ -203,6 +203,43 @@ object ThemedMenu {
             show()
         }
 
+    internal fun formPanel(a: Activity): LinearLayout = column(a, 12)
+
+    internal fun formTitle(a: Activity, label: String): TextView = title(a, label)
+
+    internal fun formLabel(a: Activity, label: String): TextView =
+        text(a, label, 12, a.getColor(R.color.text_secondary)).apply {
+            setPadding(dp(a, 2), dp(a, 8), dp(a, 2), dp(a, 5))
+        }
+
+    internal fun formInput(a: Activity, value: String): android.widget.EditText =
+        android.widget.EditText(a).apply {
+            setSingleLine(true)
+            textSize = 14f
+            setTextColor(a.getColor(R.color.text_primary))
+            setBackgroundResource(R.drawable.input_background)
+            setPadding(dp(a, 12), 0, dp(a, 12), 0)
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            setText(value)
+        }
+
+    internal fun formButton(a: Activity, label: String): TextView =
+        text(a, label, 14, a.getColor(R.color.text_primary)).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(a, 8), 0, dp(a, 8), 0)
+            background = panelBackground(a, 9).apply { setColor(a.getColor(R.color.button_surface)) }
+            applyTouch(a, this)
+        }
+
+    internal fun formAction(a: Activity, label: String): TextView =
+        text(a, label, 14, a.getColor(R.color.accent)).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(a, 9), 0, dp(a, 9), 0)
+            applyTouch(a, this)
+        }
+
+    internal fun showForm(a: Activity, panel: LinearLayout): AlertDialog = dialog(a, panel)
+
     private fun title(a: Activity, name: String): TextView =
         text(a, name, 17, a.getColor(R.color.text_primary)).apply {
             setPadding(dp(a, 8), dp(a, 4), dp(a, 8), dp(a, 11))
