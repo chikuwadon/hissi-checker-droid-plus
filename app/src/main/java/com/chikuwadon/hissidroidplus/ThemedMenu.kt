@@ -472,7 +472,7 @@ object ThemedMenu {
             "検索時は指定先サイトへアクセスします。板や検索条件の一部は端末内に保存されます。各サイトとの通信や取得結果は、接続先の仕様に依存します。", secondary)
         aboutHeading(a, content, "開発とライセンス")
         aboutLine(a, content,
-            "アプリのコードとアイコンは独自に制作しています。\nHTML解析：jsoup（MIT License）\n掲示板や外部アプリの公式製品ではありません。", secondary)
+            "アプリのコードとアイコンは独自に制作しています。\nHTML解析：jsoup（MIT License）\nAndroidX（Apache License 2.0）\n掲示板や外部アプリの公式製品ではありません。", secondary)
         aboutHeading(a, content, "プロジェクト")
         aboutLink(a, content, "GitHub リポジトリ",
             "https://github.com/chikuwadon/hissi-checker-droid-plus")

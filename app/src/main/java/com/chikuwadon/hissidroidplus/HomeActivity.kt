@@ -13,7 +13,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -38,7 +37,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Independent search UI with a live and cached official 5ch board menu. */
-class HomeActivity : Activity() {
+class HomeActivity : CheckerActivity() {
     private lateinit var board: EditText
     private lateinit var id: EditText
     private lateinit var edge: EditText
@@ -594,22 +593,7 @@ class HomeActivity : Activity() {
     private fun dp(n: Int): Int = (n * resources.displayMetrics.density).roundToInt()
 
     private fun applyInsets() {
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            val root = findViewById<View>(android.R.id.content)
-            val top = root.paddingTop
-            val bottom = root.paddingBottom
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(view.paddingLeft, top + bars.top,
-                    view.paddingRight, bottom + bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
+        applyContentInsets(findViewById(android.R.id.content))
     }
 
     override fun onResume() {

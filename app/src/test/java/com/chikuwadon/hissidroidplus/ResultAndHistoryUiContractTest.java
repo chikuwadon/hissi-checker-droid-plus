@@ -15,8 +15,8 @@ public class ResultAndHistoryUiContractTest {
         assertTrue(xml.indexOf("@+id/toolbar_more") > xml.indexOf("@+id/tab_names"));
         assertTrue(xml.indexOf("@+id/toolbar_more") < xml.indexOf("@+id/status"));
         String result = source("ResultActivity.kt");
-        assertTrue(result.contains("override fun onBackPressed() { backFromResult() }"));
-        assertTrue(result.contains(") { backFromResult() }"));
+        assertTrue(result.contains("registerBackAction { backFromResult() }"));
+        assertTrue(source("CheckerActivity.kt").contains("onBackPressedDispatcher.addCallback(this"));
         assertTrue(result.contains("MainNavigation.navigate(this, destination)"));
         assertTrue(result.contains("launchedExternally() && !AppSettings.standalone(this)"));
     }

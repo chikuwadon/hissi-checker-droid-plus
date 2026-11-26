@@ -5,13 +5,12 @@ import android.content.Context
 import android.os.Build
 import android.view.Gravity
 import android.view.View
-import android.view.WindowInsets
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
 /** Shared lightweight shell for the new independent top-level screens. */
-abstract class MainSectionActivity : Activity() {
+abstract class MainSectionActivity : CheckerActivity() {
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
     }
@@ -39,15 +38,7 @@ abstract class MainSectionActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         MainNavigation.attach(this, root, destination)
         setContentView(root)
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            root.setOnApplyWindowInsetsListener { v, insets ->
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
+        applyContentInsets(root)
         return body
     }
 

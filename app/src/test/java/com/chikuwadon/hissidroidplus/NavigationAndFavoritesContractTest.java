@@ -12,7 +12,8 @@ public class NavigationAndFavoritesContractTest {
         String h = source("HistoryActivity.kt");
         assertTrue(h.contains("isFastScrollEnabled = true"));
         assertTrue(h.contains("scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY"));
-        assertTrue(h.contains("setPadding(dp(10), dp(6), dp(48), dp(6))"));
+        assertTrue(h.contains("verticalScrollbarPosition = View.SCROLLBAR_POSITION_LEFT"));
+        assertTrue(h.contains("setPadding(dp(22), dp(6), dp(8), dp(6))"));
         assertTrue(h.contains("row.addView(star, LinearLayout.LayoutParams(dp(48), dp(48)))"));
     }
     @Test public void favoritesSelectionNeverDeletesNormalHistory() throws Exception {

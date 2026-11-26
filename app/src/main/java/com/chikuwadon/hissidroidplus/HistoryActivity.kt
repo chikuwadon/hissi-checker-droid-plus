@@ -14,7 +14,6 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.ImageButton
@@ -26,20 +25,28 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.lifecycle.ViewModelProvider
 import kotlin.math.roundToInt
 
 /** Recent visits, independent favorites and explicit destructive actions. */
-open class HistoryActivity : Activity() {
+open class HistoryActivity : CheckerActivity() {
     protected open val favoritesScreen = false
-    private var filter = HistoryFilter()
+    private val screenState by lazy { ViewModelProvider(this)[HistoryScreenState::class.java] }
+    private var filter: HistoryFilter
+        get() = screenState.filter
+        set(value) { screenState.filter = value }
     private var refreshGeneration = 0
     private lateinit var searchButton: ImageButton
     private var totalCount = 0
     private var tab = 0
-    private var sort = 0
-    private var selection = false
+    private var sort: Int
+        get() = screenState.sort
+        set(value) { screenState.sort = value }
+    private var selection: Boolean
+        get() = screenState.selection
+        set(value) { screenState.selection = value }
     private var pendingConfirmationUrl: String? = null
-    private val chosen = HashSet<String>()
+    private val chosen get() = screenState.chosen
     private val sorts = arrayOf("新しい順", "古い順", "板名順", "検索日順")
     private lateinit var recentTab: TextView
     private lateinit var favoriteTab: TextView
@@ -72,32 +79,20 @@ open class HistoryActivity : Activity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         tab = if (favoritesScreen) 1 else 0
-        filter = HistoryFilter(state?.getString("filter_board").orEmpty(), state?.getString("filter_id").orEmpty(),
-            state?.getString("filter_from").orEmpty(), state?.getString("filter_to").orEmpty(), state?.getBoolean("filter_post_date") ?: false)
-        sort = state?.getInt("navigation_sort") ?: 0
+        if (!screenState.initialized) {
+            filter = HistoryFilter(state?.getString("filter_board").orEmpty(), state?.getString("filter_id").orEmpty(),
+                state?.getString("filter_from").orEmpty(), state?.getString("filter_to").orEmpty(), state?.getBoolean("filter_post_date") ?: false)
+            sort = state?.getInt("navigation_sort") ?: 0
+            screenState.initialized = true
+        }
         AppSettings.configureBars(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.surface))
         }
         setContentView(root)
-        if (Build.VERSION.SDK_INT >= 33) {
-            onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT
-            ) { navigateBack() }
-        }
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(view.paddingLeft, bars.top, view.paddingRight, bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
+        registerBackAction { navigateBack() }
+        applyContentInsets(root)
         val toolbar = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), 0, dp(8), 0)
@@ -196,6 +191,7 @@ open class HistoryActivity : Activity() {
             isFastScrollEnabled = true
             // Keep the fast-scroll touch lane outside all row action targets.
             scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+            verticalScrollbarPosition = View.SCROLLBAR_POSITION_LEFT
             itemsCanFocus = false
             adapter = this@HistoryActivity.adapter
         }
@@ -490,12 +486,6 @@ open class HistoryActivity : Activity() {
         adapter.notifyDataSetChanged()
     }
 
-    @Suppress("DEPRECATION")
-    @SuppressLint("GestureBackNavigation")
-    override fun onBackPressed() {
-        navigateBack()
-    }
-
     private class HistoryRow(
         val root: LinearLayout,
         val number: TextView,
@@ -517,7 +507,7 @@ open class HistoryActivity : Activity() {
             } else {
                 val row = LinearLayout(this@HistoryActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(10), dp(6), dp(48), dp(6))
+                    setPadding(dp(22), dp(6), dp(8), dp(6))
                     minimumHeight = dp(64)
                     descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }

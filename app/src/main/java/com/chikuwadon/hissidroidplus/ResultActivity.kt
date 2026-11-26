@@ -30,7 +30,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
@@ -58,7 +57,7 @@ import kotlin.math.roundToInt
 import org.json.JSONArray
 
 /** Native 5ch/Edge result reader, with validated WebView fallback for Edge. */
-class ResultActivity : Activity() {
+class ResultActivity : CheckerActivity() {
     companion object {
         const val EXTRA_CONNECTED_ORIGIN = "connected_origin"
         const val EXTRA_RETURN_DESTINATION = "return_destination"
@@ -246,11 +245,7 @@ class ResultActivity : Activity() {
         }
         val initial = query ?: return
         MainNavigation.registerResult(this)
-        if (Build.VERSION.SDK_INT >= 33) {
-            onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT
-            ) { backFromResult() }
-        }
+        registerBackAction { backFromResult() }
         MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
         inboundEdgeSearch = initial.site == CheckerQuery.Site.EDGE && initial.url.isEmpty()
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
@@ -435,10 +430,6 @@ class ResultActivity : Activity() {
             MainNavigation.navigate(this, destination)
         }
     }
-
-    @Suppress("DEPRECATION")
-    @SuppressLint("GestureBackNavigation")
-    override fun onBackPressed() { backFromResult() }
 
     /** Retain this result when navigating to the home screen. */
     private fun openHome() {
@@ -879,22 +870,7 @@ class ResultActivity : Activity() {
     }
 
     private fun applySystemInsets() {
-        val root = findViewById<View>(android.R.id.content)
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            val startTop = root.paddingTop
-            val startBottom = root.paddingBottom
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(view.paddingLeft, startTop + bars.top,
-                    view.paddingRight, startBottom + bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
+        applyContentInsets(findViewById(android.R.id.content))
     }
 
     private fun showEmpty() {
