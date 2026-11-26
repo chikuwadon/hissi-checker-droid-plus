@@ -7,12 +7,12 @@ import java.nio.charset.StandardCharsets;
 
 public class ArchiveExternalSearchTest {
     @Test public void kyodemoUsesObservedArchiveFormAndAndExclusionSyntax() throws Exception {
-        ArchiveQuery query = new ArchiveQuery("Android スマホ", "広告 -PR", "", "2026-11-01", "2026-11-26");
-        String url = ArchiveExternalSearch.url(ArchiveProvider.ALL_KYODEMO, query);
-        assertTrue(url.startsWith("https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=2026-11-01&to=2026-11-26&k="));
+        ArchiveQuery query = new ArchiveQuery("Android スマホ", "広告 -PR", "", "2026-11-01", "2026-11-26", "", "new", "", false, false, "android", "Android");
+        String url = ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, query);
+        assertTrue(url.startsWith("https://www.kyodemo.net/sdemo/b/android/?bs=&kt=k_&fr=2026-11-01&to=2026-11-26&k="));
         assertEquals("Android スマホ -広告 -PR",
             URLDecoder.decode(url.substring(url.indexOf("&k=") + 3), "windows-31j"));
-        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, query).contains("kt=5_"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, query).contains("kt=k_"));
     }
 
     @Test public void nukoUsesObservedPastLogAndSubmitOptions() {

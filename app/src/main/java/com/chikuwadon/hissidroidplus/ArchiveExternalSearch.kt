@@ -14,32 +14,25 @@ object ArchiveExternalSearch {
         query.validate()
         require(page in 1..ArchiveRepository.MAX_PAGE)
         val (base, parameters) = when (provider) {
-            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.ALL_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> {
+            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> {
                 val key = query.keyword.trim() + query.exclude.trim().split(Regex("\\s+"))
                     .filter { it.isNotBlank() }.joinToString("") { " -" + it.trimStart('-') }
-                val edge = provider == ArchiveProvider.EDGE_KYODEMO
-                val baseUrl = if (edge) "https://www.kyodemo.net/sdemo/b/e_e_liveedge/" +
+                val board = if (provider == ArchiveProvider.EDGE_KYODEMO) "e_e_liveedge" else query.boardCode
+                require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "5chの板を選択してください" }
+                val baseUrl = "https://www.kyodemo.net/sdemo/b/" + board + "/" +
                     if (page == 1) "" else ((page.toLong() - 1) * 50 + 1).toString()
-                    else "https://www.kyodemo.net/sdemo/s"
-                baseUrl to linkedMapOf(
-                    "bs" to "", "kt" to when (provider) {
-                        ArchiveProvider.EDGE_KYODEMO -> "k_"
-                        ArchiveProvider.ALL_KYODEMO -> "ak"
-                        else -> "5_"
-                    },
+                baseUrl to linkedMapOf("bs" to "", "kt" to "k_",
                     "fr" to query.from, "to" to query.to, "k" to key).apply {
-                    if (edge) {
-                        when (query.sort) {
-                            "old" -> put("j", "a")
-                            "replies" -> put("r", "1")
-                            else -> if (page > 1) put("j", "1")
-                        }
-                        when (query.minimum) {
-                            "50" -> put("o1", "1")
-                            "300" -> put("o2", "1")
-                            "900" -> put("o3", "1")
-                        }
-                    } else if (page > 1) put("j", page.toString())
+                    when (query.sort) {
+                        "old" -> put("j", "a")
+                        "replies" -> put("r", "1")
+                        else -> if (page > 1) put("j", "1")
+                    }
+                    when (query.minimum) {
+                        "50" -> put("o1", "1")
+                        "300" -> put("o2", "1")
+                        "900" -> put("o3", "1")
+                    }
                 }
             }
             ArchiveProvider.FIVECH_NUKO -> {

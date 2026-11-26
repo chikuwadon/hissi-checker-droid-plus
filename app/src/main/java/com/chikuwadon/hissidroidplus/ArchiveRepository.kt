@@ -10,10 +10,9 @@ import java.time.LocalDate
 /** Archive providers share a request/result model; native support is enabled individually. */
 enum class ArchiveProvider(val label: String, val url: String, val nativeSearch: Boolean) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/", true),
-    EDGE_KYODEMO("エッヂ / Kyodemo", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k=", true),
-    ALL_KYODEMO("Kyodemo / 全過去ログ", "https://www.kyodemo.net/sdemo/s?bs=&kt=ak&fr=&to=&k=", true),
-    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/s?bs=&kt=5_&fr=&to=&k=", true),
-    FIVECH_NUKO("5ch / ぬこ", "https://n2ch.net/q/-/?kako=1&guid=ON", true)
+    EDGE_KYODEMO("Kyodemo / エッヂ", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k=", true),
+    FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/", true),
+    FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON", true)
 }
 
 data class ArchiveQuery @JvmOverloads constructor(
@@ -26,9 +25,12 @@ data class ArchiveQuery @JvmOverloads constructor(
     val sort: String = "new",
     val fuzzy: String = "",
     val exact: Boolean = false,
-    val externalBoards: Boolean = false
+    val externalBoards: Boolean = false,
+    val boardCode: String = "",
+    val boardName: String = ""
 ) {
     fun validate() {
+        require(boardCode.isEmpty() || boardCode.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "板コードが不正です" }
         require(keyword.isNotBlank() && keyword.length <= 200) { "スレタイを1～200文字で入力してください" }
         require(exclude.length <= 200) { "除外ワードは200文字以内で入力してください" }
         require(minimum.isEmpty() || (minimum.toIntOrNull() ?: -1) in 0..1000000) { "レス数が不正です" }
@@ -50,7 +52,8 @@ data class ArchiveFormOptions(val sorts: List<ArchiveSortOption>, val fuzzyValue
 data class ArchivePage @JvmOverloads constructor(
     val items: List<ArchiveThread>, val total: Long, val page: Int, val hasNext: Boolean,
     val form: ArchiveFormOptions? = null,
-    val pageSize: Int = ArchiveRepository.PAGE_SIZE
+    val pageSize: Int = ArchiveRepository.PAGE_SIZE,
+    val totalCapped: Boolean = false
 ) {
     /** The Edge archive serves 50 results per page. Range refers to server results,
      *  not the locally filtered upper-bound subset. */
@@ -92,7 +95,7 @@ object ArchiveRepository {
         val result = when (provider) {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
-            ArchiveProvider.ALL_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemo(html, page)
+            ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
             ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page)
         }
         return filterRange(result, query)

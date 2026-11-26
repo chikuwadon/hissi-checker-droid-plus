@@ -563,8 +563,8 @@ internal class HistoryContent(
             } else {
                 val row = LinearLayout(host).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(10), dp(6), dp(12), dp(6))
-                    minimumHeight = dp(64)
+                    setPadding(dp(10), dp(3), dp(12), dp(3))
+                    minimumHeight = dp(54)
                     descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }
                 val number = text("", 12, getColor(R.color.text_secondary)).apply {
@@ -585,7 +585,7 @@ internal class HistoryContent(
                     ellipsize = TextUtils.TruncateAt.END
                 }
                 labels.addView(detail)
-                row.addView(labels, LinearLayout.LayoutParams(0, dp(52), 1f))
+                row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
                 val star = text("", 23, getColor(R.color.text_secondary)).apply {
                     gravity = Gravity.CENTER
                 }

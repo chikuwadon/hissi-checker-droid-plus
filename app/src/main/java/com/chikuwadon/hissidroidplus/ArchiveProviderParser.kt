@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
 
 /** Parsed from the saved first and second search pages, without executing site scripts. */
 object ArchiveProviderParser {
-    private val kyodemoCount = Regex("([0-9,]+)\\s*スレ\\s*\\(\\s*(\\d+)\\s*/\\s*(\\d+)\\s*\\)")
+    private val kyodemoCount = Regex("([0-9,]+)(\\+?)\\s*スレ\\s*\\(\\s*(\\d+)\\s*/\\s*(\\d+)\\s*\\)")
     private val nukoCount = Regex("検索結果\\s*\\(\\s*([0-9,]+)\\s*[ｽス][ﾚレ]")
     private val kyodemoPath = Regex("^/sdemo/r/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
     private val nukoPath = Regex("^/r/-/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
@@ -22,32 +22,39 @@ object ArchiveProviderParser {
     } catch (_: IllegalArgumentException) { null }
 
     @JvmStatic
-    fun kyodemo(html: String, page: Int): ArchivePage = parseKyodemo(html, page, false)
+    fun kyodemo(html: String, page: Int): ArchivePage = parseKyodemo(html, page, "", "")
 
     @JvmStatic
-    fun kyodemoEdge(html: String, page: Int): ArchivePage = parseKyodemo(html, page, true)
+    fun kyodemoEdge(html: String, page: Int): ArchivePage = parseKyodemo(html, page, "e_e_liveedge", "エッヂ")
 
-    private fun parseKyodemo(html: String, page: Int, edge: Boolean): ArchivePage {
-        val doc = Jsoup.parse(html, if (edge) ArchiveProvider.EDGE_KYODEMO.url else "https://www.kyodemo.net/sdemo/s")
+    @JvmStatic
+    fun kyodemoBoard(html: String, page: Int, code: String, name: String): ArchivePage {
+        require(code.matches(Regex("[A-Za-z0-9_]{1,60}")))
+        return parseKyodemo(html, page, code, name.ifBlank { code })
+    }
+
+    private fun parseKyodemo(html: String, page: Int, code: String, name: String): ArchivePage {
+        val doc = Jsoup.parse(html, "https://www.kyodemo.net/sdemo/")
         val count = kyodemoCount.find(doc.text()) ?: throw IOException("Kyodemoの検索結果件数を確認できませんでした")
         val total = count.groupValues[1].replace(",", "").toLong()
-        val current = count.groupValues[2].toInt()
-        val last = count.groupValues[3].toInt()
+        val capped = count.groupValues[2] == "+"
+        val current = count.groupValues[3].toInt()
+        val last = count.groupValues[4].toInt()
         if (total > 0 && current != page) throw IOException("指定ページと取得ページが一致しません")
         val rows = LinkedHashMap<String, ArchiveThread>()
         for (anchor in doc.select("article.panel-block a[href]")) {
             val uri = safeUri(anchor.absUrl("href"), "www.kyodemo.net") ?: continue
             val path = kyodemoPath.matchEntire(uri.path.orEmpty()) ?: continue
-            if (uri.rawQuery != null || (edge && path.groupValues[1] != "e_e_liveedge")) continue
+            if (uri.rawQuery != null || (code.isNotEmpty() && path.groupValues[1] != code)) continue
             val title = anchor.selectFirst("h2.cltitle")?.wholeText()?.replaceFirst(Regex("^\\s*\\d+[:：]\\s*"), "")?.trim().orEmpty()
             val replies = anchor.selectFirst("small.right_i b")?.text()?.replace(",", "")?.toIntOrNull() ?: continue
             if (title.isBlank()) continue
-            val board = if (path.groupValues[1] == "e_e_liveedge") "エッヂ" else anchor.selectFirst("small.left_i span")?.text().orEmpty()
+            val board = if (code.isNotEmpty()) name else if (path.groupValues[1] == "e_e_liveedge") "エッヂ" else anchor.selectFirst("small.left_i span")?.text().orEmpty()
             val link = uri.toASCIIString()
             rows.putIfAbsent(link, ArchiveThread(title, link, replies, timestamp(path.groupValues[2]), board))
         }
         if (total > 0 && rows.isEmpty()) throw IOException("Kyodemoのスレッド一覧を解析できませんでした")
-        return ArchivePage(rows.values.toList(), total, page, page < last, pageSize = 50)
+        return ArchivePage(rows.values.toList(), total, page, page < last, pageSize = 50, totalCapped = capped)
     }
 
     @JvmStatic

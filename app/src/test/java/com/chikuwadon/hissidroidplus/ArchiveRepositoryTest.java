@@ -47,12 +47,11 @@ public class ArchiveRepositoryTest {
         assertThrows(IOException.class, () -> ArchiveRepository.parse("<p>Access denied</p>", 1));
         assertThrows(IOException.class, () -> ArchiveRepository.parse("<p>検索結果：10件</p>", 1));
     }
-    @Test public void allFiveProviderChoicesSupportNativeSearch() {
+    @Test public void allFourProviderChoicesSupportNativeSearch() {
         assertTrue(ArchiveProvider.EDGE_ARCHIVE.getNativeSearch());
         assertTrue(ArchiveProvider.FIVECH_NUKO.getNativeSearch());
         assertTrue(ArchiveProvider.FIVECH_KYODEMO.getNativeSearch());
         assertTrue(ArchiveProvider.EDGE_KYODEMO.getNativeSearch());
-        assertTrue(ArchiveProvider.ALL_KYODEMO.getNativeSearch());
     }
     @Test public void providerFormSuppliesExactSortAndFuzzyValues() {
         ArchiveFormOptions form = ArchiveRepository.parseForm("<form><select name='sort'>"

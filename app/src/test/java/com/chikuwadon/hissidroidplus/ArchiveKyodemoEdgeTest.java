@@ -12,7 +12,7 @@ public class ArchiveKyodemoEdgeTest {
         assertEquals("https://www.kyodemo.net/sdemo/b/e_e_liveedge/51?bs=&kt=k_&fr=&to=&k=Morphe&j=1",
             ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q, 2));
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q, 7).contains("/301?"));
-        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.ALL_KYODEMO, q, 2).endsWith("&j=2"));
+        assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q, 2).endsWith("&j=1"));
     }
 
     @Test public void observedSortAndReplyFiltersAreSentToServer() {

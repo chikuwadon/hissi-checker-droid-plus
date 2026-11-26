@@ -77,7 +77,7 @@ object SearchHistory {
             } else day
             val idLabel = if (id.isEmpty()) "" else
                 "  ID:" + id.replaceFirst(Regex("(?i)^ID\\s*[:：]\\s*"), "")
-            return label + idLabel + "  レス:" + posts
+            return label + idLabel + "  レス: " + posts
         }
     }
 
