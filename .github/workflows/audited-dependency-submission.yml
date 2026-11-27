@@ -9,6 +9,7 @@ on:
       - 'settings.gradle'
       - 'app/build.gradle'
       - 'gradle.properties'
+      - 'tools/gradle-retry.sh'
       - 'tools/resolved-dependency-snapshot.gradle'
       - 'tools/validate_resolved_dependency_snapshot.py'
       - 'tools/audit_gradle_dependency_snapshot.py'
@@ -34,7 +35,7 @@ jobs:
           packages: ''
       - uses: gradle/actions/setup-gradle@v6.4.1
         with:
-          gradle-version: '9.9.1'
+          gradle-version: '9.9.2'
       - name: Install Android SDK
         shell: bash
         run: |
@@ -47,7 +48,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --no-build-cache --rerun-tasks \
+          bash tools/gradle-retry.sh --no-daemon --no-build-cache --rerun-tasks \
             -I tools/resolved-dependency-snapshot.gradle \
             :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
             exportResolvedDependencySnapshot
@@ -56,7 +57,7 @@ jobs:
       - name: Generate complete Gradle vendor metadata without submission
         uses: gradle/actions/dependency-submission@v6.4.1
         with:
-          gradle-version: '9.9.1'
+          gradle-version: '9.9.2'
           dependency-graph: generate-and-upload
           dependency-graph-report-dir: dependency-graph-reports-official
           artifact-retention-days: 1

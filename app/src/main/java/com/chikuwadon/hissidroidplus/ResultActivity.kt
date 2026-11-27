@@ -30,7 +30,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
@@ -43,6 +42,7 @@ import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -55,10 +55,13 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import org.json.JSONArray
+import androidx.lifecycle.ViewModelProvider
 
 /** Native 5ch/Edge result reader, with validated WebView fallback for Edge. */
-class ResultActivity : Activity() {
+class ResultActivity : CheckerActivity() {
     companion object {
+        const val EXTRA_CONNECTED_ORIGIN = "connected_origin"
+        const val EXTRA_RETURN_DESTINATION = "return_destination"
         const val EXTRA_VERIFY_EDGE_SEARCH_DATE = "verify_edge_search_date"
 
         /** Preserve an active text-selection controller when a row is recycled. */
@@ -70,13 +73,19 @@ class ResultActivity : Activity() {
         }
     }
 
+    private val screenState by lazy { ViewModelProvider(this)[ResultScreenState::class.java] }
+    private var themeAtCreation: String? = null
+    private val repository = ResultRepository()
     private val worker = Executors.newSingleThreadExecutor()
     private var query: CheckerQuery? = null
     private var inboundEdgeSearch = false
     private var result = CheckerResult()
-    private var threadRows: List<Map.Entry<String, String>> = emptyList()
-    private var threadCounts: Map<String, Int> = emptyMap()
+    private var threadRows: List<PostIndex.ThreadRow> = emptyList()
+    private var postKeys: List<String> = emptyList()
+    private var chartDated: Int? = null
     private var nameCounts: Map<String, Int> = emptyMap()
+    private val headerCache = android.util.LruCache<CheckerResult.Post, String>(128)
+    private val leadingPostNumber = Pattern.compile("^\\d+")
     private var tab = 0
     private val positions = IntArray(3)
     private val offsets = IntArray(3)
@@ -120,10 +129,10 @@ class ResultActivity : Activity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         if (redirectNonCheckerWebLink()) return
-        if (routeStandaloneLinkToOwnTask()) return
+        if (state == null && routeStandaloneLinkToOwnTask()) return
         setContentView(R.layout.activity_results)
-        AppTitle.apply(findViewById(R.id.toolbar_title))
         AppSettings.configureBars(this)
+        themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
         findViewById<View>(R.id.stat_summary).setOnClickListener {
             val chart = findViewById<View>(R.id.hourly_chart)
             val expanding = chart.visibility != View.VISIBLE
@@ -185,44 +194,27 @@ class ResultActivity : Activity() {
         // Foreground ripples preserve the selected tab's underline and background.
         intArrayOf(
             R.id.tab_posts, R.id.tab_threads, R.id.tab_names,
-            R.id.toolbar_back, R.id.toolbar_more, R.id.stat_summary,
+            R.id.toolbar_more, R.id.stat_summary,
             R.id.edge_analysis_link
         ).forEach { TouchFeedback.foreground(findViewById(it)) }
-        findViewById<View>(R.id.toolbar_back).setOnClickListener { exitResults() }
+        AppBar.setIcon(this, findViewById<ImageButton>(R.id.toolbar_more), AppBar.Icon.MORE, false)
         findViewById<View>(R.id.toolbar_more).setOnClickListener { anchor ->
             val edge = query?.site == CheckerQuery.Site.EDGE
-            val labels = if (edge) arrayOf(
-                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション", "書き込み分析",
-                "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
-                "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
-            ) else arrayOf(
-                "ホーム画面に戻る", "検索履歴", "タブ切替アニメーション",
-                "検索結果を外部ブラウザで開く", "URLをコピー", "IDをコピー",
-                "書き込みスレをコピー", "表示中のレスをすべてコピー", "閉じる"
-            )
-            ThemedMenu.showOverflowToggle(this, anchor, labels, 2,
-                AppSettings.tabAnimations(this), { enabled ->
-                    AppSettings.setTabAnimations(this, enabled)
-                    if (!enabled) clearTabPreview(previewCompletion)
-                }
-            ) { which ->
-                if (which < 0 || which >= labels.size) return@showOverflowToggle
-                when {
-                    which == 0 -> openHome()
-                    which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))
-                    edge && which == 3 -> openEdgeAnalysis()
-                    else -> when (which - if (edge) 4 else 3) {
-                        0 -> openExternalBrowser(resultUrl())
-                        1 -> copyResultUrl()
-                        2 -> copySearchedId()
-                        3 -> copyWrittenThreads()
-                        4 -> copyAllVisible()
-                        else -> exitResults()
-                    }
+            val actions = ResultMenuAction.forSite(edge)
+            ThemedMenu.showOverflow(this, anchor, actions.map { it.label }.toTypedArray()) { which ->
+                when (actions.getOrNull(which)) {
+                    ResultMenuAction.ANALYSIS -> openEdgeAnalysis()
+                    ResultMenuAction.BROWSER -> openExternalBrowser(resultUrl())
+                    ResultMenuAction.COPY_URL -> copyResultUrl()
+                    ResultMenuAction.COPY_ID -> copySearchedId()
+                    ResultMenuAction.COPY_THREADS -> copyWrittenThreads()
+                    ResultMenuAction.COPY_POSTS -> copyAllVisible()
+                    null -> Unit
                 }
             }
         }
-        selectTab(0)
+        restoreNavigationState(state)
+        refreshTabLabels()
         list.setOnItemClickListener { _, _, index, _ -> showEntryAfterRipple(index) }
         list.setOnScrollListener(object : AbsListView.OnScrollListener {
             override fun onScrollStateChanged(view: AbsListView, state: Int) = Unit
@@ -243,72 +235,67 @@ class ResultActivity : Activity() {
             return
         }
         val initial = query ?: return
+        MainNavigation.registerResult(this)
+        registerBackAction { backFromResult() }
+        MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
         inboundEdgeSearch = initial.site == CheckerQuery.Site.EDGE && initial.url.isEmpty()
+        // Only a surviving ViewModel can reuse the fetched model. Process death reloads normally.
+        val retained = if (state != null) screenState.snapshot else null
+        if (retained != null) {
+            query = retained.query
+            result = retained.result
+            nextPage = retained.nextPage
+            noMorePages = retained.noMorePages
+            edgeDiagnostic = retained.edgeDiagnostic
+            rebuildIndexes()
+            loading = false
+            showTabContents(tab)
+            updateHeader()
+            return
+        }
         status.text = if (initial.site == CheckerQuery.Site.EDGE)
             "エッヂ / 取得中…" else "5ch / 取得中…"
+        val verifyDate = verifyEdgeSearchDate()
         worker.execute {
-            var resolved = initial
-            try {
-                if (inboundEdgeSearch) {
-                    val found = EdgeInboundSearch.resolve(initial.board, initial.date, initial.id)
-                    if (found == null) {
-                        runOnUiThread {
-                            if (isFinishing || isDestroyed) return@runOnUiThread
-                            loading = false
-                            showMessage("該当する投稿が見つかりませんでした",
-                                "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
-                                "閉じる", { exitResults() }, null, null)
-                        }
-                        return@execute
-                    }
-                    resolved = found
-                }
-                val target = resolved
-                val parsed = if (target.site == CheckerQuery.Site.EDGE)
-                    EdgeAdapter().load(target) else HissiAdapter().load(target)
-                val wrongDay = verifyEdgeSearchDate() && parsed.posts.isNotEmpty()
-                val received = if (wrongDay)
-                    EdgeSearchValidation.matchingPosts(parsed, target.date, target.id) else parsed
-                val rejected = wrongDay && received.posts.isEmpty()
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    query = target
-                    if (rejected) {
-                        showWrongDay()
-                        return@runOnUiThread
-                    }
-                    if (target.site == CheckerQuery.Site.EDGE && received.posts.isEmpty()) {
-                        edgeDiagnostic = received.diagnostic
-                        loadEdgeWithWebView(
-                            "通常通信では抽出できません: " + received.diagnostic
-                        )
-                        return@runOnUiThread
-                    }
-                    result = received
-                    rebuildIndexes()
-                    loading = false
-                    adapter.notifyDataSetChanged()
-                    updateHeader()
-                    if (result.posts.isNotEmpty()) SearchHistory.record(this, target, result)
-                    if (result.posts.isEmpty()) showEmpty()
-                }
-            } catch (error: Exception) {
-                val lastResolved = resolved
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (inboundEdgeSearch && lastResolved.url.isEmpty()) {
+            val outcome = repository.load(initial, verifyDate)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when (outcome) {
+                    ResultRepository.Load.NotFound -> {
                         loading = false
-                        showMessage("エッヂのID検索に失敗しました",
-                            error.message ?: "検索結果を取得できませんでした",
+                        showMessage("該当する投稿が見つかりませんでした",
+                            "エッヂで指定した板・日付・IDの投稿を確認できませんでした。",
                             "閉じる", { exitResults() }, null, null)
-                    } else if (lastResolved.site == CheckerQuery.Site.EDGE) {
-                        query = lastResolved
-                        loadEdgeWithWebView(
-                            (error.message ?: "通信失敗") +
-                                " / " + HttpTransport.lastDiagnostic()
-                        )
-                    } else {
-                        showError(error.message)
+                    }
+                    is ResultRepository.Load.WrongDay -> {
+                        query = outcome.query
+                        showWrongDay()
+                    }
+                    is ResultRepository.Load.WebFallback -> {
+                        query = outcome.query
+                        outcome.diagnostic?.let { edgeDiagnostic = it }
+                        loadEdgeWithWebView(outcome.reason)
+                    }
+                    is ResultRepository.Load.Ready -> {
+                        query = outcome.query
+                        result = outcome.result
+                        rebuildIndexes()
+                        loading = false
+                        showTabContents(tab)
+                        updateHeader()
+                        rememberLoadedResult()
+                        if (result.posts.isNotEmpty()) SearchHistory.record(this, outcome.query, result)
+                        if (result.posts.isEmpty()) showEmpty()
+                    }
+                    is ResultRepository.Load.Failed -> {
+                        if (outcome.resolvingEdge) {
+                            loading = false
+                            showMessage("エッヂのID検索に失敗しました",
+                                outcome.message ?: "検索結果を取得できませんでした",
+                                "閉じる", { exitResults() }, null, null)
+                        } else {
+                            showError(outcome.message)
+                        }
                     }
                 }
             }
@@ -324,33 +311,29 @@ class ResultActivity : Activity() {
         ) return
         paging = true
         val page = nextPage
+        val sourceUrl = result.sourceUrl
         worker.execute {
             try {
-                val addition = HissiAdapter().nextPage(result.sourceUrl, page)
+                val addition = repository.nextPage(sourceUrl, page)
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (addition.posts.isEmpty()) {
-                        noMorePages = true
-                    } else {
-                        val before = result.posts.size
-                        val seen = HashSet<String>()
-                        result.posts.forEach { seen.add(it.link + it.meta) }
-                        for (post in addition.posts) {
-                            if (seen.add(post.link + post.meta)) result.posts.add(post)
-                        }
-                        if (result.posts.size == before) noMorePages = true
-                    }
+                    val added = ResultRepository.appendPage(result, addition)
+                    if (!added) noMorePages = true
                     nextPage = page + 1
                     paging = false
-                    rebuildIndexes()
-                    adapter.notifyDataSetChanged()
-                    updateHeader()
+                    if (added) {
+                        rebuildIndexes()
+                        adapter.notifyDataSetChanged()
+                        updateHeader()
+                    }
+                    rememberLoadedResult()
                 }
             } catch (_: Exception) {
                 runOnUiThread {
                     paging = false
                     noMorePages = true
                     if (!isFinishing && !isDestroyed) {
+                        rememberLoadedResult()
                         toast("追加レスを取得できませんでした", Toast.LENGTH_LONG)
                     }
                 }
@@ -403,16 +386,29 @@ class ResultActivity : Activity() {
     }
 
     private fun launchedExternally(): Boolean =
-        intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW
+        intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW ||
+            intent.getBooleanExtra(EXTRA_CONNECTED_ORIGIN, false)
 
-    /** Open our own home task even when this result was launched from ChMate. */
-    private fun openHome() {
-        val home = Intent(this, HomeActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    private var backDestination = MainNavigation.Destination.HOME
+    private var enteredViaNavigation = false
+
+    fun setBackDestination(destination: MainNavigation.Destination) {
+        backDestination = destination
+        enteredViaNavigation = true
+    }
+
+    private fun backFromResult() {
+        val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
+        val connected = origin == null && launchedExternally() && !AppSettings.standalone(this)
+        if (!::list.isInitialized || query == null ||
+            NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))) {
+            exitResults()
+        } else {
+            val destination = if (enteredViaNavigation) backDestination else
+                MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
+                    ?: MainNavigation.Destination.HOME
+            MainNavigation.navigate(this, destination)
         }
-        startActivity(home)
-        finish()
     }
 
     private fun exitResults() {
@@ -462,10 +458,14 @@ class ResultActivity : Activity() {
         block.visibility = View.VISIBLE
         findViewById<View>(R.id.edge_analysis_link).visibility =
             if (query?.site == CheckerQuery.Site.EDGE) View.VISIBLE else View.GONE
-        var dated = chart.setPosts(result.posts)
-        result.hourlyCounts?.let {
-            chart.setCounts(it)
-            dated = 1
+        val dated = chartDated ?: run {
+            val counts = result.hourlyCounts
+            val computed = if (counts != null) {
+                chart.setCounts(counts)
+                1
+            } else chart.setPosts(result.posts)
+            chartDated = computed
+            computed
         }
         val label = StringBuilder()
         if (result.rank.isNotEmpty()) label.append(result.rank).append("  ·  ")
@@ -486,6 +486,7 @@ class ResultActivity : Activity() {
     }
 
     private fun rememberTabPosition() {
+        if (adapter.count == 0) return
         positions[tab] = list.firstVisiblePosition
         offsets[tab] = list.getChildAt(0)?.top ?: 0
     }
@@ -493,7 +494,7 @@ class ResultActivity : Activity() {
     private fun showTabContents(index: Int) {
         tab = index
         adapter.notifyDataSetChanged()
-        list.setSelectionFromTop(positions[index], offsets[index])
+        if (adapter.count > 0) list.setSelectionFromTop(positions[index].coerceIn(0, adapter.count - 1), offsets[index])
         refreshTabLabels()
     }
 
@@ -842,29 +843,18 @@ class ResultActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 
     private fun rebuildIndexes() {
-        PostIndex.collectNames(result)
-        threadRows = ArrayList(PostIndex.uniqueThreads(result).entries)
-        threadCounts = PostIndex.threadPostCounts(result)
-        nameCounts = PostIndex.namePostCounts(result)
+        val index = PostIndex.displayIndex(result)
+        threadRows = index.threads
+        postKeys = index.postKeys
+        nameCounts = index.nameCounts
+        result.names.clear()
+        result.names.addAll(index.names)
+        headerCache.evictAll()
+        chartDated = null
     }
 
     private fun applySystemInsets() {
-        val root = findViewById<View>(android.R.id.content)
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            val startTop = root.paddingTop
-            val startBottom = root.paddingBottom
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(view.paddingLeft, startTop + bars.top,
-                    view.paddingRight, startBottom + bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
+        applyContentInsets(findViewById(android.R.id.content))
     }
 
     private fun showEmpty() {
@@ -902,8 +892,12 @@ class ResultActivity : Activity() {
             return
         }
         val request = query ?: return
+        if (!ExternalUrlPolicy.isCheckerWebOrigin(request.url)) {
+            showError("WebViewの接続先が不正です")
+            return
+        }
         fallbackAttempted = true
-        edgeDiagnostic = firstError ?: "通信成功／ネイティブ解析0件"
+        edgeDiagnostic = firstError ?: "通信成功 / ネイティブ解析0件"
         status.text = "エッヂ / ブラウザ方式で再取得中…"
         val web = WebView(this).apply {
             alpha = 0.01f
@@ -920,6 +914,10 @@ class ResultActivity : Activity() {
             javaScriptEnabled = true
             allowFileAccess = false
             allowContentAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            safeBrowsingEnabled = true
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
             domStorageEnabled = true
             loadsImagesAutomatically = false
             blockNetworkImage = true
@@ -928,15 +926,12 @@ class ResultActivity : Activity() {
         val parsing = booleanArrayOf(false)
         val detail = arrayOf(firstError ?: "解析できるレスがありませんでした")
         CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView, incoming: WebResourceRequest
             ): Boolean {
-                val uri = incoming.url
-                val host = uri.host
-                if (!uri.scheme.equals("https", true) || host == null ||
-                    (host != "www.kyodemo.net" && host != "kyodemo.net")
-                ) {
+                if (!ExternalUrlPolicy.isCheckerWebOrigin(incoming.url.toString())) {
                     detail[0] = "外部サイトへリダイレクトされました"
                     return true
                 }
@@ -962,14 +957,18 @@ class ResultActivity : Activity() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                if (fallbackView !== view || completed[0] ||
+                    !ExternalUrlPolicy.isCheckerWebOrigin(url)) return
                 // Some pages attach posts after DOMContentLoaded; poll DOM.
                 for (delay in intArrayOf(900, 2200, 4200, 7100)) {
                     view.postDelayed({
-                        if (completed[0] || isFinishing || isDestroyed) return@postDelayed
+                        if (completed[0] || isFinishing || isDestroyed || fallbackView !== view ||
+                            !ExternalUrlPolicy.isCheckerWebOrigin(view.url)) return@postDelayed
                         view.evaluateJavascript(
                             "(function(){return document.documentElement.outerHTML})()"
                         ) { json ->
-                            if (completed[0] || parsing[0] || isFinishing || isDestroyed) {
+                            if (completed[0] || parsing[0] || isFinishing || isDestroyed ||
+                                fallbackView !== view || !ExternalUrlPolicy.isCheckerWebOrigin(view.url)) {
                                 return@evaluateJavascript
                             }
                             if (json == null || json.length > 12 * 1024 * 1024) {
@@ -994,7 +993,7 @@ class ResultActivity : Activity() {
                                         runOnUiThread {
                                             parsing[0] = false
                                             if (completed[0] || isFinishing || isDestroyed ||
-                                                fallbackView !== view
+                                                fallbackView !== view || !ExternalUrlPolicy.isCheckerWebOrigin(view.url)
                                             ) return@runOnUiThread
                                             if (wrongDay) {
                                                 completed[0] = true
@@ -1014,8 +1013,9 @@ class ResultActivity : Activity() {
                                                 result = found
                                                 rebuildIndexes()
                                                 loading = false
-                                                adapter.notifyDataSetChanged()
+                                                showTabContents(tab)
                                                 updateHeader()
+                                                rememberLoadedResult()
                                                 SearchHistory.record(this@ResultActivity,
                                                     request, result)
                                                 cleanupWebView(view)
@@ -1040,7 +1040,7 @@ class ResultActivity : Activity() {
         }
         web.loadUrl(request.url)
         web.postDelayed({
-            if (!completed[0] && !isFinishing && !isDestroyed) {
+            if (!completed[0] && !isFinishing && !isDestroyed && fallbackView === web) {
                 completed[0] = true
                 showError(detail[0])
                 cleanupWebView(web)
@@ -1049,12 +1049,12 @@ class ResultActivity : Activity() {
     }
 
     private fun cleanupWebView(view: WebView?) {
-        if (view == null) return
+        if (view == null || fallbackView !== view) return
+        fallbackView = null
         view.stopLoading()
         view.webViewClient = WebViewClient()
         (view.parent as? ViewGroup)?.removeView(view)
         view.destroy()
-        if (fallbackView === view) fallbackView = null
     }
 
     private fun showError(message: String?) {
@@ -1161,7 +1161,46 @@ class ResultActivity : Activity() {
         copy(builder.toString(), false)
     }
 
+    private fun rememberLoadedResult() {
+        val current = query ?: return
+        if (result.posts.isNotEmpty()) {
+            screenState.snapshot = ResultScreenState.Snapshot(current, result, nextPage, noMorePages, edgeDiagnostic)
+        }
+    }
+
+    private fun restoreNavigationState(state: Bundle?) {
+        if (state == null) return
+        tab = state.getInt("result_tab", 0).coerceIn(0, 2)
+        state.getIntArray("result_positions")?.takeIf { it.size == positions.size }?.copyInto(positions)
+        state.getIntArray("result_offsets")?.takeIf { it.size == offsets.size }?.copyInto(offsets)
+        backDestination = MainNavigation.hostDestination(state.getString("result_back_destination"))
+        enteredViaNavigation = state.getBoolean("result_entered_via_navigation")
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::list.isInitialized) {
+            clearTabPreview(previewCompletion)
+            rememberTabPosition()
+            outState.putInt("result_tab", tab)
+            outState.putIntArray("result_positions", positions.copyOf())
+            outState.putIntArray("result_offsets", offsets.copyOf())
+            outState.putString("result_back_destination", backDestination.name)
+            outState.putBoolean("result_entered_via_navigation", enteredViaNavigation)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        MainNavigation.refresh(this)
+        if (::list.isInitialized && !isFinishing &&
+            themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
+            recreate()
+        }
+    }
+
     override fun onDestroy() {
+        MainNavigation.unregisterResult(this)
         if (::swipeContainer.isInitialized) swipeContainer.callback = null
         clearTabPreview(previewCompletion)
         worker.shutdownNow()
@@ -1171,9 +1210,12 @@ class ResultActivity : Activity() {
 
     /** Muted reference badge is UI-only, excluded from copied data and name aggregation. */
     private fun displayHeader(post: CheckerResult.Post): CharSequence {
-        val header = PostFormatter.header(post)
+        val header = headerCache.get(post) ?: PostFormatter.header(post).also {
+            // Do not retain oversized headers; normal scrolling only needs recent rows.
+            if (it.length <= 4096) headerCache.put(post, it)
+        }
         if (post.referenceCount <= 0) return header
-        val number = Pattern.compile("^\\d+").matcher(header)
+        val number = leadingPostNumber.matcher(header)
         if (!number.find()) return header
         val at = number.end()
         val mark = "(" + post.referenceCount + ")"
@@ -1236,9 +1278,7 @@ class ResultActivity : Activity() {
             when (tab) {
                 0 -> {
                     val post = result.posts[index]
-                    val sameThread = index > 0 &&
-                        PostIndex.threadKey(post.link) ==
-                        PostIndex.threadKey(result.posts[index - 1].link)
+                    val sameThread = index > 0 && postKeys[index] == postKeys[index - 1]
                     title.visibility = if (sameThread) View.GONE else View.VISIBLE
                     bindResultText(title, post.title, reused)
                     subtitle.visibility = View.VISIBLE
@@ -1249,7 +1289,7 @@ class ResultActivity : Activity() {
                 1 -> {
                     title.visibility = View.VISIBLE
                     val entry = threadRows[index]
-                    val count = threadCounts.getOrDefault(PostIndex.threadKey(entry.key), 0)
+                    val count = entry.count
                     bindResultText(title, labelWithCount(entry.value, count), reused)
                     subtitle.visibility = View.GONE
                     body.visibility = View.GONE

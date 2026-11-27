@@ -70,15 +70,18 @@ public final class ThreadOpenerTest {
         String opener=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
             "src/main/java/com/chikuwadon/hissidroidplus/ThreadOpener.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
-        String home=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src/main/java/com/chikuwadon/hissidroidplus/HomeActivity.kt")),
+        String screen=new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+            "src/main/java/com/chikuwadon/hissidroidplus/SettingsActivity.kt")),
             java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(settings.contains("THREAD_OPEN_MODE"));
         assertTrue(opener.contains("AppSettings.threadOpenMode(activity)"));
         assertTrue(opener.contains("chooseWithAlways"));
         assertTrue(opener.contains("validated5chThreadUrl(raw)"));
-        assertTrue(home.indexOf("スレの開き方")<home.indexOf("リンクの開き方"));
-        assertTrue(home.contains("毎回選択"));
+        assertTrue(screen.contains("スレの開き方"));
+        assertTrue(screen.contains("リンクの開き方"));
+        assertTrue(screen.indexOf("スレの開き方")<screen.indexOf("リンクの開き方"));
+        assertTrue(screen.contains("毎回選択"));
+        assertTrue(screen.contains("AppSettings.setThreadOpenMode(this, AppSettings.THREAD_MODES[it])"));
     }
 
     @Test public void validatesWithoutUnknownHost(){

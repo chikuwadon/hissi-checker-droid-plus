@@ -52,10 +52,9 @@ object ThreadOpener {
         return ArrayList(urls)
     }
 
-    @Suppress("DEPRECATION")
     private fun isReaderInstalled(pm: PackageManager, pkg: String): Boolean =
         try {
-            pm.getPackageInfo(pkg, 0)
+            PackageQueries.packageInfo(pm, pkg)
             true
         } catch (_: PackageManager.NameNotFoundException) {
             false
@@ -185,11 +184,13 @@ object ThreadOpener {
 
     @JvmStatic
     fun open(activity: Activity, raw: String?, edge: Boolean) {
-        if (raw.isNullOrEmpty()) return
-        val normalized = if (edge) EdgeThreadLink.original(raw) else raw
-        val accepted = if (edge) validatedThreadUrl(raw) else validated5chThreadUrl(raw)
+        if (!ExternalUrlPolicy.isWebUrl(raw)) return
+        val source = raw ?: return
+        val normalized = if (edge) EdgeThreadLink.original(source) else source
+        val accepted = if (edge) validatedThreadUrl(source) else validated5chThreadUrl(raw)
         if (accepted.isEmpty()) {
-            if (!edge && launch(activity, viewIntent(normalized, null))) return
+            // Unknown links are browser-only; do not hand arbitrary schemes or
+            // unvalidated thread URLs to installed reader applications.
             BrowserLauncher.open(activity, normalized)
             return
         }

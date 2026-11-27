@@ -1,7 +1,6 @@
 package com.chikuwadon.hissidroidplus
 
 import android.webkit.CookieManager
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,7 +11,7 @@ import java.util.regex.Pattern
 /** Size-limited, origin-validated HTTP transport, only invoked from worker threads. */
 object HttpTransport {
     private const val LIMIT = 4 * 1024 * 1024
-    @Volatile private var diagnostics = "未取得"
+    private val diagnostics = HttpRequestDiagnostics()
     @Volatile private var userAgent = ""
     private val CHARSET = Pattern.compile("(?i)charset\\s*=\\s*[\"' ]*([A-Za-z0-9_-]+)")
 
@@ -38,11 +37,20 @@ object HttpTransport {
     }
 
     @JvmStatic
-    fun lastDiagnostic(): String = diagnostics
+    fun lastDiagnostic(): String = diagnostics.get()
 
     @JvmStatic
     @Throws(IOException::class)
     fun get(url: String, charset: Charset): String = request(url, null, charset, 10_000, 15_000)
+
+    /** Use the device's real WebView UA for this provider only; no global UA change. */
+    @JvmStatic
+    @Throws(IOException::class)
+    fun getForNuko(url: String, charset: Charset, browserUserAgent: String): String {
+        val target = URL(url)
+        require(target.protocol == "https" && target.host.equals("n2ch.net", true) && target.path == "/q/-/")
+        return request(url, null, charset, 10_000, 15_000, browserUserAgent)
+    }
 
     @JvmStatic
     @Throws(IOException::class)
@@ -57,32 +65,40 @@ object HttpTransport {
 
     @Throws(IOException::class)
     private fun request(
-        url: String, payload: String?, charset: Charset, connectMs: Int, readMs: Int
+        url: String, payload: String?, charset: Charset, connectMs: Int, readMs: Int,
+        nukoUserAgent: String? = null
     ): String {
+        diagnostics.set("HTTP応答未取得")
+        val requestUserAgent = nukoUserAgent ?: userAgent
+        val requestCookies = cookieJar
         var current = url
         var form = payload
         for (redirects in 0..3) {
+            HttpResponseReader.checkInterrupted()
             val target = URL(current)
             validate(target)
             val connection = target.openConnection() as HttpURLConnection
-            connection.connectTimeout = connectMs
-            connection.readTimeout = readMs
-            connection.instanceFollowRedirects = false
-            if (userAgent.isNotEmpty()) connection.setRequestProperty("User-Agent", userAgent)
-            connection.setRequestProperty("Accept-Language", "ja-JP,ja;q=0.9,en-US;q=0.5")
-            connection.setRequestProperty(
-                "Accept", "text/html,application/xhtml+xml,application/json;q=0.8,*/*;q=0.6"
-            )
-            connection.setRequestProperty("Accept-Encoding", "identity")
-            val isKyodemo = target.host.endsWith("kyodemo.net")
-            if (isKyodemo) {
-                val cookie = cookieJar?.read(target.toExternalForm())
-                if (!cookie.isNullOrEmpty()) connection.setRequestProperty("Cookie", cookie)
-                connection.setRequestProperty("Referer", "https://www.kyodemo.net/sdemo/")
-            }
             try {
+                connection.connectTimeout = connectMs
+                connection.readTimeout = readMs
+                connection.instanceFollowRedirects = false
+                if (requestUserAgent.isNotEmpty()) connection.setRequestProperty("User-Agent", requestUserAgent)
+                connection.setRequestProperty("Accept-Language", "ja-JP,ja;q=0.9,en-US;q=0.5")
+                connection.setRequestProperty(
+                    "Accept", "text/html,application/xhtml+xml,application/json;q=0.8,*/*;q=0.6"
+                )
+                connection.setRequestProperty("Accept-Encoding", "identity")
+                val isKyodemo = target.host.equals("kyodemo.net", true) ||
+                    target.host.equals("www.kyodemo.net", true)
+                if (isKyodemo) {
+                    val cookie = try { requestCookies?.read(target.toExternalForm()) }
+                        catch (_: RuntimeException) { null }
+                    if (!cookie.isNullOrEmpty()) connection.setRequestProperty("Cookie", cookie)
+                    connection.setRequestProperty("Referer", "https://www.kyodemo.net/sdemo/")
+                }
                 // Request properties must be read before outputStream connects a POST.
                 val hadCookie = connection.getRequestProperty("Cookie") != null
+                HttpResponseReader.checkInterrupted()
                 if (form != null) {
                     connection.requestMethod = "POST"
                     connection.doOutput = true
@@ -95,17 +111,19 @@ object HttpTransport {
                 }
                 val status = connection.responseCode
                 val contentType = connection.contentType
-                diagnostics = "HTTP=" + status + " / 形式=" +
+                diagnostics.set("HTTP=" + status + " / 形式=" +
                     (contentType?.replace(Regex("[\r\n]"), " ") ?: "未指定") +
                     " / リダイレクト=" + redirects + " / Cookie送信=" +
                     (if (hadCookie) "あり" else "なし") +
-                    " / UA=" + (if (userAgent.isNotEmpty()) "Android WebView" else "標準HTTP")
+                    " / UA=" + (if (requestUserAgent.isNotEmpty()) "Android WebView" else "標準HTTP") +
+                    " / Content-Length=" + connection.contentLengthLong +
+                    " / Content-Encoding=" + (connection.contentEncoding?.replace(Regex("[\\r\\n]"), " ") ?: "未指定"))
                 if (isKyodemo) {
                     for ((header, values) in connection.headerFields) {
                         if (!header.equals("Set-Cookie", ignoreCase = true)) continue
                         for (value in values) {
                             try {
-                                cookieJar?.save(target.toExternalForm(), value)
+                                requestCookies?.save(target.toExternalForm(), value)
                             } catch (_: RuntimeException) {
                                 // A cookie bridge failure must not hide a valid HTTP response.
                             }
@@ -126,26 +144,15 @@ object HttpTransport {
                 if (status != 200) throw IOException("HTTP " + status)
                 if (connection.contentLengthLong > LIMIT) throw IOException("HTMLが大きすぎます")
                 val data = connection.inputStream.use { input ->
-                    ByteArrayOutputStream().use { output ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            val n = input.read(buffer)
-                            if (n < 0) break
-                            if (output.size() + n > LIMIT) throw IOException("HTMLが大きすぎます")
-                            output.write(buffer, 0, n)
-                        }
-                        output.toByteArray()
-                    }
+                    HttpResponseReader.read(input, LIMIT, connection.contentLengthLong)
                 }
                 var chosen = charset
-                if (contentType != null) {
-                    val match = CHARSET.matcher(contentType)
-                    if (match.find()) {
-                        try { chosen = Charset.forName(match.group(1)) }
-                        catch (_: Exception) { /* fall back to caller's encoding */ }
-                    }
-                }
-                if (contentType == null || !CHARSET.matcher(contentType).find()) {
+                val headerCharset = contentType?.let { CHARSET.matcher(it) }
+                val hasHeaderCharset = headerCharset?.find() == true
+                if (hasHeaderCharset) {
+                    try { chosen = Charset.forName(headerCharset!!.group(1)) }
+                    catch (_: Exception) { /* fall back to caller's encoding */ }
+                } else {
                     val head = String(
                         data, 0, data.size.coerceAtMost(3072), StandardCharsets.ISO_8859_1
                     )
@@ -159,13 +166,20 @@ object HttpTransport {
                     data, chosen, target.host.equals("hissi.org", true) ||
                         target.host.equals("www.hissi.org", true)
                 )
-                diagnostics += " / 文字コード=" + chosen.name() +
+                if (target.host.equals("n2ch.net", true)) {
+                    val alternative = NukoResponseDecoder.decode(data, chosen)
+                    decoded = alternative
+                }
+                diagnostics.set(diagnostics.get() + " / 文字コード=" + chosen.name() +
                     (if (decoded.startsWith(HissiHtmlDecoder.FALLBACK_MARKER))
-                        "(Shift_JIS再判定)" else "") + " / 受信=" + data.size + "B"
+                        "(Shift_JIS再判定)" else "") + " / 受信=" + data.size + "B")
                 if (decoded.startsWith(HissiHtmlDecoder.FALLBACK_MARKER)) {
                     decoded = decoded.substring(HissiHtmlDecoder.FALLBACK_MARKER.length)
                 }
                 return decoded
+            } catch (error: IOException) {
+                diagnostics.set(diagnostics.get() + " / 通信失敗")
+                throw error
             } finally {
                 connection.disconnect()
             }
@@ -185,6 +199,8 @@ object HttpTransport {
         if ((host.equals("hissi.org", true) || host.equals("www.hissi.org", true)) &&
             (proto == "http" || proto == "https")) return
         if (host.equals("menu.5ch.io", true) && proto == "https") return
+        if (host.equals("n2ch.net", true) && proto == "https" && target.path == "/q/-/") return
+        if (host.equals("eddiarchive3rd.boy.jp", true) && proto == "https" && target.path == "/") return
         throw IOException("通信先が許可されていません")
     }
 }

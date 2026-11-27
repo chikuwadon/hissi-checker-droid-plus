@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -31,7 +30,7 @@ import kotlin.math.roundToInt
 import org.json.JSONArray
 
 /** Displays site-provided analysis and triggers site analysis only on a user tap. */
-class EdgeAnalysisActivity : Activity() {
+class EdgeAnalysisActivity : CheckerActivity() {
     companion object {
         const val EXTRA_URL = "analysis_url"
     }
@@ -84,19 +83,7 @@ class EdgeAnalysisActivity : Activity() {
             setBackgroundColor(getColor(R.color.surface))
         }
         setContentView(root)
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(0, bars.top, 0, bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
-        }
-
+        applyContentInsets(root)
         val toolbar = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), 0, dp(10), 0)

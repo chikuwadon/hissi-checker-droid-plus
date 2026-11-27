@@ -22,6 +22,7 @@ class HourlyChartView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hours = IntArray(24)
+    private val ticks = intArrayOf(0, 6, 12, 18, 23)
     private var selected = -1
 
     companion object {
@@ -104,7 +105,6 @@ class HourlyChartView @JvmOverloads constructor(
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = max(1f, resources.displayMetrics.density * 0.7f)
         paint.color = Color.argb(60, Color.red(guide), Color.green(guide), Color.blue(guide))
-        val ticks = intArrayOf(0, 6, 12, 18, 23)
         for (hour in ticks) {
             val x = hourX(hour, width.toFloat(), margin)
             canvas.drawLine(x, top.toFloat(), x, bottom.toFloat(), paint)

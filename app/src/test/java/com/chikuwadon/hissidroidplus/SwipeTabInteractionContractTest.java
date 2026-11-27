@@ -42,7 +42,7 @@ public final class SwipeTabInteractionContractTest {
     @Test public void animationSettingFitsOnOneLine() throws Exception {
         String menu = source("java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
-        assertTrue(home.contains("\"タブ切替アニメーション\""));
+        assertTrue(source("java/com/chikuwadon/hissidroidplus/SettingsActivity.kt").contains("\"タブ切替アニメーション\""));
         assertTrue(menu.contains("val toggleTextWidth = items.getOrNull(toggleIndex)"));
         assertTrue(menu.contains("val checkableWidth = ceil(toggleTextWidth.toDouble()).toInt() + dp(a, 70)"));
         assertTrue(menu.contains("val availableWidth = a.resources.displayMetrics.widthPixels - dp(a, 24)"));
@@ -76,18 +76,18 @@ public final class SwipeTabInteractionContractTest {
         String home = source("java/com/chikuwadon/hissidroidplus/HomeActivity.kt");
         String result = source("java/com/chikuwadon/hissidroidplus/ResultActivity.kt");
         String history = source("java/com/chikuwadon/hissidroidplus/HistoryActivity.kt");
-        assertTrue(home.contains("TouchFeedback.foreground(findViewById(R.id.home_more)"));
+        assertTrue(home.contains("MainNavigation.attach(this, shell"));
         assertTrue(home.contains("selector = TouchFeedback.listSelector(this@HomeActivity)"));
         assertTrue(home.contains("TouchFeedback.foreground(close"));
         assertTrue(result.contains("R.id.tab_posts, R.id.tab_threads, R.id.tab_names"));
-        assertTrue(result.contains("R.id.toolbar_back, R.id.toolbar_more"));
+        assertTrue(result.contains("R.id.toolbar_more, R.id.stat_summary"));
         assertTrue(result.contains("TouchFeedback.pulse(it)"));
         assertTrue(result.contains("showEntryAfterRipple(index)"));
         assertFalse(result.contains("TouchFeedback.foreground(body, 4)"));
         assertTrue(history.contains("TouchFeedback.foreground(recentTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(favoriteTab)"));
         assertTrue(history.contains("TouchFeedback.foreground(deleteSelected)"));
-        assertTrue(history.contains("TouchFeedback.listSelector(this@HistoryActivity)"));
+        assertTrue(history.contains("TouchFeedback.listSelector(host)"));
     }
 
     @Test public void selectableResultRowsTriggerVisibleTouchRipple() throws Exception {
@@ -136,7 +136,8 @@ public final class SwipeTabInteractionContractTest {
         assertTrue(menu.contains("row.contentDescription = value + if (enabled)"));
         assertFalse(menu.contains("row.isActivated = enabled"));
         assertTrue(menu.contains("onToggle(enabled)"));
-        assertTrue(home.contains("ThemedMenu.showOverflowToggle(this, anchor,"));
-        assertTrue(result.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
+        assertTrue(home.contains("MainNavigation.Destination.HOME"));
+        assertFalse(result.contains("ThemedMenu.showOverflowToggle(this, anchor"));
+        assertTrue(result.contains("ThemedMenu.showOverflow(this, anchor, actions.map"));
     }
 }

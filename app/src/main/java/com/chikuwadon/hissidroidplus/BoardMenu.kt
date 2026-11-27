@@ -81,7 +81,7 @@ object BoardMenu {
                 val code = entry.optString("directory_name", "").trim()
                 val address = entry.optString("url", "")
                 if (!validBoard(address, code) || label.isEmpty() || !seen.add(code)) continue
-                category.boards.add(BoardCatalog.Board(code, label))
+                category.boards.add(BoardCatalog.Board(code, label, address))
             }
             if (category.boards.isNotEmpty()) result.add(category)
         }
@@ -94,6 +94,7 @@ object BoardMenu {
         return try {
             val uri = URI.create(url)
             val host = uri.host ?: return false
+            if (uri.rawUserInfo != null || uri.port != -1 || uri.rawQuery != null || uri.rawFragment != null) return false
             if (!(host.endsWith(".5ch.io") || host.endsWith(".5ch.net") ||
                   host == "5ch.io")) return false
             if (!uri.scheme.equals("https", true) && !uri.scheme.equals("http", true)) return false
@@ -124,7 +125,7 @@ object BoardMenu {
                 val group = groups.getOrPut(current) { Category(current) }
                 val title = element.text().trim()
                 if (title.isEmpty() || group.boards.any { it.code == code }) continue
-                group.boards.add(BoardCatalog.Board(code, title))
+                group.boards.add(BoardCatalog.Board(code, title, url))
             }
         }
         return groups.values.filter { it.boards.isNotEmpty() }

@@ -1,7 +1,11 @@
 package com.chikuwadon.hissidroidplus
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
+import java.util.concurrent.Executors
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -13,8 +17,41 @@ object SearchHistory {
     private const val STORE = "search_history_store"
     private const val RECENT = "recent_v1"
     private const val FAVORITES = "favorites_v1"
-    private const val LIMIT = 100
+    private const val LIMIT_KEY = "history_limit"
+    private val worker = Executors.newSingleThreadExecutor()
+    private var helper: Store? = null
+
+    fun runAsync(action: () -> Unit) {
+        worker.execute {
+            try { action() } catch (error: Exception) {
+                Log.e("SearchHistory", "History operation failed", error)
+            }
+        }
+    }
+
+    fun limit(context: Context): Int = HistoryRetention.normalize(
+        AppSettings.prefs(context).getInt(LIMIT_KEY, HistoryRetention.DEFAULT)
+    )
+
+    fun updateLimit(context: Context, value: Int, completion: (Boolean) -> Unit) {
+        val app = context.applicationContext
+        runAsync {
+            val success = try {
+                val normalized = HistoryRetention.normalize(value)
+                val database = db(app)
+                check(AppSettings.prefs(app).edit().putInt(LIMIT_KEY, normalized).commit())
+                trim(database, normalized)
+                true
+            } catch (error: Exception) {
+                Log.e("SearchHistory", "Unable to change history retention", error)
+                false
+            }
+            completion(success)
+        }
+    }
     private val RESULT_DAY = Pattern.compile("/read\\.php/[A-Za-z0-9_]+/(\\d{8})/")
+    private val DAY = Regex("\\d{8}")
+    private val ID_PREFIX = Regex("(?i)^ID\\s*[:：]\\s*")
 
     /** Fields and JSON keys deliberately remain compatible with the Java version. */
     class Entry(
@@ -30,28 +67,25 @@ object SearchHistory {
             " / " + (if (board.isEmpty()) "不明な板" else board)
 
         fun effectiveDate(): String {
-            if (date.matches(Regex("\\d{8}"))) return date
+            if (date.matches(DAY)) return date
             val matched = RESULT_DAY.matcher(url)
             return if (matched.find()) matched.group(1) else date
         }
 
         fun detail(): String {
             val day = effectiveDate()
-            val label = if (day.matches(Regex("\\d{8}"))) {
+            val label = if (day.matches(DAY)) {
                 day.substring(0, 4) + "/" + day.substring(4, 6) + "/" + day.substring(6)
             } else day
             val idLabel = if (id.isEmpty()) "" else
-                "  ID:" + id.replaceFirst(Regex("(?i)^ID\\s*[:：]\\s*"), "")
-            return label + idLabel + "  レス:" + posts
+                "  ID:" + id.replaceFirst(ID_PREFIX, "")
+            return label + idLabel + "  レス: " + posts
         }
     }
 
-    private fun prefs(context: Context): SharedPreferences =
-        context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
-
-    private fun load(context: Context, key: String): MutableList<Entry> {
+    private fun legacy(context: Context, key: String): MutableList<Entry> {
         val out = ArrayList<Entry>()
-        val source = prefs(context).getString(key, "[]")
+        val source = context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getString(key, "[]")
         try {
             val json = JSONArray(source)
             for (i in 0 until json.length()) {
@@ -70,24 +104,93 @@ object SearchHistory {
         return out
     }
 
-    private fun save(context: Context, key: String, entries: List<Entry>) {
-        val array = JSONArray()
-        for (entry in entries) {
-            val json = JSONObject()
-            try {
-                json.put("url", entry.url)
-                json.put("site", entry.site)
-                json.put("board", entry.board)
-                json.put("date", entry.date)
-                json.put("id", entry.id)
-                json.put("time", entry.viewedAt)
-                json.put("posts", entry.posts)
-                array.put(json)
-            } catch (_: JSONException) {
-                // Ignore one malformed row.
+    private fun values(entry: Entry) = ContentValues().apply {
+        put("url", entry.url)
+        put("site", entry.site)
+        put("board", entry.board)
+        put("day", entry.date)
+        put("user_id", entry.id)
+        put("viewed_at", entry.viewedAt)
+        put("posts", entry.posts)
+    }
+
+    /** SQLiteOpenHelper wraps onCreate in a transaction: preserve legacy data until import succeeds. */
+    private class Store(private val app: Context) : SQLiteOpenHelper(app, "search_history.db", null, 1) {
+        override fun onCreate(db: SQLiteDatabase) {
+            for ((table, key) in listOf("recent" to RECENT, "favorites" to FAVORITES)) {
+                db.execSQL("CREATE TABLE $table (url TEXT PRIMARY KEY NOT NULL, site TEXT NOT NULL, board TEXT NOT NULL, day TEXT NOT NULL, user_id TEXT NOT NULL, viewed_at INTEGER NOT NULL, posts INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX ${table}_viewed ON $table(viewed_at DESC)")
+                for (entry in legacy(app, key)) {
+                    check(db.insertWithOnConflict(table, null, values(entry), SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+                }
             }
         }
-        prefs(context).edit().putString(key, array.toString()).apply()
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            error("Unsupported history database upgrade")
+        }
+    }
+
+    @Synchronized
+    private fun db(context: Context): SQLiteDatabase {
+        val app = context.applicationContext
+        val store = helper ?: Store(app).also { helper = it }
+        val database = store.writableDatabase
+        // The old records are removed only after the SQLite creation transaction committed.
+        val old = app.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+        if (old.contains(RECENT) || old.contains(FAVORITES)) {
+            old.edit().remove(RECENT).remove(FAVORITES).apply()
+        }
+        return database
+    }
+
+    private fun load(context: Context, table: String): List<Entry> = load(db(context), table)
+
+    private fun load(database: SQLiteDatabase, table: String): List<Entry> {
+        val out = ArrayList<Entry>()
+        database.query(table, arrayOf("url", "site", "board", "day", "user_id", "viewed_at", "posts"),
+            null, null, null, null, "viewed_at DESC, url ASC").use { cursor ->
+            while (cursor.moveToNext()) {
+                out.add(Entry(cursor.getString(0), cursor.getString(1), cursor.getString(2),
+                    cursor.getString(3), cursor.getString(4), cursor.getLong(5), cursor.getInt(6)))
+            }
+        }
+        return out
+    }
+
+    data class ScreenSnapshot(
+        val rows: List<Entry>, val recentCount: Int, val favoriteCount: Int,
+        val favoriteUrls: Set<String>, val totalCount: Int
+    )
+
+    private fun count(database: SQLiteDatabase, table: String): Int =
+        database.rawQuery("SELECT COUNT(*) FROM " + table, null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+
+    private fun favoriteKeys(database: SQLiteDatabase): Set<String> {
+        val keys = HashSet<String>()
+        database.query("favorites", arrayOf("url"), null, null, null, null, null).use { cursor ->
+            while (cursor.moveToNext()) keys.add(cursor.getString(0))
+        }
+        return keys
+    }
+
+    /** Called on the history worker. Only the visible collection is decoded into Entry objects. */
+    fun screenSnapshot(context: Context, favoritesScreen: Boolean, filter: HistoryFilter, sort: Int): ScreenSnapshot {
+        val database = db(context)
+        val source = load(database, if (favoritesScreen) "favorites" else "recent")
+        val recentCount = if (favoritesScreen) count(database, "recent") else source.size
+        val keys = if (favoritesScreen) source.mapTo(HashSet()) { it.url } else favoriteKeys(database)
+        val favoriteCount = keys.size
+        // load() is already newest first, with a deterministic URL tie-break.
+        val matched = if (filter.active()) source.filter { filter.matches(it) } else source
+        val rows = if (sort == 0) matched else sorted(matched, sort)
+        return ScreenSnapshot(rows, recentCount, favoriteCount, keys, source.size)
+    }
+
+    private fun trim(database: SQLiteDatabase, limit: Int) {
+        if (limit == HistoryRetention.UNLIMITED) return
+        database.execSQL("DELETE FROM recent WHERE url IN (SELECT url FROM recent ORDER BY viewed_at DESC, url ASC LIMIT -1 OFFSET ?)", arrayOf<Any>(limit))
     }
 
     private fun dateFromUrl(url: String): String {
@@ -116,65 +219,90 @@ object SearchHistory {
             id, System.currentTimeMillis(),
             if (result.reportedPostCount >= 0) result.reportedPostCount else result.posts.size
         )
-        val recent = load(context, RECENT)
-        recent.removeAll { it.url == entry.url }
-        recent.add(0, entry)
-        if (recent.size > LIMIT) recent.subList(LIMIT, recent.size).clear()
-        save(context, RECENT, recent)
-        val saved = load(context, FAVORITES)
-        val index = saved.indexOfFirst { it.url == url }
-        if (index >= 0) {
-            saved[index] = entry
-            save(context, FAVORITES, saved)
+        val app = context.applicationContext
+        runAsync {
+            val database = db(app)
+            database.beginTransaction()
+            try {
+                check(database.insertWithOnConflict("recent", null, values(entry), SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+                trim(database, limit(app))
+                database.update("favorites", values(entry), "url = ?", arrayOf(url))
+                database.setTransactionSuccessful()
+            } finally {
+                database.endTransaction()
+            }
         }
     }
 
     /** Normal history deletion must never modify favorites. */
-    @JvmStatic @Synchronized
-    fun deleteRecent(context: Context, url: String) {
-        val recent = load(context, RECENT)
-        recent.removeAll { it.url == url }
-        save(context, RECENT, recent)
+    @JvmStatic fun deleteRecent(context: Context, url: String) {
+        db(context).delete("recent", "url = ?", arrayOf(url))
     }
 
-    @JvmStatic @Synchronized
-    fun deleteRecents(context: Context, urls: Set<String>) {
-        val recent = load(context, RECENT)
-        recent.removeAll { it.url in urls }
-        save(context, RECENT, recent)
+    @JvmStatic fun deleteRecents(context: Context, urls: Set<String>) =
+        deleteEntries(context, "recent", urls)
+
+    @JvmStatic fun removeFavorites(context: Context, urls: Set<String>) =
+        deleteEntries(context, "favorites", urls)
+
+    private fun deleteEntries(context: Context, table: String, urls: Set<String>) {
+        val database = db(context)
+        database.beginTransaction()
+        try {
+            for (chunk in urls.chunked(400)) {
+                val placeholders = chunk.joinToString(",") { "?" }
+                database.delete(table, "url IN ($placeholders)", chunk.toTypedArray())
+            }
+            database.setTransactionSuccessful()
+        } finally {
+            database.endTransaction()
+        }
     }
 
-    @JvmStatic @Synchronized
-    fun clearRecents(context: Context) {
-        save(context, RECENT, emptyList())
+    @JvmStatic fun clearFavorites(context: Context) {
+        db(context).delete("favorites", null, null)
     }
 
-    @JvmStatic @Synchronized
-    fun recents(context: Context): List<Entry> = load(context, RECENT)
+    @JvmStatic fun clearRecents(context: Context) {
+        db(context).delete("recent", null, null)
+    }
 
-    @JvmStatic @Synchronized
-    fun favorites(context: Context): List<Entry> = load(context, FAVORITES)
+    @JvmStatic fun recents(context: Context): List<Entry> = load(context, "recent")
+    @JvmStatic fun favorites(context: Context): List<Entry> = load(context, "favorites")
 
-    @JvmStatic @Synchronized
-    fun isFavorite(context: Context, url: String): Boolean =
-        load(context, FAVORITES).any { it.url == url }
+    @JvmStatic fun isFavorite(context: Context, url: String): Boolean =
+        db(context).query("favorites", arrayOf("url"), "url = ?", arrayOf(url), null, null, null, "1").use { it.moveToFirst() }
 
-    @JvmStatic @Synchronized
-    fun toggleFavorite(context: Context, entry: Entry) {
-        val favorites = load(context, FAVORITES)
-        val removed = favorites.removeAll { it.url == entry.url }
-        if (!removed) favorites.add(0, entry)
-        save(context, FAVORITES, favorites)
+    @JvmStatic fun removeFavorite(context: Context, url: String) {
+        db(context).delete("favorites", "url = ?", arrayOf(url))
+    }
+
+    @JvmStatic fun setFavorite(context: Context, entry: Entry, enabled: Boolean) {
+        val database = db(context)
+        if (enabled) {
+            check(database.insertWithOnConflict("favorites", null, values(entry), SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+        } else {
+            database.delete("favorites", "url = ?", arrayOf(entry.url))
+        }
+    }
+
+    @JvmStatic fun toggleFavorite(context: Context, entry: Entry) {
+        val database = db(context)
+        if (database.delete("favorites", "url = ?", arrayOf(entry.url)) == 0) {
+            check(database.insertWithOnConflict("favorites", null, values(entry), SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+        }
     }
 
     @JvmStatic
     fun sorted(source: List<Entry>, mode: Int): List<Entry> =
         when (mode) {
             1 -> source.sortedBy { it.viewedAt }
-            2 -> source.sortedWith(compareBy<Entry> { it.board.lowercase(Locale.ROOT) }
-                .thenByDescending { it.viewedAt })
-            3 -> source.sortedWith(compareByDescending<Entry> { it.effectiveDate() }
-                .thenByDescending { it.viewedAt })
+            2 -> source.map { it to it.board.lowercase(Locale.ROOT) }
+                .sortedWith(compareBy<Pair<Entry, String>> { it.second }.thenByDescending { it.first.viewedAt })
+                .map { it.first }
+            3 -> source.map { it to it.effectiveDate() }
+                .sortedWith(compareByDescending<Pair<Entry, String>> { it.second }.thenByDescending { it.first.viewedAt })
+                .map { it.first }
             else -> source.sortedByDescending { it.viewedAt }
         }
 }

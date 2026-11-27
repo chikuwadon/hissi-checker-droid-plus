@@ -67,27 +67,28 @@ public final class ResultMenuContractTest {
         assertTrue(selectable.contains("setTextIsSelectable(true)"));
     }
 
-    @Test public void homePrecedesHistoryForBothSites() throws Exception {
-        String code=activity();
-        String adjacent="\"ホーム画面に戻る\", \"検索履歴\"";
-        assertEquals(2,code.split(java.util.regex.Pattern.quote(adjacent),-1).length-1);
-        assertTrue(code.contains("which == 0 -> openHome()"));
-        assertTrue(code.contains(
-            "which == 1 -> startActivity(Intent(this, HistoryActivity::class.java))"));
-        assertTrue(code.contains("ThemedMenu.showOverflowToggle(this, anchor, labels, 2,"));
-        assertTrue(code.contains("AppSettings.setTabAnimations(this, enabled)"));
-        assertTrue(code.contains("edge && which == 3 -> openEdgeAnalysis()"));
-        assertTrue(code.contains("when (which - if (edge) 4 else 3)"));
-        assertTrue(code.contains("1 -> copyResultUrl()"));
-        assertTrue(code.contains("2 -> copySearchedId()"));
-        assertTrue(code.contains("3 -> copyWrittenThreads()"));
-        assertTrue(code.contains("4 -> copyAllVisible()"));
-        String order="\"URLをコピー\", \"IDをコピー\",";
-        assertEquals(2,code.split(java.util.regex.Pattern.quote(order),-1).length-1);
-        assertTrue(code.contains(
-            "\"書き込みスレをコピー\", \"表示中のレスをすべてコピー\""));
+    @Test public void resultMenuHasOnlyResultActionsInBothSites() throws Exception {
+        assertEquals(java.util.Arrays.asList(ResultMenuAction.ANALYSIS, ResultMenuAction.BROWSER,
+            ResultMenuAction.COPY_URL, ResultMenuAction.COPY_ID, ResultMenuAction.COPY_THREADS,
+            ResultMenuAction.COPY_POSTS), ResultMenuAction.forSite(true));
+        assertEquals(java.util.Arrays.asList(ResultMenuAction.BROWSER, ResultMenuAction.COPY_URL,
+            ResultMenuAction.COPY_ID, ResultMenuAction.COPY_THREADS, ResultMenuAction.COPY_POSTS),
+            ResultMenuAction.forSite(false));
+        for (ResultMenuAction action : ResultMenuAction.values()) {
+            assertFalse(java.util.Arrays.asList("ホーム画面に戻る", "検索履歴", "タブ切替アニメーション", "閉じる")
+                .contains(action.getLabel()));
+        }
+        String code = activity();
+        assertTrue(code.contains("ResultMenuAction.forSite(edge)"));
+        assertTrue(code.contains("ThemedMenu.showOverflow(this, anchor, actions.map"));
+        assertFalse(code.contains("ThemedMenu.showOverflowToggle(this, anchor"));
+        assertTrue(code.contains("ResultMenuAction.ANALYSIS -> openEdgeAnalysis()"));
+        assertTrue(code.contains("ResultMenuAction.BROWSER -> openExternalBrowser(resultUrl())"));
+        assertTrue(code.contains("ResultMenuAction.COPY_URL -> copyResultUrl()"));
+        assertTrue(code.contains("ResultMenuAction.COPY_ID -> copySearchedId()"));
+        assertTrue(code.contains("ResultMenuAction.COPY_THREADS -> copyWrittenThreads()"));
+        assertTrue(code.contains("ResultMenuAction.COPY_POSTS -> copyAllVisible()"));
         assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK or"));
-        assertTrue(code.contains(
-            "Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"));
+        assertTrue(code.contains("MainNavigation.navigate(this, destination)"));
     }
 }

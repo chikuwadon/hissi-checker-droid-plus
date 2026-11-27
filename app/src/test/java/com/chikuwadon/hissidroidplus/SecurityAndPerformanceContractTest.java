@@ -29,6 +29,14 @@ public final class SecurityAndPerformanceContractTest {
         checkAllowed("http://hissi.org/read.php/android/20261024/id.html",true);
         checkAllowed("https://hissi.org/read.php/android/20261024/id.html",true);
         checkAllowed("https://menu.5ch.io/bbsmenu.json",true);
+        checkAllowed("https://eddiarchive3rd.boy.jp/?keyword=Android",true);
+        checkAllowed("https://n2ch.net/q/-/?q=Android",true);
+        checkAllowed("http://n2ch.net/q/-/",false);
+        checkAllowed("https://n2ch.net/r/-/android/1793641629/",false);
+        checkAllowed("https://n2ch.net.evil.example/q/-/",false);
+        checkAllowed("http://eddiarchive3rd.boy.jp/",false);
+        checkAllowed("https://eddiarchive3rd.boy.jp/other",false);
+        checkAllowed("https://eddiarchive3rd.boy.jp.evil.example/",false);
         checkAllowed("https://example.com/",false);
         checkAllowed("https://evilkyodemo.net/sdemo/",false);
         checkAllowed("https://kyodemo.net.evil.example/sdemo/",false);
@@ -58,7 +66,8 @@ public final class SecurityAndPerformanceContractTest {
         assertTrue(history.contains("convert.tag is HistoryRow"));
         assertTrue(history.contains("favoriteUrls.contains(entry.url)"));
         assertTrue(history.contains("favoriteUrls.clear()"));
-        assertTrue(history.contains("val favorites = SearchHistory.favorites(this)"));
+        assertTrue(history.contains("SearchHistory.screenSnapshot(host, requestedTab != 0, requestedFilter, requestedSort)"));
+        assertTrue(code("SearchHistory.kt").contains("database.query(\"favorites\", arrayOf(\"url\")"));
         assertFalse(history.contains("SearchHistory.isFavorite(HistoryActivity.this,entry.url)"));
     }
     @Test public void postReadsRequestHeadersBeforeConnecting() throws Exception {

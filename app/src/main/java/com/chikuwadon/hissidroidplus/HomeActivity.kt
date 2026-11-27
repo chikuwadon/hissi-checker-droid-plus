@@ -2,7 +2,6 @@ package com.chikuwadon.hissidroidplus
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -14,16 +13,18 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
+import androidx.fragment.app.FragmentContainerView
+import androidx.lifecycle.Lifecycle
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -39,7 +40,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Independent search UI with a live and cached official 5ch board menu. */
-class HomeActivity : Activity() {
+class HomeActivity : CheckerActivity() {
     private lateinit var board: EditText
     private lateinit var id: EditText
     private lateinit var edge: EditText
@@ -57,6 +58,13 @@ class HomeActivity : Activity() {
     private var finishAfterDeepLink = false
     private var boardGroups: List<BoardMenu.Category>? = null
     private var boardSource = ""
+    private var themeAtCreation: String? = null
+    private lateinit var homeContent: View
+    private lateinit var sectionContainer: FragmentContainerView
+    private lateinit var sectionBack: OnBackPressedCallback
+    private var pendingDestination: MainNavigation.Destination? = null
+    var activeDestination = MainNavigation.Destination.HOME
+        private set
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppSettings.themeContext(base))
@@ -64,11 +72,37 @@ class HomeActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        setContentView(R.layout.activity_home)
+        val shell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.surface))
+        }
+        val area = FrameLayout(this)
+        homeContent = layoutInflater.inflate(R.layout.activity_home, area, false)
+        area.addView(homeContent, FrameLayout.LayoutParams(-1, -1))
+        sectionContainer = FragmentContainerView(this).apply {
+            id = R.id.main_section_container
+            visibility = View.GONE
+        }
+        area.addView(sectionContainer, FrameLayout.LayoutParams(-1, -1))
+        shell.addView(area, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(shell)
         AppTitle.apply(findViewById(R.id.app_title))
         AppSettings.configureBars(this)
-        findViewById<View>(R.id.home_more).setOnClickListener { showSettings(it) }
-        TouchFeedback.foreground(findViewById(R.id.home_more), 12)
+        themeAtCreation = AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)
+        MainNavigation.attach(this, shell, MainNavigation.Destination.HOME)
+        sectionBack = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val active = supportFragmentManager.findFragmentByTag(activeDestination.name)
+                if ((active as? HistoryFragment)?.handleBack() == true) return
+                if (activeDestination != MainNavigation.Destination.HOME) {
+                    showDestination(MainNavigation.Destination.HOME)
+                } else {
+                    MainNavigation.exitFromHome(this@HomeActivity)
+                }
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, sectionBack)
+        MainNavigation.registerHome(this)
         applyInsets()
         board = findViewById(R.id.board)
         id = findViewById(R.id.user_id)
@@ -102,12 +136,12 @@ class HomeActivity : Activity() {
         if (savedEdgeDay > 0) edgeSelected.timeInMillis = savedEdgeDay
         refreshEdgeDate()
         edgeDateSummary.setOnClickListener {
-            DatePickerDialog(this, { _, year, month, day ->
-                edgeSelected.set(year, month, day)
+            CalendarDialog.show(this, LocalDate.of(edgeSelected.get(Calendar.YEAR),
+                edgeSelected.get(Calendar.MONTH) + 1, edgeSelected.get(Calendar.DAY_OF_MONTH))) { day ->
+                edgeSelected.set(day.year, day.monthValue - 1, day.dayOfMonth)
                 prefs.edit().putLong("edge_last_date", edgeSelected.timeInMillis).apply()
                 refreshEdgeDate()
-            }, edgeSelected.get(Calendar.YEAR), edgeSelected.get(Calendar.MONTH),
-                edgeSelected.get(Calendar.DAY_OF_MONTH)).show()
+            }
         }
         findViewById<View>(R.id.edge_search).setOnClickListener {
             try {
@@ -132,12 +166,12 @@ class HomeActivity : Activity() {
         }
         edgeId.setText(prefs.getString("edge_last_id", ""))
         dateSummary.setOnClickListener {
-            DatePickerDialog(this, { _, year, month, day ->
-                selected.set(year, month, day)
+            CalendarDialog.show(this, LocalDate.of(selected.get(Calendar.YEAR),
+                selected.get(Calendar.MONTH) + 1, selected.get(Calendar.DAY_OF_MONTH))) { day ->
+                selected.set(day.year, day.monthValue - 1, day.dayOfMonth)
                 refreshDate()
                 prefs.edit().putLong("last_date", selected.timeInMillis).apply()
-            }, selected.get(Calendar.YEAR), selected.get(Calendar.MONTH),
-                selected.get(Calendar.DAY_OF_MONTH)).show()
+            }
         }
         findViewById<View>(R.id.search).setOnClickListener {
             try {
@@ -173,19 +207,15 @@ class HomeActivity : Activity() {
         findViewById<View>(R.id.choose_board).setOnClickListener { showBoards() }
         findViewById<View>(R.id.add_favorite).setOnClickListener {
             val current = board.text.toString().trim()
-            if (!current.matches(Regex("[A-Za-z0-9_]+"))) {
+            if (!BoardFavorites.valid(current)) {
                 toast("板名を指定してください")
                 return@setOnClickListener
             }
-            val favorites = HashSet(prefs.getStringSet("favorite_boards", emptySet())
-                ?: emptySet())
-            favorites.add(current)
-            prefs.edit().putStringSet("favorite_boards", favorites).apply()
+            BoardFavorites.add(this, current)
             toast("お気に入りに登録しました")
         }
         findViewById<View>(R.id.show_favorites).setOnClickListener {
-            val favorites = (prefs.getStringSet("favorite_boards", emptySet())
-                ?: emptySet()).toMutableList().sorted()
+            val favorites = BoardFavorites.read(this)
             if (favorites.isEmpty()) {
                 toast("お気に入りがありません")
                 return@setOnClickListener
@@ -195,11 +225,80 @@ class HomeActivity : Activity() {
             }, {
                 ThemedMenu.choose(this, "お気に入りをすべて削除しますか？",
                     arrayOf("戻る", "すべて削除"), -1) { choice ->
-                    if (choice == 1) prefs.edit().remove("favorite_boards").apply()
+                    if (choice == 1) BoardFavorites.clear(this)
                 }
             })
         }
-        handleHissiScheme()
+        val restored = state?.getString("main_destination")
+        val requested = restored ?: intent.getStringExtra(MainNavigation.EXTRA_DESTINATION)
+        showDestination(MainNavigation.hostDestination(requested))
+        if (state == null) handleHissiScheme()
+    }
+
+    /** Top-level native sections share one window and navigation bar. */
+    fun showDestination(destination: MainNavigation.Destination) {
+        if (destination !in MainNavigation.hosted || isFinishing || isDestroyed) return
+        if (supportFragmentManager.isStateSaved) {
+            pendingDestination = destination
+            return
+        }
+        // A hidden navigation item remains accessible via an explicit result menu or Back.
+        val target = destination
+        if (target != activeDestination) {
+            // Clear the outgoing editor before hiding its fragment, including Archive -> Home.
+            currentFocus?.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(homeContent.windowToken, 0)
+        }
+        pendingDestination = null
+        val manager = supportFragmentManager
+        val transaction = manager.beginTransaction().setReorderingAllowed(true)
+        for (section in MainNavigation.hosted.filter { it != MainNavigation.Destination.HOME }) {
+            val fragment = manager.findFragmentByTag(section.name)
+            if (section == target) {
+                val screen = fragment ?: when (section) {
+                    MainNavigation.Destination.ARCHIVE -> ArchiveFragment()
+                    MainNavigation.Destination.HISTORY -> HistoryFragment()
+                    MainNavigation.Destination.FAVORITES -> FavoritesFragment()
+                    MainNavigation.Destination.SETTINGS -> SettingsFragment()
+                    else -> error("Unsupported hosted section: $section")
+                }
+                if (fragment == null) transaction.add(R.id.main_section_container, screen, section.name)
+                else transaction.show(screen)
+                transaction.setMaxLifecycle(screen, Lifecycle.State.RESUMED)
+            } else if (fragment != null) {
+                transaction.hide(fragment)
+                transaction.setMaxLifecycle(fragment, Lifecycle.State.STARTED)
+            }
+        }
+        transaction.commitNow()
+        activeDestination = target
+        homeContent.visibility = if (target == MainNavigation.Destination.HOME) View.VISIBLE else View.GONE
+        sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
+        MainNavigation.setSelected(this, target)
+        androidx.core.view.ViewCompat.requestApplyInsets(findViewById(android.R.id.content))
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("main_destination", activeDestination.name)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        if (newIntent.action == Intent.ACTION_VIEW &&
+            newIntent.data?.scheme?.equals("hissi", ignoreCase = true) == true) {
+            showDestination(MainNavigation.Destination.HOME)
+            handleHissiScheme()
+        } else {
+            showDestination(MainNavigation.hostDestination(newIntent.getStringExtra(MainNavigation.EXTRA_DESTINATION)))
+        }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        pendingDestination?.let { showDestination(it) }
     }
 
     private fun toast(message: String, duration: Int = Toast.LENGTH_SHORT) {
@@ -239,6 +338,7 @@ class HomeActivity : Activity() {
                 } else {
                     hissiAnyDate.isChecked = false
                     startActivity(Intent(this, ResultActivity::class.java)
+                        .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, !AppSettings.standalone(this))
                         .putExtra("board", request.board)
                         .putExtra("date", request.date)
                         .putExtra("id", request.id))
@@ -247,57 +347,6 @@ class HomeActivity : Activity() {
             }
         } catch (bad: IllegalArgumentException) {
             toast(bad.message ?: "hissiリンクが不正です", Toast.LENGTH_LONG)
-        }
-    }
-
-    /** Toolbar overflow stays attached to the three-dot anchor. */
-    private fun showSettings(anchor: View) {
-        ThemedMenu.showOverflowToggle(this, anchor,
-            arrayOf("検索履歴", "テーマ", "スレの開き方", "リンクの開き方",
-                "タブ切替アニメーション", "このアプリについて"),
-            4, AppSettings.tabAnimations(this),
-            { enabled -> AppSettings.setTabAnimations(this, enabled) }
-        ) { index ->
-            when (index) {
-                0 -> startActivity(Intent(this, HistoryActivity::class.java))
-                1 -> showThemePicker()
-                2 -> showThreadModePicker()
-                3 -> showLinkModePicker()
-                else -> ThemedMenu.showAbout(this)
-            }
-        }
-    }
-
-    private fun showThemePicker() {
-        val values = arrayOf(AppSettings.THEME_DARK, AppSettings.THEME_LIGHT,
-            AppSettings.THEME_SYSTEM)
-        val labels = arrayOf("ダーク", "ライト", "端末の設定に合わせる")
-        val current = AppSettings.prefs(this).getString(AppSettings.THEME,
-            AppSettings.THEME_DARK)
-        ThemedMenu.choose(this, "テーマ", labels, values.indexOf(current)) { index ->
-            AppSettings.prefs(this).edit().putString(AppSettings.THEME, values[index]).apply()
-            recreate()
-        }
-    }
-
-    private fun showThreadModePicker() {
-        val labels = arrayOf("毎回選択", "ChMateで開く", "Haiagaruで開く",
-            "他のアプリで開く", "外部ブラウザで開く")
-        val current = AppSettings.threadOpenMode(this)
-        ThemedMenu.choose(this, "スレの開き方", labels,
-            AppSettings.THREAD_MODES.indexOf(current)) { index ->
-            AppSettings.setThreadOpenMode(this, AppSettings.THREAD_MODES[index])
-        }
-    }
-
-    private fun showLinkModePicker() {
-        val labels = arrayOf("ChMate連携（元の画面へ戻る）", "単独アプリ（別タスクで開く）")
-        ThemedMenu.choose(this, "リンクの開き方", labels,
-            if (AppSettings.standalone(this)) 1 else 0) { index ->
-            AppSettings.prefs(this).edit().putString(
-                AppSettings.LINK_MODE,
-                if (index == 1) AppSettings.MODE_STANDALONE else AppSettings.MODE_CONNECTED
-            ).apply()
         }
     }
 
@@ -337,6 +386,7 @@ class HomeActivity : Activity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (found.day != null) {
                     startActivity(Intent(this, ResultActivity::class.java)
+                        .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, finishAfterDeepLink && !AppSettings.standalone(this))
                         .putExtra("board", code)
                         .putExtra("date", found.day)
                         .putExtra("id", user))
@@ -400,6 +450,7 @@ class HomeActivity : Activity() {
                     if (ready != null) {
                         startActivity(Intent(this, ResultActivity::class.java)
                             .setData(Uri.parse(ready.checkerUrl))
+                            .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, finishAfterDeepLink && !AppSettings.standalone(this))
                             .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE, !anyDate))
                         if (finishAfterDeepLink) finish()
                     } else {
@@ -524,23 +575,14 @@ class HomeActivity : Activity() {
         }
     }
 
-    private fun readCached(input: InputStream): String {
-        ByteArrayOutputStream().use { output ->
-            val buffer = ByteArray(8192)
-            while (true) {
-                val n = input.read(buffer)
-                if (n == -1) break
-                if (output.size() + n > 4 * 1024 * 1024) throw IOException("Too large")
-                output.write(buffer, 0, n)
-            }
-            return output.toString(StandardCharsets.UTF_8.name())
-        }
-    }
+    private fun readCached(input: InputStream): String =
+        String(HttpResponseReader.read(input, 4 * 1024 * 1024, -1), StandardCharsets.UTF_8)
 
     private fun showCategories(groups: List<BoardMenu.Category>, source: String) {
         val labels = groups.map { it.name + "  （" + it.boards.size + "）" }
         showList("カテゴリを選択\n" + source, labels,
-            { index -> showCategory(groups, source, index) }, null, true)
+            { index -> showCategory(groups, source, index) }, null, true,
+            search = { showBoardSearch(groups, source) })
     }
 
     private fun showCategory(groups: List<BoardMenu.Category>, source: String, index: Int) {
@@ -548,13 +590,19 @@ class HomeActivity : Activity() {
         val labels = category.boards.map { it.toString() }
         showList(category.name + "  ·  " + labels.size + "板", labels,
             { position -> board.setText(category.boards[position].code) },
-            { showCategories(groups, source) })
+            { showCategories(groups, source) }, search = { showBoardSearch(groups, source) })
+    }
+
+    private fun showBoardSearch(groups: List<BoardMenu.Category>, source: String) {
+        BoardSearchDialog.show(this, groups, { showCategories(groups, source) }) { entry ->
+            board.setText(entry.code)
+        }
     }
 
     /** Scrollable centered dialog, never a bottom sheet. */
     private fun showList(
         title: String, labels: List<String>, pick: (Int) -> Unit,
-        back: (() -> Unit)?, refresh: Boolean = false
+        back: (() -> Unit)?, refresh: Boolean = false, search: (() -> Unit)? = null
     ) {
         if (isFinishing || isDestroyed) return
         val panel = LinearLayout(this).apply {
@@ -574,6 +622,11 @@ class HomeActivity : Activity() {
             setPadding(dp(18), dp(17), 0, dp(11))
         }
         titleRow.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+        val searchIcon = search?.let {
+            BoardSearchDialog.icon(this).also { icon ->
+                titleRow.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+            }
+        }
         val update = TextView(this).apply {
             text = "⟳"
             contentDescription = "5ch公式メニューを手動更新"
@@ -625,6 +678,10 @@ class HomeActivity : Activity() {
             }
             show()
         }
+        searchIcon?.setOnClickListener {
+            dialog.dismiss()
+            search?.invoke()
+        }
         update.setOnClickListener {
             dialog.dismiss()
             refreshBoards()
@@ -642,25 +699,19 @@ class HomeActivity : Activity() {
     private fun dp(n: Int): Int = (n * resources.displayMetrics.density).roundToInt()
 
     private fun applyInsets() {
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            val root = findViewById<View>(android.R.id.content)
-            val top = root.paddingTop
-            val bottom = root.paddingBottom
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars() or
-                        WindowInsets.Type.displayCutout()
-                )
-                view.setPadding(view.paddingLeft, top + bars.top,
-                    view.paddingRight, bottom + bars.bottom)
-                WindowInsets.CONSUMED
-            }
-            root.requestApplyInsets()
+        applyContentInsets(findViewById(android.R.id.content), resizeForIme = true)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        MainNavigation.refresh(this)
+        if (!isFinishing && themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
+            recreate()
         }
     }
 
     override fun onDestroy() {
+        MainNavigation.unregisterHome(this)
         worker.shutdownNow()
         super.onDestroy()
     }

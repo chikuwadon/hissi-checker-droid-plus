@@ -39,7 +39,7 @@ class EdgeAdapter {
         private fun decode(html: String, query: CheckerQuery): CheckerResult =
             parse(html, query).also {
                 it.sourceUrl = query.url
-                it.diagnostic = describePage(html)
+                if (it.diagnostic.isEmpty()) it.diagnostic = describePage(html)
             }
 
         @JvmStatic
@@ -50,7 +50,7 @@ class EdgeAdapter {
             parseKyodemo(doc, result)
             if (result.posts.isNotEmpty()) {
                 PostIndex.collectNames(result)
-                result.diagnostic = describePage(html)
+                result.diagnostic = describeDocument(doc, html.length)
                 return result
             }
             val seen = HashSet<String>()
@@ -79,7 +79,7 @@ class EdgeAdapter {
                 }
             }
             PostIndex.collectNames(result)
-            result.diagnostic = describePage(html)
+            result.diagnostic = describeDocument(doc, html.length)
             return result
         }
 
@@ -207,11 +207,15 @@ class EdgeAdapter {
         @JvmStatic
         fun describePage(html: String?): String {
             if (html.isNullOrEmpty()) return "受信内容なし"
-            val doc = Jsoup.parse(html)
-            val links = doc.select("a[href]").size
-            var thread = doc.select("a[href]").count { isThreadLink(it.absUrl("href")) }
+            return describeDocument(Jsoup.parse(html), html.length)
+        }
+
+        private fun describeDocument(doc: Document, length: Int): String {
+            val anchors = doc.select("a[href]")
+            val links = anchors.size
+            var thread = anchors.count { isThreadLink(it.absUrl("href")) }
             if (thread == 0) {
-                thread = doc.select("a[href]").count {
+                thread = anchors.count {
                     val href = it.attr("href")
                     href.contains("/sdemo/r/e_e_") || href.contains("/test/read.cgi/")
                 }
@@ -222,7 +226,7 @@ class EdgeAdapter {
             val blocked = all.contains("403 forbidden") || all.contains("access denied") ||
                 all.contains("captcha") || all.contains("cloudflare") ||
                 all.contains("verify you are human")
-            return "HTML=" + html.length + "文字 / リンク=" + links +
+            return "HTML=" + length + "文字 / リンク=" + links +
                 " / スレリンク=" + thread + " / 本文候補=" + bodies +
                 " / 投稿候補=" + blocks + (if (blocked) " / アクセス制限の疑い" else "")
         }

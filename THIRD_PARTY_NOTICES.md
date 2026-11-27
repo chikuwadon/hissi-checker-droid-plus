@@ -32,3 +32,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## AndroidX (Apache License 2.0)
+
+- Core 1.19.1, Activity 1.13.0, Lifecycle Runtime / ViewModel 2.11.1, Fragment 1.9.1
+- Project and transitive AndroidX modules: https://developer.android.com/jetpack/androidx
+- Source: https://android.googlesource.com/platform/frameworks/support/
+- Copyright The Android Open Source Project and contributors
+- License: https://www.apache.org/licenses/LICENSE-2.0
+
+Kotlin standard library and kotlinx components resolved by these libraries use Apache License 2.0; see https://github.com/JetBrains/kotlin and https://github.com/Kotlin/kotlinx.coroutines. The license texts and notices distributed by the dependencies remain applicable.

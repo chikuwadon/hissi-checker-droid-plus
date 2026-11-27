@@ -34,7 +34,7 @@ object PostIndex {
             if (host == "egg.5ch.net" || host == "egg.5ch.io") host = "egg.5ch.net"
             host + canonical
         } catch (_: Exception) {
-            postUrl.replaceFirst(Regex("#.*$"), "")
+            postUrl.replaceFirst(FRAGMENT, "")
         }
     }
 
@@ -54,8 +54,53 @@ object PostIndex {
                     path, uri.query, null).toASCIIString()
             }
         } catch (_: Exception) {
-            postUrl.replaceFirst(Regex("#.*$"), "")
+            postUrl.replaceFirst(FRAGMENT, "")
         }
+    }
+
+    data class ThreadRow(val key: String, val value: String, val count: Int)
+    data class DisplayIndex(
+        val postKeys: List<String>,
+        val threads: List<ThreadRow>,
+        val names: List<String>,
+        val nameCounts: Map<String, Int>
+    )
+
+    /** Derive all display indexes in one post traversal. Preserve source order and
+     * the same canonical URL/name rules as the independent copy/analysis helpers. */
+    @JvmStatic
+    fun displayIndex(result: CheckerResult): DisplayIndex {
+        val keys = ArrayList<String>(result.posts.size)
+        val names = LinkedHashSet<String>()
+        val counts = LinkedHashMap<String, Int>()
+        val authors = LinkedHashMap<String, Int>()
+        val seen = LinkedHashSet<String>()
+        val threads = LinkedHashMap<String, String>()
+        for (raw in result.names) {
+            val name = cleanAuthor(raw)
+            if (name.isNotEmpty()) names.add(name)
+        }
+        for (post in result.posts) {
+            val key = threadKey(post.link)
+            keys.add(key)
+            if (post.link.isNotEmpty()) {
+                counts[key] = counts.getOrDefault(key, 0) + 1
+                if (seen.add(key)) threads[openableThreadUrl(post.link)] =
+                    if (post.title.isEmpty()) "スレッド" else post.title
+            }
+            val name = cleanAuthor(post.author)
+            if (name.isNotEmpty()) {
+                names.add(name)
+                authors[name] = authors.getOrDefault(name, 0) + 1
+            }
+        }
+        for ((url, title) in result.threads) {
+            val key = threadKey(url)
+            if (seen.add(key)) threads[openableThreadUrl(url)] = title
+        }
+        return DisplayIndex(keys, threads.map { (url, title) ->
+            ThreadRow(url, title, counts.getOrDefault(threadKey(url), 0))
+        }, names.toList(), authors)
     }
 
     @JvmStatic
@@ -77,16 +122,22 @@ object PostIndex {
         return output
     }
 
+    private val MARKUP = Regex("<[^>]*>")
+    private val LEADING_NUMBER = Regex("^\\d{1,6}(?:\\(\\d+\\))?\\s*[:：]\\s*")
+    private val REFERENCE_NUMBER = Regex("\\s+\\d{1,6}\\(\\d+\\)\\s*[:：].*$")
+    private val MAIL_SUFFIX = Regex("(?i)\\s+(?:sage|age)\\s*$")
+    private val FRAGMENT = Regex("#.*$")
+
     /** Strip markup, date, ID and connection metadata from author names. */
     @JvmStatic
     fun cleanAuthor(raw: String?): String {
         if (raw == null) return ""
-        var value = raw.replace(Regex("<[^>]*>"), " ").replace('\u00a0', ' ').trim()
-        value = value.replaceFirst(Regex("^\\d{1,6}(?:\\(\\d+\\))?\\s*[:：]\\s*"), "")
-        value = value.replaceFirst(Regex("\\s+\\d{1,6}\\(\\d+\\)\\s*[:：].*$"), "")
+        var value = raw.replace(MARKUP, " ").replace('\u00a0', ' ').trim()
+        value = value.replaceFirst(LEADING_NUMBER, "")
+        value = value.replaceFirst(REFERENCE_NUMBER, "")
         value = ID.matcher(value).replaceFirst("")
         value = DATE.matcher(value).replaceFirst("")
-        value = value.replaceFirst(Regex("(?i)\\s+(?:sage|age)\\s*$"), "")
+        value = value.replaceFirst(MAIL_SUFFIX, "")
         value = WACCHOI.matcher(value).replaceFirst("")
         var index = value.indexOf(" [")
         if (index > 0) value = value.substring(0, index)
