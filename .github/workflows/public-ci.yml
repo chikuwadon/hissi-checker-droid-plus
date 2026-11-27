@@ -88,7 +88,10 @@ jobs:
           signer() {
             "$TOOLS/apksigner" verify --print-certs "$1" | grep -F 'Signer #1 certificate SHA-256 digest:'
           }
-          test "$(signer "$APK")" = "$(signer "$RUNNER_TEMP/prior-release/HissiCheckerDroidPlus-v1.0.5.apk")"
+          current_signer="$(signer "$APK")"
+          prior_signer="$(signer "$RUNNER_TEMP/prior-release/HissiCheckerDroidPlus-v1.0.5.apk")"
+          test -n "$current_signer"
+          test "$current_signer" = "$prior_signer"
           sha256sum "$APK"
       - name: Upload signed QA APK
         if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0')) }}
