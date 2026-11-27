@@ -24,6 +24,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -87,6 +88,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var searchControls: LinearLayout
     private lateinit var searchLine: LinearLayout
     private lateinit var searchLinks: LinearLayout
+    private lateinit var fontControls: LinearLayout
+    private lateinit var fontButton: TextView
+    private var fontPercent = AppSettings.archiveFontPercent(host)
     private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
@@ -208,6 +212,18 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         browser = ThemedMenu.formAction(host, "外部ブラウザ")
         links.addView(options, LinearLayout.LayoutParams(0, -1, 1f))
         links.addView(browser, LinearLayout.LayoutParams(0, -1, 1f))
+        fontButton = ThemedMenu.formAction(host, "Aa").apply {
+            textSize = 18f
+            contentDescription = "検索結果の文字サイズ"
+            isFocusable = true
+        }
+        links.addView(fontButton, LinearLayout.LayoutParams(dp(48), -1))
+        buildFontControls()
+        searchControls.addView(fontControls, LinearLayout.LayoutParams(-1, -2))
+        fontButton.setOnClickListener {
+            fontControls.visibility = if (fontControls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            fontButton.isSelected = fontControls.visibility == View.VISIBLE
+        }
         options.setOnClickListener { showOptions() }
         browser.setOnClickListener {
             if (loading || disposed) return@setOnClickListener
@@ -287,13 +303,69 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         restored?.let { restorePosition(it.position) }
     }
 
+    /** Inline controls leave the actual search results visible while adjusting text. */
+    private fun buildFontControls() {
+        fontControls = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+        }
+        val value = TextView(host).apply {
+            text = "$fontPercent%"
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(host.getColor(R.color.text_primary))
+        }
+        val slider = SeekBar(host).apply {
+            max = ArchiveFontScale.MAX_STEP
+            progress = ArchiveFontScale.toProgress(fontPercent)
+            contentDescription = "検索結果の文字サイズ（パーセント）"
+            progressTintList = ColorStateList.valueOf(host.getColor(R.color.accent))
+            thumbTintList = ColorStateList.valueOf(host.getColor(R.color.accent))
+        }
+        val reset = ThemedMenu.formAction(host, "標準")
+        fontControls.addView(value, LinearLayout.LayoutParams(dp(52), dp(48)))
+        fontControls.addView(slider, LinearLayout.LayoutParams(0, dp(48), 1f))
+        fontControls.addView(reset, LinearLayout.LayoutParams(dp(56), dp(48)))
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val percent = ArchiveFontScale.fromProgress(progress)
+                value.text = "$percent%"
+                applyFontPercent(percent)
+                if (fromUser) AppSettings.setArchiveFontPercent(host, percent)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+        reset.setOnClickListener {
+            slider.progress = ArchiveFontScale.toProgress(ArchiveFontScale.DEFAULT)
+            AppSettings.setArchiveFontPercent(host, ArchiveFontScale.DEFAULT)
+        }
+    }
+
+    private fun applyFontPercent(percent: Int) {
+        val nextPercent = ArchiveFontScale.normalize(percent)
+        if (fontPercent == nextPercent) return
+        val index = if (::list.isInitialized) list.firstVisiblePosition else 0
+        val offset = if (::list.isInitialized) list.getChildAt(0)?.let { it.top - list.paddingTop } ?: 0 else 0
+        val scaledOffset = (offset.toFloat() * nextPercent / fontPercent).toInt()
+        fontPercent = nextPercent
+        adapter.notifyDataSetChanged()
+        if (::list.isInitialized && adapter.count > 0) {
+            list.setSelectionFromTop(index.coerceIn(0, adapter.count - 1), scaledOffset)
+            rememberPosition()
+        }
+    }
+
     /** Move the existing search views; do not recreate the list or discard its state. */
     private fun applySearchPlacement() {
         val bottom = AppSettings.archiveSearchAtBottom(host)
         if (bottomPlacement == bottom) return
         (searchControls.parent as? ViewGroup)?.removeView(searchControls)
         searchControls.removeView(searchLinks)
+        searchControls.removeView(fontControls)
         searchControls.addView(searchLinks, if (bottom) 0 else 1, LinearLayout.LayoutParams(-1, dp(42)))
+        searchControls.addView(fontControls, if (bottom) 1 else 2, LinearLayout.LayoutParams(-1, -2))
         val target = if (bottom) searchBottom else searchTop
         target.addView(searchControls, LinearLayout.LayoutParams(-1, -2))
         searchTop.visibility = if (bottom) View.GONE else View.VISIBLE
@@ -986,14 +1058,24 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         override fun getView(position: Int, convert: View?, parent: ViewGroup): View {
             val row = (convert as? LinearLayout) ?: LinearLayout(host).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(8), dp(12), dp(8))
-                minimumHeight = dp(58)
-                addView(TextView(host).apply { textSize = 15f; setTextColor(host.getColor(R.color.text_primary)) })
-                addView(TextView(host).apply { textSize = 12f; setTextColor(host.getColor(R.color.text_secondary)) })
+                addView(TextView(host).apply { setTextColor(host.getColor(R.color.text_primary)) },
+                    LinearLayout.LayoutParams(-1, -2))
+                addView(TextView(host).apply { setTextColor(host.getColor(R.color.text_secondary)) },
+                    LinearLayout.LayoutParams(-1, -2))
             }
+            val scale = fontPercent / 100f
+            val padding = dp((8 * scale).toInt())
+            row.setPadding(dp(12), padding, dp(12), padding)
+            row.minimumHeight = dp((58 * scale).toInt())
             val entry = getItem(position)
-            (row.getChildAt(0) as TextView).text = entry.title
-            (row.getChildAt(1) as TextView).text = ArchiveExternalSearch.metadata(entry)
+            (row.getChildAt(0) as TextView).apply {
+                textSize = 15f * scale
+                text = entry.title
+            }
+            (row.getChildAt(1) as TextView).apply {
+                textSize = 12f * scale
+                text = ArchiveExternalSearch.metadata(entry)
+            }
             return row
         }
     }
