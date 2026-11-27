@@ -46,7 +46,7 @@ data class ArchiveQuery @JvmOverloads constructor(
     }
 }
 
-data class ArchiveThread @JvmOverloads constructor(val title: String, val url: String, val replies: Int, val date: String, val board: String = "")
+data class ArchiveThread @JvmOverloads constructor(val title: String, val url: String, val replies: Int, val date: String, val board: String = "", val originalUrl: String = "")
 data class ArchiveSortOption(val value: String, val label: String)
 data class ArchiveFormOptions(val sorts: List<ArchiveSortOption>, val fuzzyValue: String?)
 data class ArchivePage @JvmOverloads constructor(
@@ -94,7 +94,11 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
-            ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page, query.boardCode)
+            ArchiveProvider.FIVECH_NUKO -> try {
+                ArchiveProviderParser.nuko(html, page, query.boardCode)
+            } catch (failure: NukoPageFormatException) {
+                throw NukoPageFormatException(failure.message.orEmpty() + " / " + HttpTransport.lastDiagnostic())
+            }
         }
         return filterRange(result, query)
     }

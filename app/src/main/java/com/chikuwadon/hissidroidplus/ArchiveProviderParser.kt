@@ -8,6 +8,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+class NukoPageFormatException(message: String) : IOException(message)
+
 /** Parsed from the saved first and second search pages, without executing site scripts. */
 object ArchiveProviderParser {
     private val kyodemoCount = Regex("([0-9,]+)(\\+?)\\s*スレ\\s*\\(\\s*(\\d+)\\s*/\\s*(\\d+)\\s*\\)")
@@ -64,7 +66,10 @@ object ArchiveProviderParser {
         val doc = Jsoup.parse(html, "https://n2ch.net/q/-/")
         val plain = normalizedNukoText(doc.text())
         val total = nukoCount.find(plain)?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
-            ?: throw IOException("ぬこの検索結果件数を確認できませんでした")
+            ?: throw NukoPageFormatException("ぬこの検索結果件数を確認できませんでした" +
+                " / 検索フォーム=" + (doc.selectFirst("input[name=q]") != null) +
+                " / 件数見出し=" + plain.contains("検索結果") +
+                " / スレリンク=" + doc.select("a[href*=/r/-/]").size)
         val range = nukoRange.find(plain)
         if (total > 0 && range?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull() != (page.toLong() - 1) * 20 + 1) {
             throw IOException("指定ページと取得ページが一致しません")

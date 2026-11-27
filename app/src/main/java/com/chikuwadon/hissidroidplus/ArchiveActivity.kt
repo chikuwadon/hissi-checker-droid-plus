@@ -31,6 +31,7 @@ import java.time.LocalDate
 import java.util.concurrent.Executors
 
 class ArchiveScreenState : ViewModel() {
+    var preferencesRestored = false
     var provider = ArchiveProvider.EDGE_ARCHIVE
     var draft = ArchiveQuery("")
     val drafts = mutableMapOf<ArchiveProvider, ArchiveQuery>()
@@ -89,6 +90,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
+    private var nukoBrowser: NukoBrowserFallback? = null
+    private var resolvedBoardAddresses: Map<String, String> = emptyMap()
     private fun supportsBoardSelection() = state.provider == ArchiveProvider.FIVECH_KYODEMO || state.provider == ArchiveProvider.FIVECH_NUKO
     private lateinit var search: TextView
     private lateinit var options: TextView
@@ -103,6 +106,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun archiveButton(label: String): TextView = ThemedMenu.formButton(host, label, outlined = false)
 
     fun buildScreen(root: LinearLayout) {
+        if (!state.preferencesRestored) {
+            state.provider = ArchiveSelectionStore.provider(host)
+            for (choice in ArchiveProvider.entries) state.drafts[choice] = ArchiveSelectionStore.draft(host, choice)
+            state.draft = state.drafts.getValue(state.provider)
+            state.preferencesRestored = true
+        }
         val controls = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(4))
@@ -122,7 +131,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     val previousKeyword = state.draft.keyword
                     state.form = null
                     state.provider = selected
-                    state.draft = state.drafts[selected] ?: ArchiveQuery(previousKeyword)
+                    state.draft = state.drafts[selected]?.let { if (it.keyword.isEmpty()) it.copy(keyword = previousKeyword) else it } ?: ArchiveQuery(previousKeyword)
+                    ArchiveSelectionStore.save(host, state.provider, state.draft)
                     keyword.setText(state.draft.keyword)
                     state.pages.clear()
                     state.submitted = null
@@ -294,10 +304,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun showCopyMenu(entry: ArchiveThread) {
         ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
+            val original = entry.originalUrl
+            if (index != 1 && original.isEmpty()) {
+                Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
+                return@choose
+            }
             val value = when (index) {
-                0 -> entry.title + "\n" + entry.url
+                0 -> entry.title + "\n" + original
                 1 -> entry.title
-                2 -> entry.url
+                2 -> original
                 else -> return@choose
             }
             val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@choose
@@ -432,6 +447,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             state.message = ""
         }
         state.draft = state.draft.copy(boardCode = code, boardName = name.ifBlank { code })
+        ArchiveSelectionStore.save(host, state.provider, state.draft)
         refresh()
     }
 
@@ -828,36 +844,76 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val request = ++generation
         refresh()
         worker.execute {
-            val outcome = runCatching {
-                val result = ArchiveRepository.search(requested, query, page)
-                if (requested == ArchiveProvider.FIVECH_KYODEMO && result.items.isNotEmpty()) {
-                    // Resolve using the official board menu, never guess a server from a board code.
-                    val groups = readBoardGroups()
-                    var address = groups.asSequence().flatMap { it.boards.asSequence() }
-                        .firstOrNull { it.code == query.boardCode && it.address.isNotBlank() }?.address.orEmpty()
-                    if (address.isEmpty()) {
-                        address = runCatching { BoardMenu.fetch() }.getOrDefault(emptyList())
-                            .asSequence().flatMap { it.boards.asSequence() }
-                            .firstOrNull { it.code == query.boardCode && it.address.isNotBlank() }?.address.orEmpty()
-                    }
-                    result.copy(items = result.items.map { entry ->
-                        entry.copy(url = ArchiveOriginalLink.kyodemo5ch(entry.url, query.boardCode, address))
-                    })
-                } else result
-            }
+            val outcome = runCatching { resolveOriginalLinks(requested, ArchiveRepository.search(requested, query, page)) }
             host.runOnUiThread {
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
-                loading = false
-                outcome.onSuccess {
-                    if (fresh) state.pages.clear()
-                    state.pages.put(requested, query, it)
-                    displayPage(query, ArchivePageCache.Cached(it))
-                }.onFailure {
-                    state.message = "取得できませんでした: " + (it.message ?: "通信エラー")
-                    refresh()
-                }
+                val failure = outcome.exceptionOrNull()
+                if (requested == ArchiveProvider.FIVECH_NUKO && failure is NukoPageFormatException) {
+                    android.util.Log.w("HissiArchive", "Nuko native: " + failure.message)
+                    message.text = "ぬこ / ブラウザ方式で再取得中…"
+                    nukoBrowser = NukoBrowserFallback(host)
+                    nukoBrowser?.load(ArchiveExternalSearch.url(requested, query, page)) { html ->
+                        nukoBrowser = null
+                        if (disposed || request != generation) return@load
+                        if (html.isFailure) {
+                            finishLoad(request, requested, query, fresh, Result.failure(html.exceptionOrNull()!!))
+                        } else {
+                            worker.execute {
+                                val parsed = runCatching {
+                                    resolveOriginalLinks(requested, ArchiveRepository.filterRange(
+                                        ArchiveProviderParser.nuko(html.getOrThrow(), page, query.boardCode), query))
+                                }
+                                host.runOnUiThread { finishLoad(request, requested, query, fresh, parsed) }
+                            }
+                        }
+                    }
+                } else finishLoad(request, requested, query, fresh, outcome)
             }
         }
+    }
+
+    private fun finishLoad(request: Int, requested: ArchiveProvider, query: ArchiveQuery, fresh: Boolean, outcome: Result<ArchivePage>) {
+        if (disposed || host.isFinishing || host.isDestroyed || request != generation) return
+        loading = false
+        outcome.onSuccess {
+            if (fresh) state.pages.clear()
+            state.pages.put(requested, query, it)
+            displayPage(query, ArchivePageCache.Cached(it))
+        }.onFailure {
+            android.util.Log.w("HissiArchive", requested.name + " search failed: " + it.javaClass.simpleName +
+                (if (it is NukoPageFormatException) " / " + it.message else ""))
+            state.message = "取得できませんでした: " + (it.message ?: "通信エラー")
+            refresh()
+        }
+    }
+
+    /** Keep archive reading URLs and original-copy URLs separate. Resolve each board once. */
+    private fun resolveOriginalLinks(requested: ArchiveProvider, result: ArchivePage): ArchivePage {
+        if (result.items.isEmpty()) return result
+        if (requested == ArchiveProvider.EDGE_ARCHIVE || requested == ArchiveProvider.EDGE_KYODEMO) {
+            return result.copy(items = result.items.map { entry ->
+                val original = ThreadOpener.validatedThreadUrl(entry.url)
+                entry.copy(originalUrl = original)
+            })
+        }
+        val codes = result.items.map { ArchiveOriginalLink.boardCode(it.url) }.filter { it.isNotEmpty() }.toSet()
+        if (codes.any { it !in resolvedBoardAddresses }) {
+            fun addresses(groups: List<BoardMenu.Category>) = groups.asSequence().flatMap { it.boards.asSequence() }
+                .filter { it.address.isNotBlank() }.associate { it.code to it.address }
+            resolvedBoardAddresses = resolvedBoardAddresses + addresses(readBoardGroups())
+            if (codes.any { it !in resolvedBoardAddresses }) {
+                resolvedBoardAddresses = resolvedBoardAddresses + addresses(runCatching { BoardMenu.fetch() }.getOrDefault(emptyList()))
+            }
+        }
+        return result.copy(items = result.items.map { entry ->
+            val board = ArchiveOriginalLink.boardCode(entry.url)
+            val address = resolvedBoardAddresses[board].orEmpty()
+            val converted = if (requested == ArchiveProvider.FIVECH_NUKO)
+                ArchiveOriginalLink.nuko5ch(entry.url, board, address)
+            else ArchiveOriginalLink.kyodemo5ch(entry.url, board, address)
+            val original = ThreadOpener.validated5chThreadUrl(converted)
+            entry.copy(originalUrl = original, url = if (requested == ArchiveProvider.FIVECH_KYODEMO && original.isNotEmpty()) original else entry.url)
+        })
     }
 
     private fun refresh() {
@@ -905,6 +961,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         rememberPosition()
         disposed = true
         generation++
+        nukoBrowser?.close()
+        nukoBrowser = null
         worker.shutdownNow()
     }
 
