@@ -44,7 +44,15 @@ public final class MainNavigationContractTest {
         assertTrue(archive.contains("https://n2ch.net/q/-/?kako=1&guid=ON"));
         assertTrue(archive.contains("https://eddiarchive3rd.boy.jp/"));
         assertTrue(archive.contains("https://www.kyodemo.net/sdemo/"));
-        assertFalse(source("ArchiveActivity.kt").contains("HttpTransport"));
-        assertTrue(source("ArchiveActivity.kt").contains("ArchiveRepository.search(requested, query, page)"));
+        String activity = source("ArchiveActivity.kt");
+        // The screen may read transport diagnostics, but network requests must stay in the repository.
+        assertTrue(activity.contains("HttpTransport.lastDiagnostic()"));
+        assertFalse(activity.contains("HttpTransport.get("));
+        assertFalse(activity.contains("HttpTransport.getForNuko("));
+        assertFalse(activity.contains("HttpTransport.post("));
+        assertFalse(activity.contains("HttpTransport.getForVerification("));
+        assertTrue(activity.contains("ArchiveRepository.search(requested, query, page, browserUa)"));
+        assertTrue(archive.contains("HttpTransport.getForNuko(target, charset, nukoUserAgent)"));
+        assertTrue(archive.contains("else HttpTransport.get(target, charset)"));
     }
 }
