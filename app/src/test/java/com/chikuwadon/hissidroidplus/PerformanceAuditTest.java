@@ -40,7 +40,7 @@ public class PerformanceAuditTest {
 
     @Test public void archiveAndTransportAvoidDuplicateTextScans() throws Exception {
         String a = source("ArchiveProviderParser.kt");
-        assertTrue(a.contains("val plain = doc.text()"));
+        assertTrue(a.contains("val plain = normalizedNukoText(doc.text())"));
         assertTrue(a.contains("nukoCount.find(plain)"));
         assertTrue(a.contains("nukoRange.find(plain)"));
         String t = source("HttpTransport.kt");

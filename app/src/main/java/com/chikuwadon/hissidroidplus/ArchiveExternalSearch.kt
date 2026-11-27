@@ -38,6 +38,7 @@ object ArchiveExternalSearch {
             }
             ArchiveProvider.FIVECH_NUKO -> {
                 val fields = linkedMapOf("q" to query.keyword.trim(), "kako" to "1", "guid" to "ON")
+                if (query.boardCode.isNotEmpty()) fields["b"] = query.boardCode
                 if (query.exact) fields["qs"] = "完全一致"
                 if (query.externalBoards) fields["ex"] = "1"
                 if (page > 1) fields["p"] = (page - 1).toString()

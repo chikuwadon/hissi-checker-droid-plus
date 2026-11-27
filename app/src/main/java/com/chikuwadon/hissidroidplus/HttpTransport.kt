@@ -154,6 +154,10 @@ object HttpTransport {
                     data, chosen, target.host.equals("hissi.org", true) ||
                         target.host.equals("www.hissi.org", true)
                 )
+                if (target.host.equals("n2ch.net", true)) {
+                    val alternative = NukoResponseDecoder.decode(data, chosen)
+                    decoded = alternative
+                }
                 diagnostics.set(diagnostics.get() + " / 文字コード=" + chosen.name() +
                     (if (decoded.startsWith(HissiHtmlDecoder.FALLBACK_MARKER))
                         "(Shift_JIS再判定)" else "") + " / 受信=" + data.size + "B")

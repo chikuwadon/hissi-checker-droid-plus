@@ -3,6 +3,7 @@ package com.chikuwadon.hissidroidplus
 import org.jsoup.Jsoup
 import java.io.IOException
 import java.net.URI
+import java.text.Normalizer
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -10,7 +11,8 @@ import java.time.format.DateTimeFormatter
 /** Parsed from the saved first and second search pages, without executing site scripts. */
 object ArchiveProviderParser {
     private val kyodemoCount = Regex("([0-9,]+)(\\+?)\\s*スレ\\s*\\(\\s*(\\d+)\\s*/\\s*(\\d+)\\s*\\)")
-    private val nukoCount = Regex("検索結果\\s*\\(\\s*([0-9,]+)\\s*[ｽス][ﾚレ]")
+    private val nukoCount = Regex("検索結果\\s*[:：]?\\s*\\(\\s*([0-9,]+)\\s*スレ")
+    private fun normalizedNukoText(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKC)
     private val kyodemoPath = Regex("^/sdemo/r/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
     private val nukoPath = Regex("^/r/-/([A-Za-z0-9_]{1,60})/(\\d{10})/?$")
     private val titleCount = Regex("^(.*?)\\s*\\(([0-9,]+)\\)\\s*$")
@@ -57,9 +59,10 @@ object ArchiveProviderParser {
     }
 
     @JvmStatic
-    fun nuko(html: String, page: Int): ArchivePage {
+    @JvmOverloads
+    fun nuko(html: String, page: Int, boardCode: String = ""): ArchivePage {
         val doc = Jsoup.parse(html, "https://n2ch.net/q/-/")
-        val plain = doc.text()
+        val plain = normalizedNukoText(doc.text())
         val total = nukoCount.find(plain)?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
             ?: throw IOException("ぬこの検索結果件数を確認できませんでした")
         val range = nukoRange.find(plain)
@@ -70,6 +73,7 @@ object ArchiveProviderParser {
         for (anchor in doc.select("a[href]")) {
             val uri = safeUri(anchor.absUrl("href"), "n2ch.net") ?: continue
             val path = nukoPath.matchEntire(uri.path.orEmpty()) ?: continue
+            if (boardCode.isNotEmpty() && path.groupValues[1] != boardCode) continue
             val matched = titleCount.matchEntire(anchor.text()) ?: continue
             val title = matched.groupValues[1].trim()
             val replies = matched.groupValues[2].replace(",", "").toIntOrNull() ?: continue

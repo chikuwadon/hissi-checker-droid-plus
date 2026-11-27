@@ -94,7 +94,7 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
-            ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page)
+            ArchiveProvider.FIVECH_NUKO -> ArchiveProviderParser.nuko(html, page, query.boardCode)
         }
         return filterRange(result, query)
     }

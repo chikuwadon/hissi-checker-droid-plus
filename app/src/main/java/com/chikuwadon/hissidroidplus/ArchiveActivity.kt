@@ -89,6 +89,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
+    private fun supportsBoardSelection() = state.provider == ArchiveProvider.FIVECH_KYODEMO || state.provider == ArchiveProvider.FIVECH_NUKO
     private lateinit var search: TextView
     private lateinit var options: TextView
     private lateinit var message: TextView
@@ -233,6 +234,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             state.result?.items?.getOrNull(position)?.let { entry ->
                 when {
                     state.provider == ArchiveProvider.EDGE_ARCHIVE -> ThreadOpener.open(host, entry.url, true)
+                    ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
                     else -> BrowserLauncher.open(host, entry.url)
                 }
@@ -359,15 +361,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         restorePosition(cached.position)
     }
 
-    private fun showBoards() {
-        if (loading || disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
-        boardGroups?.takeIf { it.isNotEmpty() }?.let { showBoardCategories(it); return }
-        loading = true
-        val request = ++generation
-        refresh()
-        message.text = "板一覧を取得中…"
-        worker.execute {
-            val groups = runCatching {
+    private fun readBoardGroups(): List<BoardMenu.Category> {
+        return runCatching {
                 fun cached(name: String, json: Boolean): List<BoardMenu.Category> {
                     return host.openFileInput(name).use { input ->
                         val bytes = HttpResponseReader.read(input, 4 * 1024 * 1024, -1)
@@ -385,6 +380,17 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     }
                 }
             }.getOrDefault(emptyList())
+    }
+
+    private fun showBoards() {
+        if (loading || disposed || !supportsBoardSelection()) return
+        boardGroups?.takeIf { it.isNotEmpty() }?.let { showBoardCategories(it); return }
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "板一覧を取得中…"
+        worker.execute {
+            val groups = readBoardGroups()
             host.runOnUiThread {
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
                 loading = false
@@ -398,12 +404,18 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showBoardCategories(groups: List<BoardMenu.Category>) {
-        showBoardList("カテゴリを選択", groups.map { it.name + "（" + it.boards.size + "）" }, null,
+        val allAllowed = state.provider == ArchiveProvider.FIVECH_NUKO
+        val labels = (if (allAllowed) listOf("全板") else emptyList()) + groups.map { it.name + "（" + it.boards.size + "）" }
+        showBoardList("カテゴリを選択", labels, null,
             search = { showBoardSearch(groups) }) { index ->
-            val category = groups[index]
+            if (allAllowed && index == 0) {
+                selectBoard("", "")
+                return@showBoardList
+            }
+            val category = groups[index - if (allAllowed) 1 else 0]
             showBoardList(category.name, category.boards.map { it.toString() }, { showBoardCategories(groups) },
                 search = { showBoardSearch(groups) }) { position ->
-                if (disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return@showBoardList
+                if (disposed || !supportsBoardSelection()) return@showBoardList
                 val board = category.boards[position]
                 selectBoard(board.code, board.name)
             }
@@ -411,7 +423,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun selectBoard(code: String, name: String) {
-        if (disposed || loading || state.provider != ArchiveProvider.FIVECH_KYODEMO || !BoardFavorites.valid(code)) return
+        if (disposed || loading || !supportsBoardSelection() || (!BoardFavorites.valid(code) && !(state.provider == ArchiveProvider.FIVECH_NUKO && code.isEmpty()))) return
         saveKeyword()
         if (state.draft.boardCode != code) {
             state.pages.clear()
@@ -424,7 +436,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun saveFavoriteBoard() {
-        if (loading || disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        if (loading || disposed || !supportsBoardSelection()) return
         val code = state.draft.boardCode
         if (!BoardFavorites.valid(code)) {
             Toast.makeText(host, "板を選択してください", Toast.LENGTH_SHORT).show()
@@ -436,7 +448,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showFavoriteBoards() {
-        if (loading || disposed || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        if (loading || disposed || !supportsBoardSelection()) return
         val favorites = BoardFavorites.read(host)
         if (favorites.isEmpty()) {
             Toast.makeText(host, "板のお気に入りがありません", Toast.LENGTH_SHORT).show()
@@ -455,9 +467,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun updateBoardButtons() {
-        val fivech = state.provider == ArchiveProvider.FIVECH_KYODEMO
+        val fivech = supportsBoardSelection()
         boardRow.visibility = if (fivech) View.VISIBLE else View.GONE
-        boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { "板を選択" } }) + " ▾"
+        boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { if (state.provider == ArchiveProvider.FIVECH_NUKO) "全板" else "板を選択" } }) + " ▾"
         boardButton.isEnabled = !loading
         saveBoardButton.isEnabled = !loading && BoardFavorites.valid(state.draft.boardCode)
         saveBoardButton.alpha = if (saveBoardButton.isEnabled) 1f else 0.45f
@@ -499,7 +511,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun boardSearchIcon(): View = BoardSearchDialog.icon(host)
 
     private fun showBoardSearch(groups: List<BoardMenu.Category>) {
-        if (disposed || loading || state.provider != ArchiveProvider.FIVECH_KYODEMO) return
+        if (disposed || loading || !supportsBoardSelection()) return
         BoardSearchDialog.show(host, groups, { showBoardCategories(groups) }) { entry ->
             selectBoard(entry.code, entry.name)
         }
@@ -816,7 +828,23 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         val request = ++generation
         refresh()
         worker.execute {
-            val outcome = runCatching { ArchiveRepository.search(requested, query, page) }
+            val outcome = runCatching {
+                val result = ArchiveRepository.search(requested, query, page)
+                if (requested == ArchiveProvider.FIVECH_KYODEMO && result.items.isNotEmpty()) {
+                    // Resolve using the official board menu, never guess a server from a board code.
+                    val groups = readBoardGroups()
+                    var address = groups.asSequence().flatMap { it.boards.asSequence() }
+                        .firstOrNull { it.code == query.boardCode && it.address.isNotBlank() }?.address.orEmpty()
+                    if (address.isEmpty()) {
+                        address = runCatching { BoardMenu.fetch() }.getOrDefault(emptyList())
+                            .asSequence().flatMap { it.boards.asSequence() }
+                            .firstOrNull { it.code == query.boardCode && it.address.isNotBlank() }?.address.orEmpty()
+                    }
+                    result.copy(items = result.items.map { entry ->
+                        entry.copy(url = ArchiveOriginalLink.kyodemo5ch(entry.url, query.boardCode, address))
+                    })
+                } else result
+            }
             host.runOnUiThread {
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
                 loading = false
