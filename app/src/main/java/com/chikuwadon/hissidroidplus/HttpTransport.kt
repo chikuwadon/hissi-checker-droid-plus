@@ -43,6 +43,15 @@ object HttpTransport {
     @Throws(IOException::class)
     fun get(url: String, charset: Charset): String = request(url, null, charset, 10_000, 15_000)
 
+    /** Use the device's real WebView UA for this provider only; no global UA change. */
+    @JvmStatic
+    @Throws(IOException::class)
+    fun getForNuko(url: String, charset: Charset, browserUserAgent: String): String {
+        val target = URL(url)
+        require(target.protocol == "https" && target.host.equals("n2ch.net", true) && target.path == "/q/-/")
+        return request(url, null, charset, 10_000, 15_000, browserUserAgent)
+    }
+
     @JvmStatic
     @Throws(IOException::class)
     fun post(url: String, data: String, charset: Charset): String =
@@ -56,10 +65,11 @@ object HttpTransport {
 
     @Throws(IOException::class)
     private fun request(
-        url: String, payload: String?, charset: Charset, connectMs: Int, readMs: Int
+        url: String, payload: String?, charset: Charset, connectMs: Int, readMs: Int,
+        nukoUserAgent: String? = null
     ): String {
         diagnostics.set("HTTP応答未取得")
-        val requestUserAgent = userAgent
+        val requestUserAgent = nukoUserAgent ?: userAgent
         val requestCookies = cookieJar
         var current = url
         var form = payload
@@ -105,7 +115,9 @@ object HttpTransport {
                     (contentType?.replace(Regex("[\r\n]"), " ") ?: "未指定") +
                     " / リダイレクト=" + redirects + " / Cookie送信=" +
                     (if (hadCookie) "あり" else "なし") +
-                    " / UA=" + (if (requestUserAgent.isNotEmpty()) "Android WebView" else "標準HTTP"))
+                    " / UA=" + (if (requestUserAgent.isNotEmpty()) "Android WebView" else "標準HTTP") +
+                    " / Content-Length=" + connection.contentLengthLong +
+                    " / Content-Encoding=" + (connection.contentEncoding?.replace(Regex("[\\r\\n]"), " ") ?: "未指定"))
                 if (isKyodemo) {
                     for ((header, values) in connection.headerFields) {
                         if (!header.equals("Set-Cookie", ignoreCase = true)) continue

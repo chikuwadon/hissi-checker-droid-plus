@@ -43,6 +43,22 @@ public class ArchiveSelectionAndCopyTest {
         assertTrue(a.contains("元スレッドURLを確認できませんでした"));
         assertTrue(a.contains("2 -> original"));
         assertTrue(a.contains("entry.copy(originalUrl = original"));
+        assertTrue(a.contains("ThreadOpener.open(host, original, false)"));
+        assertTrue(a.contains("検索サービスのページを外部ブラウザで開きますか？"));
+    }
+    @Test public void nukoNativeUsesScopedRealBrowserUaAndReportsEmptyBody() throws Exception {
+        String a = source("ArchiveActivity.kt");
+        assertTrue(a.contains("WebSettings.getDefaultUserAgent(host)"));
+        assertTrue(a.contains("ArchiveRepository.search(requested, query, page, browserUa)"));
+        assertTrue(a.contains("Nuko native success"));
+        assertTrue(a.contains("Nuko WebView success"));
+        String h = source("HttpTransport.kt");
+        assertTrue(h.contains("val requestUserAgent = nukoUserAgent ?: userAgent"));
+        assertTrue(h.contains("Content-Length="));
+        assertTrue(h.contains("Content-Encoding="));
+        String repo = source("ArchiveRepository.kt");
+        assertTrue(repo.contains("HttpTransport.getForNuko(target, charset, nukoUserAgent)"));
+        assertTrue(repo.contains("html.isEmpty()"));
     }
     @Test public void nukoFallbackIsBoundedAndOnlyUsedForNativeParseFailure() throws Exception {
         String a = source("ArchiveActivity.kt");

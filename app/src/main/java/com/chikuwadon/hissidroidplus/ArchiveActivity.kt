@@ -91,6 +91,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
     private var nukoBrowser: NukoBrowserFallback? = null
+    private val nukoUserAgent by lazy { runCatching { android.webkit.WebSettings.getDefaultUserAgent(host) }.getOrDefault("") }
     private var resolvedBoardAddresses: Map<String, String> = emptyMap()
     private fun supportsBoardSelection() = state.provider == ArchiveProvider.FIVECH_KYODEMO || state.provider == ArchiveProvider.FIVECH_NUKO
     private lateinit var search: TextView
@@ -242,11 +243,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         list.setOnItemClickListener { _, _, position, _ ->
             state.result?.items?.getOrNull(position)?.let { entry ->
+                val original = entry.originalUrl
                 when {
-                    state.provider == ArchiveProvider.EDGE_ARCHIVE -> ThreadOpener.open(host, entry.url, true)
+                    ThreadOpener.validated5chThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, false)
+                    ThreadOpener.validatedThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, true)
                     ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
-                    else -> BrowserLauncher.open(host, entry.url)
+                    else -> ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
+                        "検索サービスのページを外部ブラウザで開きますか？", "開く",
+                        Runnable { BrowserLauncher.open(host, entry.url) })
                 }
             }
         }
@@ -842,9 +847,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         loading = true
         val request = ++generation
+        val browserUa = if (requested == ArchiveProvider.FIVECH_NUKO) nukoUserAgent else ""
         refresh()
         worker.execute {
-            val outcome = runCatching { resolveOriginalLinks(requested, ArchiveRepository.search(requested, query, page)) }
+            val outcome = runCatching {
+                val fetched = ArchiveRepository.search(requested, query, page, browserUa)
+                if (requested == ArchiveProvider.FIVECH_NUKO) android.util.Log.i("HissiArchive",
+                    "Nuko native success / " + HttpTransport.lastDiagnostic() + " / rows=" + fetched.items.size)
+                resolveOriginalLinks(requested, fetched)
+            }
             host.runOnUiThread {
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
                 val failure = outcome.exceptionOrNull()
@@ -860,8 +871,10 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                         } else {
                             worker.execute {
                                 val parsed = runCatching {
-                                    resolveOriginalLinks(requested, ArchiveRepository.filterRange(
-                                        ArchiveProviderParser.nuko(html.getOrThrow(), page, query.boardCode), query))
+                                    val body = html.getOrThrow()
+                                    val fetched = ArchiveProviderParser.nuko(body, page, query.boardCode)
+                                    android.util.Log.i("HissiArchive", "Nuko WebView success / chars=" + body.length + " / rows=" + fetched.items.size)
+                                    resolveOriginalLinks(requested, ArchiveRepository.filterRange(fetched, query))
                                 }
                                 host.runOnUiThread { finishLoad(request, requested, query, fresh, parsed) }
                             }

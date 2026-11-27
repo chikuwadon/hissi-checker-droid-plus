@@ -86,10 +86,15 @@ object ArchiveRepository {
         }
     }
 
-    fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int): ArchivePage {
+    @JvmOverloads
+    fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int, nukoUserAgent: String = ""): ArchivePage {
         val target = ArchiveExternalSearch.url(provider, query, page)
         val charset = if (provider == ArchiveProvider.EDGE_ARCHIVE) StandardCharsets.UTF_8 else java.nio.charset.Charset.forName("windows-31j")
-        val html = HttpTransport.get(target, charset)
+        val html = if (provider == ArchiveProvider.FIVECH_NUKO)
+            HttpTransport.getForNuko(target, charset, nukoUserAgent)
+        else HttpTransport.get(target, charset)
+        if (provider == ArchiveProvider.FIVECH_NUKO && html.isEmpty())
+            throw NukoPageFormatException("ぬこのHTTP応答本文が空です / " + HttpTransport.lastDiagnostic())
         val result = when (provider) {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
