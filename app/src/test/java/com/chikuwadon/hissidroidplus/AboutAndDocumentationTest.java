@@ -24,13 +24,14 @@ public class AboutAndDocumentationTest {
         assertTrue(menu.contains("/blob/main/PRIVACY.md"));
         assertTrue(menu.contains("/blob/main/CHANGELOG.md"));
     }
-    @Test public void docsDistinguishDevelopmentFromPublishedRelease() throws Exception {
+    @Test public void docsMatchOfficialRelease() throws Exception {
         String readme = read("../README.md");
         String changelog = read("../CHANGELOG.md");
         String privacy = read("../PRIVACY.md");
-        assertTrue(readme.contains("/releases/tag/v1.0.5"));
-        assertTrue(readme.contains("開発中のv1.1.0"));
-        assertTrue(changelog.contains("## v1.1.0（開発中・未リリース）"));
+        assertTrue(readme.contains("/releases/tag/v1.1.0"));
+        assertFalse(readme.contains("開発中のv1.1.0"));
+        assertTrue(changelog.contains("## v1.1.0\n"));
+        assertTrue(readme.contains("HissiCheckerDroidPlus-v1.1.0.apk"));
         assertTrue(readme.contains("100～10,000件"));
         assertTrue(privacy.contains("100～10,000件"));
         assertTrue(privacy.contains("eddiarchive3rd.boy.jp"));

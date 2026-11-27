@@ -12,10 +12,10 @@ public final class DevelopmentVersionContractTest {
             StandardCharsets.UTF_8);
     }
 
-    @Test public void qaVersionIsNewerThanPublished103() throws Exception {
+    @Test public void releaseVersionIsNewerThanValidatedDev37() throws Exception {
         String gradle = projectFile("app/build.gradle");
-        assertTrue(gradle.contains("versionCode = 82"));
-        assertTrue(gradle.contains("versionName = '1.1.0-dev.37'"));
+        assertTrue(gradle.contains("versionCode = 83"));
+        assertTrue(gradle.contains("versionName = '1.1.0'"));
         String menu = projectFile(
             "app/src/main/java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         assertTrue(menu.contains("PackageQueries.packageInfo(a.packageManager, a.packageName).versionName"));
@@ -24,8 +24,8 @@ public final class DevelopmentVersionContractTest {
 
     @Test public void artifactContainsVersionedApkFilenameNotAppRelease() throws Exception {
         String workflow = projectFile(".github/workflows/public-ci.yml");
-        String filename = "hissi-checker-droid-plus-v1.1.0-dev.37.apk";
-        assertTrue(workflow.contains("name: hissi-checker-droid-plus-v1.1.0-dev.37-signed"));
+        String filename = "HissiCheckerDroidPlus-v1.1.0.apk";
+        assertTrue(workflow.contains("name: hissi-checker-droid-plus-v1.1.0-signed"));
         assertTrue(workflow.contains("app/build/outputs/apk/release/" + filename));
         assertTrue(workflow.contains("mv app/build/outputs/apk/release/app-release.apk"));
         assertTrue(workflow.contains("apksigner\" verify --verbose"));

@@ -4,16 +4,14 @@
 
 **Hissi Checker Droid Plus**
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.0.5-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.0.5)
-[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.0.5/HissiCheckerDroidPlus-v1.0.5.apk)
+[![Latest Release](https://img.shields.io/badge/Release-v1.1.0-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/tag/v1.1.0)
+[![Download APK](https://img.shields.io/badge/Download-APK-0D9488?style=flat-square)](https://github.com/chikuwadon/hissi-checker-droid-plus/releases/download/v1.1.0/HissiCheckerDroidPlus-v1.1.0.apk)
 
 </div>
 
 ## 概要
 
 5chとエッヂのID別書き込み検索・閲覧、およびスレタイによる過去ログ検索に対応する非公式Androidアプリである。レスの一覧表示、投稿状況の集計、検索履歴、お気に入り、掲示板アプリとの連携に対応する。
-
-> このREADMEは開発中のv1.1.0の仕様を記載している。最新正式版は上部リンクのv1.0.5であり、開発版の機能は正式版には含まれない場合がある。
 
 オリジナルの「必死チェッカーdroid」v1.5を参考に、新たに開発したアプリです。
 
@@ -107,7 +105,7 @@ ChMateのカスタムURL設定に上記を追加すると、`hissi:`リンクを
 ## 動作環境
 
 - Android 8.0以降
-- 最新正式版：v1.0.5（開発中：v1.1.0）
+- 最新正式版：v1.1.0
 - アプリID：`com.chikuwadon.hissidroidplus`
 
 ## 利用上の注意
