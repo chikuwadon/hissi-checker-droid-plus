@@ -25,6 +25,12 @@ object OtherBoardSelection {
             .map { KyodemoOtherBoards.Item(it, j.optString(it, it).take(100).ifBlank { it }) }
             .sortedBy { it.label }.toList()
     }
+    fun allFavorites(context: Context): List<KyodemoOtherBoards.Item> =
+        KyodemoOtherBoards.services.flatMap { favorites(context, it.root) }
+
+    @JvmStatic fun displayLabel(item: KyodemoOtherBoards.Item): String =
+        KyodemoOtherBoards.serviceFor(item.code)?.let { it.label + " / " + item.label } ?: item.label
+
     fun add(context: Context, code: String, label: String) {
         require(KyodemoOtherBoards.validBoard(code))
         val j = entries(context)

@@ -25,6 +25,8 @@ object ArchiveExternalSearch {
                     if (page == 1) "" else ((page.toLong() - 1) * 50 + 1).toString()
                 baseUrl to linkedMapOf("bs" to "", "kt" to "k_",
                     "fr" to query.from, "to" to query.to, "k" to key).apply {
+                    // Observed on Kyodemo's Machi BBS all-log search URLs.
+                    if (provider == ArchiveProvider.OTHER_KYODEMO) put("rf", "1")
                     when (query.sort) {
                         "old" -> put("j", "a")
                         "replies" -> put("r", "1")

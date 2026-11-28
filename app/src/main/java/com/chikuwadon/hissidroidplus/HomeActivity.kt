@@ -64,6 +64,8 @@ class HomeActivity : CheckerActivity() {
     private lateinit var sectionBack: OnBackPressedCallback
     private var pendingDestination: MainNavigation.Destination? = null
     private var restoreResultOnResume = false
+    private var suppressInitialVisit = false
+    private var retainHostForDeepLink = false
     var activeDestination = MainNavigation.Destination.HOME
         private set
 
@@ -234,7 +236,10 @@ class HomeActivity : CheckerActivity() {
         val requested = restored ?: explicit ?: if (launcher) MainNavigation.lastDestination(this).name else null
         val target = MainNavigation.startDestination(this, requested)
         restoreResultOnResume = target == MainNavigation.Destination.RESULT
+        suppressInitialVisit = state == null && intent.action == Intent.ACTION_VIEW &&
+            intent.data?.scheme?.equals("hissi", ignoreCase = true) == true
         showDestination(if (restoreResultOnResume) MainNavigation.Destination.HOME else target)
+        suppressInitialVisit = false
         if (state == null) handleHissiScheme()
     }
 
@@ -276,7 +281,7 @@ class HomeActivity : CheckerActivity() {
         }
         transaction.commitNow()
         activeDestination = target
-        if (!restoreResultOnResume) MainNavigation.rememberDestination(this, target)
+        if (!restoreResultOnResume && !suppressInitialVisit) MainNavigation.rememberDestination(this, target)
         homeContent.visibility = if (target == MainNavigation.Destination.HOME) View.VISIBLE else View.GONE
         sectionContainer.visibility = if (target == MainNavigation.Destination.HOME) View.GONE else View.VISIBLE
         MainNavigation.setSelected(this, target)
@@ -294,7 +299,7 @@ class HomeActivity : CheckerActivity() {
         restoreResultOnResume = false
         if (newIntent.action == Intent.ACTION_VIEW &&
             newIntent.data?.scheme?.equals("hissi", ignoreCase = true) == true) {
-            showDestination(MainNavigation.Destination.HOME)
+            retainHostForDeepLink = true
             handleHissiScheme()
         } else {
             showDestination(MainNavigation.hostDestination(newIntent.getStringExtra(MainNavigation.EXTRA_DESTINATION)))
@@ -351,7 +356,7 @@ class HomeActivity : CheckerActivity() {
                         .putExtra("board", request.board)
                         .putExtra("date", request.date)
                         .putExtra("id", request.id))
-                    finish()
+                    if (!retainHostForDeepLink) finish()
                 }
             }
         } catch (bad: IllegalArgumentException) {
@@ -399,7 +404,7 @@ class HomeActivity : CheckerActivity() {
                         .putExtra("board", code)
                         .putExtra("date", found.day)
                         .putExtra("id", user))
-                    if (finishAfterDeepLink) finish()
+                    if (finishAfterDeepLink && !retainHostForDeepLink) finish()
                 } else if (found.error != null) {
                     toast("検索を完了できませんでした（" + found.checkedDays +
                         "日目）: " + found.error, Toast.LENGTH_LONG)
@@ -461,7 +466,7 @@ class HomeActivity : CheckerActivity() {
                             .setData(Uri.parse(ready.checkerUrl))
                             .putExtra(ResultActivity.EXTRA_CONNECTED_ORIGIN, finishAfterDeepLink && !AppSettings.standalone(this))
                             .putExtra(ResultActivity.EXTRA_VERIFY_EDGE_SEARCH_DATE, !anyDate))
-                        if (finishAfterDeepLink) finish()
+                        if (finishAfterDeepLink && !retainHostForDeepLink) finish()
                     } else {
                         toast(if (noMatches)
                             "指定した日付・IDに一致する投稿はありません"

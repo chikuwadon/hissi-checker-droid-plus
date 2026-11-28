@@ -53,4 +53,18 @@ public class KyodemoOtherBoardsTest {
         }
         assertFalse(KyodemoOtherBoards.validBoard("e_e_liveedge"));
     }
+
+    @Test public void missingRemoteGroupsAreRestoredFromVerifiedSnapshot() {
+        int[] counts = {4, 6, 3, 13, 3};
+        for (int i = 5; i < 10; i++) {
+            KyodemoOtherBoards.Service service = KyodemoOtherBoards.services.get(i);
+            KyodemoOtherBoards.Menu empty = KyodemoOtherBoards.parse(service, service.getRoot(), "<html></html>");
+            KyodemoOtherBoards.Menu merged = KyodemoOtherBoards.mergeKnown(service, service.getRoot(), empty);
+            assertEquals(counts[i-5], merged.getBoards().size());
+            for (BoardCatalog.Board board : merged.getBoards())
+                assertEquals(service, KyodemoOtherBoards.serviceFor(board.code));
+        }
+        KyodemoOtherBoards.Item favorite = new KyodemoOtherBoards.Item("e_j_hololiveneet", "ホロライブニート");
+        assertEquals("JPNKN / ホロライブニート", OtherBoardSelection.displayLabel(favorite));
+    }
 }

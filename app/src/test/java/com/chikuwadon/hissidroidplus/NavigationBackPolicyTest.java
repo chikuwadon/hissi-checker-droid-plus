@@ -52,8 +52,11 @@ public class NavigationBackPolicyTest {
         assertTrue(activity.contains("MainNavigation.unregisterHome(this)"));
         assertTrue(activity.contains("MainNavigation.exitFromHome(this@HomeActivity)"));
         assertTrue(activity.contains("(active as? HistoryFragment)?.handleBack() == true"));
-        assertTrue(source("ResultActivity.kt").contains(
-            "NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))"));
+        String resultActivity = source("ResultActivity.kt");
+        assertTrue(resultActivity.contains("MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)"));
+        assertTrue(resultActivity.contains("MainNavigation.exitFromResult(this)"));
+        assertFalse(resultActivity.contains("NavigationBackPolicy.exitConnectedResult("));
+        assertTrue(nav.contains("fun exitFromResult(a: ResultActivity)"));
     }
 
     @Test public void backTraversesActualTabVisitsWithoutAddingReturnVisits() {

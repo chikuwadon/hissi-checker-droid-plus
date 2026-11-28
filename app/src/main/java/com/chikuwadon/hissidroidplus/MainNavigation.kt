@@ -79,7 +79,7 @@ object MainNavigation {
     fun unregisterHome(a: HomeActivity) {
         if (homes[a.taskId]?.get() === a) {
             homes.remove(a.taskId)
-            if (a.isFinishing) tabHistories.remove(a.taskId)
+            if (a.isFinishing && result(a) == null) tabHistories.remove(a.taskId)
         }
     }
 
@@ -95,6 +95,14 @@ object MainNavigation {
             retained.finish()
         }
         // Finish only our two activities in this task; never finish the caller's task.
+        a.finish()
+    }
+
+    /** A root result must not reveal a retained peer after its visit history is exhausted. */
+    fun exitFromResult(a: ResultActivity) {
+        tabHistories.remove(a.taskId)
+        val retained = homes.remove(a.taskId)?.get()
+        if (retained != null && !retained.isFinishing && !retained.isDestroyed) retained.finish()
         a.finish()
     }
 

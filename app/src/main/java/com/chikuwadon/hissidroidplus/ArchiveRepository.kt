@@ -100,7 +100,11 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
-            ArchiveProvider.OTHER_KYODEMO -> ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
+            ArchiveProvider.OTHER_KYODEMO -> try {
+                ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
+            } catch (failure: IOException) {
+                throw IOException(failure.message.orEmpty() + " / " + HttpTransport.lastDiagnostic(), failure)
+            }
             ArchiveProvider.FIVECH_NUKO -> try {
                 ArchiveProviderParser.nuko(html, page, query.boardCode)
             } catch (failure: NukoPageFormatException) {

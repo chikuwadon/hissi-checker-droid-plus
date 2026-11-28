@@ -548,7 +548,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
     }
 
-    private fun loadOtherMenu(service: KyodemoOtherBoards.Service, category: String) {
+    private fun loadOtherMenu(service: KyodemoOtherBoards.Service, category: String,
+                              parents: List<String> = emptyList()) {
         if (loading || disposed || !otherBoards()) return
         loading = true
         val request = ++generation
@@ -568,16 +569,19 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                         return@onSuccess
                     }
                     val group = BoardMenu.Category(service.label).apply { boards.addAll(menu.boards) }
-                    showBoardList("カテゴリを選択", entries.map { it.label }, null,
+                    val back: (() -> Unit)? = if (parents.isEmpty()) null else {
+                        { loadOtherMenu(service, parents.last(), parents.dropLast(1)) }
+                    }
+                    showBoardList("カテゴリを選択", entries.map { it.label }, back,
                         search = if (menu.boards.isEmpty()) null else {
                             {
-                                BoardSearchDialog.show(host, listOf(group), { loadOtherMenu(service, category) }) { entry ->
+                                BoardSearchDialog.show(host, listOf(group), { loadOtherMenu(service, category, parents) }) { entry ->
                                     selectBoard(entry.code, entry.name)
                                 }
                             }
                         }) { index ->
                         val entry = entries[index]
-                        if (index < menu.categories.size) loadOtherMenu(service, entry.code)
+                        if (index < menu.categories.size) loadOtherMenu(service, entry.code, parents + category)
                         else selectBoard(entry.code, entry.label)
                     }
                 }.onFailure { Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show() }
@@ -637,13 +641,18 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun showFavoriteBoards() {
         if (loading || disposed || !supportsBoardSelection()) return
         if (otherBoards()) {
-            val favorites = OtherBoardSelection.favorites(host, otherServiceRoot)
+            val favorites = OtherBoardSelection.allFavorites(host)
             if (favorites.isEmpty()) {
-                Toast.makeText(host, "カテゴリのお気に入りがありません", Toast.LENGTH_SHORT).show()
+                Toast.makeText(host, "掲示板 / カテゴリ板のお気に入りがありません", Toast.LENGTH_SHORT).show()
                 return
             }
-            showBoardList("カテゴリのお気に入り", favorites.map { it.label }, null) { index ->
-                favorites.getOrNull(index)?.let { selectBoard(it.code, it.label) }
+            showBoardList("掲示板 / カテゴリ板のお気に入り", favorites.map { OtherBoardSelection.displayLabel(it) }, null) { index ->
+                favorites.getOrNull(index)?.let { item ->
+                    val service = KyodemoOtherBoards.serviceFor(item.code) ?: return@let
+                    otherServiceRoot = service.root
+                    OtherBoardSelection.setRoot(host, service.root)
+                    selectBoard(item.code, item.label)
+                }
             }
             return
         }
@@ -696,8 +705,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         saveBoardButton.text = if (compact) {
             if (saved) "★済" else "☆保存"
         } else if (saved) "★ 保存済" else "☆ 保存"
-        saveBoardButton.contentDescription = if (otherBoards()) "選択したカテゴリをお気に入りに保存" else "選択した板をお気に入りに保存"
-        favoriteBoardsButton.contentDescription = if (otherBoards()) "カテゴリのお気に入り" else "板のお気に入り"
+        saveBoardButton.contentDescription = if (otherBoards()) "選択した掲示板 / カテゴリ板をお気に入りに保存" else "選択した板をお気に入りに保存"
+        favoriteBoardsButton.contentDescription = if (otherBoards()) "掲示板 / カテゴリ板のお気に入り" else "板のお気に入り"
         favoriteBoardsButton.isEnabled = !loading
     }
 
@@ -724,12 +733,16 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
         }
         panel.addView(choices, LinearLayout.LayoutParams(-1, minOf(dp(540), (host.resources.displayMetrics.heightPixels * 0.60f).toInt())))
+        val buttons = LinearLayout(host)
+        val previous = back?.let { ThemedMenu.formAction(host, "戻る") }
+        if (previous != null) buttons.addView(previous, LinearLayout.LayoutParams(0, dp(46), 1f))
         val close = ThemedMenu.formAction(host, "閉じる")
-        // System Back may still return to a parent category; the explicit button closes. 
-        panel.addView(close, LinearLayout.LayoutParams(-1, dp(46)))
+        buttons.addView(close, LinearLayout.LayoutParams(0, dp(46), 1f))
+        panel.addView(buttons)
         val dialog = ThemedMenu.showForm(host, panel)
         choices.setOnItemClickListener { _, _, position, _ -> dialog.dismiss(); pick(position) }
         close.setOnClickListener { dialog.dismiss() }
+        previous?.setOnClickListener { dialog.dismiss(); back?.invoke() }
         if (back != null) dialog.setOnCancelListener { back.invoke() }
         searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }

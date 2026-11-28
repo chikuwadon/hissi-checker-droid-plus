@@ -424,18 +424,9 @@ class ResultActivity : CheckerActivity() {
     }
 
     private fun backFromResult() {
-        val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
-        val connected = origin == null && launchedExternally() && !AppSettings.standalone(this)
-        if (!::list.isInitialized || query == null ||
-            NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))) {
-            exitResults()
-        } else {
-            if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return
-            val destination = if (enteredViaNavigation) backDestination else
-                MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
-                    ?: MainNavigation.Destination.HOME
-            MainNavigation.navigate(this, destination)
-        }
+        // Every entry path, including ChMate/Haiagaru, consumes the same actual tab history.
+        if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return
+        MainNavigation.exitFromResult(this)
     }
 
     private fun exitResults() {
