@@ -41,7 +41,8 @@ public class ResultStateContractTest {
         assertTrue(code.contains("outState.putIntArray(\"result_positions\", positions.copyOf())"));
         assertTrue(code.contains("outState.putIntArray(\"result_offsets\", offsets.copyOf())"));
         assertTrue(code.contains("restoreNavigationState(state)"));
-        assertTrue(code.contains("origin == null && launchedExternally()"));
+        assertTrue(code.contains("if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return"));
+        assertTrue(code.contains("MainNavigation.exitFromResult(this)"));
         assertTrue(code.contains("state == null && routeStandaloneLinkToOwnTask()"));
     }
 }

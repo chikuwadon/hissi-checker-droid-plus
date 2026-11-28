@@ -85,4 +85,33 @@ public class NavigationBackPolicyTest {
         assertEquals(MainNavigation.Destination.HOME, history.previous(MainNavigation.Destination.SETTINGS,
             d -> d != MainNavigation.Destination.RESULT));
     }
+
+    @Test public void externallyLaunchedResultUsesActualVisitsNotInventedHome() {
+        TabHistory history = new TabHistory();
+        MainNavigation.Destination result = MainNavigation.Destination.RESULT;
+        MainNavigation.Destination archive = MainNavigation.Destination.ARCHIVE;
+        MainNavigation.Destination settings = MainNavigation.Destination.SETTINGS;
+        history.visit(result);
+        history.visit(archive);
+        history.visit(settings);
+        assertEquals(archive, history.previous(settings, d -> true));
+        history.visit(archive);
+        assertEquals(result, history.previous(archive, d -> true));
+        history.visit(result);
+        assertNull(history.previous(result, d -> true));
+    }
+
+    @Test public void resultRootExitFinishesOnlyRetainedCheckerHostAndSelf() throws Exception {
+        String nav = source("MainNavigation.kt");
+        int start = nav.indexOf("fun exitFromResult(a: ResultActivity)");
+        int end = nav.indexOf("private fun result", start);
+        assertTrue(start >= 0 && end > start);
+        String exit = nav.substring(start, end);
+        assertTrue(exit.contains("tabHistories.remove(a.taskId)"));
+        assertTrue(exit.contains("homes.remove(a.taskId)"));
+        assertTrue(exit.indexOf("retained.finish()") >= 0);
+        assertTrue(exit.indexOf("retained.finish()") < exit.indexOf("a.finish()"));
+        assertFalse(exit.contains("finishAffinity("));
+        assertFalse(exit.contains("finishAndRemoveTask("));
+    }
 }
