@@ -61,7 +61,8 @@ object ArchiveProviderParser {
             val board = name
             val link = uri.toASCIIString()
             val key = path.groupValues[2]
-            val time = if (!other || (!code.startsWith("f_") && key.length == 10)) runCatching { timestamp(key) }.getOrDefault("") else ""
+            val time = if (!other) timestamp(key) else KyodemoDates.created(anchor)
+                .ifEmpty { if (!code.startsWith("f_") && key.length == 10 && code.startsWith("o_")) runCatching { timestamp(key) }.getOrDefault("") else "" }
             rows.putIfAbsent(link, ArchiveThread(title, link, replies, time, board))
         }
         if (total > 0 && rows.isEmpty()) throw IOException("Kyodemoのスレッド一覧を解析できませんでした")

@@ -245,7 +245,11 @@ class ResultActivity : CheckerActivity() {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     if (saved != null && AppSettings.keepSearchResults(this)) showSavedResult(saved)
-                    else { toast("保存された検索結果がありません"); finish() }
+                    else {
+                        MainNavigation.rememberDestination(this, MainNavigation.Destination.HOME)
+                        toast("保存された検索結果がありません")
+                        finish()
+                    }
                 }
             }
             return
@@ -1232,6 +1236,7 @@ class ResultActivity : CheckerActivity() {
     override fun onResume() {
         super.onResume()
         MainNavigation.refresh(this)
+        if (::list.isInitialized && !isFinishing) MainNavigation.rememberDestination(this, MainNavigation.Destination.RESULT)
         if (::list.isInitialized && !isFinishing &&
             themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
             recreate()

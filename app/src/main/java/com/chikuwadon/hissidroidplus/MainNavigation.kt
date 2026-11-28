@@ -24,6 +24,16 @@ object MainNavigation {
     }
 
     const val EXTRA_DESTINATION = "main_navigation_destination"
+    private const val LAST_DESTINATION = "last_main_destination"
+    fun rememberDestination(context: Context, destination: Destination) {
+        AppSettings.prefs(context).edit().putString(LAST_DESTINATION, destination.name).apply()
+    }
+    fun lastDestination(context: Context): Destination = decodeDestination(AppSettings.prefs(context).getString(LAST_DESTINATION, null))
+    @JvmStatic fun decodeDestination(raw: String?): Destination = Destination.entries.firstOrNull { it.name == raw } ?: Destination.HOME
+    fun startDestination(context: Context, raw: String?): Destination {
+        val target = decodeDestination(raw)
+        return if (!isVisible(context, target) || (target == Destination.RESULT && !SavedSearchResults.hasId(context))) Destination.HOME else target
+    }
     const val EXTRA_RESTORE_RESULT = "restore_result_token"
     private var restoreToken: String? = null
     fun consumeRestoreToken(token: String?): Boolean {
