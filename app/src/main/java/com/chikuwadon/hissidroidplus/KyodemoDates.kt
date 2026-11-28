@@ -44,8 +44,19 @@ object KyodemoDates {
                 parse(el.attr(attr), currentYear).takeIf { it.isNotEmpty() }?.let { return it }
             }
         }
-        // Dates can be plain text, a clock's tooltip, or a nested span within the metadata.
+        // Saved real Kyodemo markup uses adjacent spans separated by clock/edit icons.
+        // Reading the parent's text can concatenate both dates without whitespace.
         metadata.select("small.right_i").remove()
+        for (left in metadata.select(".left_i")) {
+            val first = left.children().firstOrNull { it.normalName() == "span" }
+            if (first != null) {
+                for (attr in listOf("datetime", "title", "data-original-title", "aria-label")) {
+                    parse(first.attr(attr), currentYear).takeIf { it.isNotEmpty() }?.let { return it }
+                }
+                // Do not use the second (last-update) span if the creation span is missing.
+                return parse(first.text(), currentYear)
+            }
+        }
         for (el in metadata.select("small.left_i, .left_i, time, small")) {
             for (node in el.getAllElements()) {
                 for (attr in listOf("datetime", "title", "data-original-title", "aria-label")) {

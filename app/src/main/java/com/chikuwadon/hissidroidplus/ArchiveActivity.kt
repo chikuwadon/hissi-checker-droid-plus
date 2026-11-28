@@ -277,9 +277,10 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     ThreadOpener.validatedThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, true)
                     ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
-                    else -> ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
-                        "検索サービスのページを外部ブラウザで開きますか？", "開く",
-                        Runnable { BrowserLauncher.open(host, entry.url) })
+                    state.provider == ArchiveProvider.OTHER_KYODEMO -> withOtherOriginal(entry) { resolved ->
+                        if (resolved.isNotEmpty()) openOtherOriginal(resolved) else showUnresolved(entry)
+                    }
+                    else -> showUnresolved(entry)
                 }
             }
         }
@@ -392,22 +393,77 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         updateBoardButtons()
     }
 
+    private fun servicePage(entry: ArchiveThread): String {
+        val provider = state.provider
+        val query = state.submitted
+        if (provider == ArchiveProvider.EDGE_ARCHIVE ||
+            (provider == ArchiveProvider.FIVECH_KYODEMO && ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty())) {
+            if (provider == ArchiveProvider.FIVECH_KYODEMO) {
+                val board = query?.boardCode.orEmpty()
+                val key = entry.url.trimEnd('/').substringAfterLast('/')
+                if (BoardFavorites.valid(board) && key.matches(Regex("[0-9]{10,20}")))
+                    return "https://www.kyodemo.net/sdemo/r/$board/$key/"
+            }
+            if (query != null) return ArchiveExternalSearch.url(provider, query, state.result?.page ?: 1)
+            return provider.url
+        }
+        return entry.url
+    }
+
+    private fun showUnresolved(entry: ArchiveThread) {
+        ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
+            "検索サービスのページを外部ブラウザで開きますか？", "開く",
+            Runnable { BrowserLauncher.open(host, servicePage(entry)) })
+    }
+
+    private fun openOtherOriginal(original: String) {
+        // Only known board thread formats are handed to configured readers.
+        if (ThreadOpener.validatedOtherThreadUrl(original).isNotEmpty()) ThreadOpener.open(host, original, false)
+        else BrowserLauncher.open(host, original)
+    }
+
+    private fun withOtherOriginal(entry: ArchiveThread, action: (String) -> Unit) {
+        val known = entry.originalUrl.ifBlank { ArchiveOriginalLink.kyodemoOther(entry.url) }
+        if (known.isNotEmpty()) { action(known); return }
+        if (loading || disposed) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "元スレッドURLを取得中…"
+        worker.execute {
+            val original = runCatching { ArchiveOriginalLink.resolveOther(entry.url) }.getOrDefault("")
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (list.isShown && host.hasWindowFocus()) action(original)
+            }
+        }
+    }
+
     private fun showCopyMenu(entry: ArchiveThread) {
-        ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
-            val original = entry.originalUrl
-            if (index != 1 && original.isEmpty()) {
-                Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
+        ThemedMenu.choose(host, "操作", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー", "検索サービスのページで開く"), -1) { index ->
+            if (index == 3) {
+                BrowserLauncher.open(host, servicePage(entry))
                 return@choose
             }
-            val value = when (index) {
-                0 -> entry.title + "\n" + original
-                1 -> entry.title
-                2 -> original
-                else -> return@choose
+            fun copy(original: String) {
+                if (index != 1 && original.isEmpty()) {
+                    Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val value = when (index) {
+                    0 -> entry.title + "\n" + original
+                    1 -> entry.title
+                    2 -> original
+                    else -> return
+                }
+                val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+                clipboard.setPrimaryClip(ClipData.newPlainText("過去ログ検索", value))
+                if (Build.VERSION.SDK_INT < 33) Toast.makeText(host, "コピーしました", Toast.LENGTH_SHORT).show()
             }
-            val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@choose
-            clipboard.setPrimaryClip(ClipData.newPlainText("過去ログ検索", value))
-            if (Build.VERSION.SDK_INT < 33) Toast.makeText(host, "コピーしました", Toast.LENGTH_SHORT).show()
+            if (index != 1 && state.provider == ArchiveProvider.OTHER_KYODEMO) withOtherOriginal(entry, ::copy)
+            else copy(entry.originalUrl)
         }
     }
 
@@ -1124,7 +1180,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     /** Keep archive reading URLs and original-copy URLs separate. Resolve each board once. */
     private fun resolveOriginalLinks(requested: ArchiveProvider, result: ArchivePage): ArchivePage {
         if (result.items.isEmpty()) return result
-        if (requested == ArchiveProvider.OTHER_KYODEMO) return result
+        if (requested == ArchiveProvider.OTHER_KYODEMO) return result.copy(items = result.items.map { entry ->
+            entry.copy(originalUrl = ArchiveOriginalLink.kyodemoOther(entry.url))
+        })
         if (requested == ArchiveProvider.EDGE_ARCHIVE || requested == ArchiveProvider.EDGE_KYODEMO) {
             return result.copy(items = result.items.map { entry ->
                 val original = ThreadOpener.validatedThreadUrl(entry.url)
@@ -1147,7 +1205,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 ArchiveOriginalLink.nuko5ch(entry.url, board, address)
             else ArchiveOriginalLink.kyodemo5ch(entry.url, board, address)
             val original = ThreadOpener.validated5chThreadUrl(converted)
-            entry.copy(originalUrl = original, url = if (requested == ArchiveProvider.FIVECH_KYODEMO && original.isNotEmpty()) original else entry.url)
+            entry.copy(originalUrl = original)
         })
     }
 

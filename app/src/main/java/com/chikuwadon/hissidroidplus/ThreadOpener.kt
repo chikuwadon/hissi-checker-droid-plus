@@ -106,6 +106,22 @@ object ThreadOpener {
         }
     }
 
+    @JvmStatic fun validatedOtherThreadUrl(raw: String?): String {
+        if (!ExternalUrlPolicy.isWebUrl(raw)) return ""
+        val uri = runCatching { URI.create(raw ?: return "") }.getOrNull() ?: return ""
+        if (uri.port != -1 || uri.rawQuery != null || uri.rawFragment != null) return ""
+        val path = uri.rawPath.orEmpty()
+        val host = uri.host.lowercase(Locale.ROOT)
+        val accepted = when (host) {
+            "jbbs.shitaraba.net" -> path.matches(Regex("^/bbs/read\\.cgi/[A-Za-z0-9]+/\\d+/\\d{10}/?$"))
+            "machi.to", "www.machi.to" -> path.matches(Regex("^/bbs/read\\.cgi/[A-Za-z0-9_]+/\\d{10}/?$"))
+            "bbs.punipuni.eu", "bbs.jpnkn.com", "kenmo.org", "00c.org" ->
+                path.matches(Regex("^/test/read\\.cgi/[A-Za-z0-9_]+/\\d{10}/?$"))
+            else -> false
+        }
+        return if (accepted) raw.orEmpty() else ""
+    }
+
     private fun directThreadIntent(url: String, pkg: String, activityClass: String): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse(url)).setClassName(pkg, activityClass)
 
@@ -187,7 +203,7 @@ object ThreadOpener {
         if (!ExternalUrlPolicy.isWebUrl(raw)) return
         val source = raw ?: return
         val normalized = if (edge) EdgeThreadLink.original(source) else source
-        val accepted = if (edge) validatedThreadUrl(source) else validated5chThreadUrl(raw)
+        val accepted = if (edge) validatedThreadUrl(source) else validated5chThreadUrl(raw).ifBlank { validatedOtherThreadUrl(raw) }
         if (accepted.isEmpty()) {
             // Unknown links are browser-only; do not hand arbitrary schemes or
             // unvalidated thread URLs to installed reader applications.

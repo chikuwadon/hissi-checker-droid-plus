@@ -49,7 +49,9 @@ object ArchiveProviderParser {
         val doc = Jsoup.parse(html, "https://www.kyodemo.net/sdemo/")
         val summary = doc.clone().apply { select("article.panel-block, h2.cltitle, script, style").remove() }
         val summaryText = Normalizer.normalize(summary.text(), Normalizer.Form.NFKC)
-        val count = kyodemoCount.find(summaryText) ?: if (other) otherCount.find(summaryText) else null
+        val countText = doc.selectFirst("small.d-scnt")?.text()?.let { Normalizer.normalize(it, Normalizer.Form.NFKC) }
+        val count = countText?.let { kyodemoCount.find(it) ?: if (other) otherCount.find(it) else null }
+            ?: kyodemoCount.find(summaryText) ?: if (other) otherCount.find(summaryText) else null
         val total = count?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
         val capped = count?.groupValues?.get(2) == "+"
         val current = count?.groupValues?.get(3)?.toIntOrNull()
@@ -73,7 +75,10 @@ object ArchiveProviderParser {
             val link = uri.toASCIIString()
             val key = path.groupValues[2]
             val time = if (!other) timestamp(key) else KyodemoDates.created(anchor)
-                .ifEmpty { if (!code.startsWith("f_") && key.length == 10 && code.startsWith("o_")) runCatching { timestamp(key) }.getOrDefault("") else "" }
+                .ifEmpty {
+                    if (ArchiveOriginalLink.hasTimestampKey(code) && key.length == 10)
+                        runCatching { timestamp(key) }.getOrDefault("") else ""
+                }
             rows.putIfAbsent(link, ArchiveThread(title, link, replies, time, board))
         }
         if (total != null && last != null) {
