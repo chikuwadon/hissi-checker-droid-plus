@@ -430,6 +430,7 @@ class ResultActivity : CheckerActivity() {
             NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))) {
             exitResults()
         } else {
+            if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return
             val destination = if (enteredViaNavigation) backDestination else
                 MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
                     ?: MainNavigation.Destination.HOME

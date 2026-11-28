@@ -157,12 +157,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
         }
         otherServiceButton = archiveButton("掲示板を選択 ▾")
-        controls.addView(otherServiceButton, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
         otherServiceButton.setOnClickListener { showOtherServices() }
         boardRow = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         controls.addView(boardRow, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
+        boardRow.addView(otherServiceButton, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(4) })
         boardButton = archiveButton("板を選択 ▾")
-        boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1f))
+        boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1.15f))
         boardButton.setOnClickListener { showBoards() }
         saveBoardButton = archiveButton("☆ 保存").apply {
             contentDescription = "選択した板をお気に入りに保存"
@@ -568,8 +568,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                         return@onSuccess
                     }
                     val group = BoardMenu.Category(service.label).apply { boards.addAll(menu.boards) }
-                    showBoardList(service.label, entries.map { it.label },
-                        { if (category == service.root) showOtherServices() else loadOtherMenu(service, service.root) },
+                    showBoardList("カテゴリを選択", entries.map { it.label }, null,
                         search = if (menu.boards.isEmpty()) null else {
                             {
                                 BoardSearchDialog.show(host, listOf(group), { loadOtherMenu(service, category) }) { entry ->
@@ -608,7 +607,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun selectBoard(code: String, name: String) {
         if (disposed || loading || !supportsBoardSelection() ||
             (!BoardFavorites.valid(code) && !((state.provider == ArchiveProvider.FIVECH_NUKO || otherBoards()) && code.isEmpty()))) return
-        if (otherBoards() && code.isNotEmpty() && (!KyodemoOtherBoards.validBoard(code) || !code.startsWith(otherServiceRoot))) return
+        if (otherBoards() && code.isNotEmpty() && (KyodemoOtherBoards.serviceFor(code)?.root != otherServiceRoot)) return
         saveKeyword()
         if (state.draft.boardCode != code) {
             state.pages.clear()
@@ -683,7 +682,20 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         saveBoardButton.alpha = if (saveBoardButton.isEnabled) 1f else 0.45f
         val saved = if (otherBoards()) OtherBoardSelection.favorites(host, otherServiceRoot).any { it.code == state.draft.boardCode }
             else state.draft.boardCode in BoardFavorites.read(host)
-        saveBoardButton.text = if (saved) "★ 保存済" else "☆ 保存"
+        val compact = otherBoards()
+        for (button in listOf(otherServiceButton, boardButton)) {
+            button.textSize = if (compact) 12f else 14f
+            button.setPadding(dp(if (compact) 4 else 8), 0, dp(if (compact) 4 else 8), 0)
+            button.maxLines = if (compact) 2 else 1
+            button.ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        (saveBoardButton.layoutParams as LinearLayout.LayoutParams).width = dp(if (compact) 52 else 82)
+        (favoriteBoardsButton.layoutParams as LinearLayout.LayoutParams).width = dp(if (compact) 44 else 48)
+        saveBoardButton.textSize = if (compact) 11f else 14f
+        saveBoardButton.setPadding(dp(if (compact) 2 else 8), 0, dp(if (compact) 2 else 8), 0)
+        saveBoardButton.text = if (compact) {
+            if (saved) "★済" else "☆保存"
+        } else if (saved) "★ 保存済" else "☆ 保存"
         saveBoardButton.contentDescription = if (otherBoards()) "選択したカテゴリをお気に入りに保存" else "選択した板をお気に入りに保存"
         favoriteBoardsButton.contentDescription = if (otherBoards()) "カテゴリのお気に入り" else "板のお気に入り"
         favoriteBoardsButton.isEnabled = !loading
@@ -712,11 +724,13 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
         }
         panel.addView(choices, LinearLayout.LayoutParams(-1, minOf(dp(540), (host.resources.displayMetrics.heightPixels * 0.60f).toInt())))
-        val close = ThemedMenu.formAction(host, if (back == null) "閉じる" else "カテゴリに戻る")
+        val close = ThemedMenu.formAction(host, "閉じる")
+        // System Back may still return to a parent category; the explicit button closes. 
         panel.addView(close, LinearLayout.LayoutParams(-1, dp(46)))
         val dialog = ThemedMenu.showForm(host, panel)
         choices.setOnItemClickListener { _, _, position, _ -> dialog.dismiss(); pick(position) }
-        close.setOnClickListener { dialog.dismiss(); back?.invoke() }
+        close.setOnClickListener { dialog.dismiss() }
+        if (back != null) dialog.setOnCancelListener { back.invoke() }
         searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }
 

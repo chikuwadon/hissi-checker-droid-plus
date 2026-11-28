@@ -25,8 +25,18 @@ object MainNavigation {
 
     const val EXTRA_DESTINATION = "main_navigation_destination"
     private const val LAST_DESTINATION = "last_main_destination"
+    private val tabHistories = HashMap<Int, TabHistory>()
     fun rememberDestination(context: Context, destination: Destination) {
         AppSettings.prefs(context).edit().putString(LAST_DESTINATION, destination.name).apply()
+        if (context is Activity) tabHistories.getOrPut(context.taskId) { TabHistory() }.visit(destination)
+    }
+
+    fun backToPrevious(a: Activity, current: Destination): Boolean {
+        val target = tabHistories[a.taskId]?.previous(current) {
+            isVisible(a, it) && (it != Destination.RESULT || result(a) != null || SavedSearchResults.hasId(a))
+        } ?: return false
+        navigate(a, target)
+        return true
     }
     fun lastDestination(context: Context): Destination = decodeDestination(AppSettings.prefs(context).getString(LAST_DESTINATION, null))
     @JvmStatic fun decodeDestination(raw: String?): Destination = Destination.entries.firstOrNull { it.name == raw } ?: Destination.HOME
@@ -67,7 +77,10 @@ object MainNavigation {
     }
 
     fun unregisterHome(a: HomeActivity) {
-        if (homes[a.taskId]?.get() === a) homes.remove(a.taskId)
+        if (homes[a.taskId]?.get() === a) {
+            homes.remove(a.taskId)
+            if (a.isFinishing) tabHistories.remove(a.taskId)
+        }
     }
 
     fun hasHome(a: Activity): Boolean =
@@ -75,6 +88,7 @@ object MainNavigation {
 
     /** Back from the root home leaves the checker, rather than revealing its retained peer. */
     fun exitFromHome(a: HomeActivity) {
+        tabHistories.remove(a.taskId)
         val retained = result(a)
         if (retained != null) {
             results.remove(a.taskId)
@@ -96,7 +110,10 @@ object MainNavigation {
     }
 
     fun unregisterResult(a: ResultActivity) {
-        if (results[a.taskId]?.get() === a) results.remove(a.taskId)
+        if (results[a.taskId]?.get() === a) {
+            results.remove(a.taskId)
+            if (a.isFinishing && !hasHome(a)) tabHistories.remove(a.taskId)
+        }
     }
 
     fun refresh(a: Activity) {

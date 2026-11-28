@@ -55,4 +55,31 @@ public class NavigationBackPolicyTest {
         assertTrue(source("ResultActivity.kt").contains(
             "NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))"));
     }
+
+    @Test public void backTraversesActualTabVisitsWithoutAddingReturnVisits() {
+        TabHistory history = new TabHistory();
+        MainNavigation.Destination home = MainNavigation.Destination.HOME;
+        MainNavigation.Destination archive = MainNavigation.Destination.ARCHIVE;
+        MainNavigation.Destination settings = MainNavigation.Destination.SETTINGS;
+        MainNavigation.Destination result = MainNavigation.Destination.RESULT;
+        history.visit(home);
+        history.visit(archive);
+        history.visit(settings);
+        history.visit(settings);
+        history.visit(result);
+        assertEquals(settings, history.previous(result, d -> true));
+        history.visit(settings);
+        assertEquals(archive, history.previous(settings, d -> true));
+        history.visit(archive);
+        assertEquals(home, history.previous(archive, d -> true));
+        assertNull(history.previous(home, d -> true));
+    }
+    @Test public void backSkipsUnavailableDestinations() {
+        TabHistory history = new TabHistory();
+        history.visit(MainNavigation.Destination.HOME);
+        history.visit(MainNavigation.Destination.RESULT);
+        history.visit(MainNavigation.Destination.SETTINGS);
+        assertEquals(MainNavigation.Destination.HOME, history.previous(MainNavigation.Destination.SETTINGS,
+            d -> d != MainNavigation.Destination.RESULT));
+    }
 }

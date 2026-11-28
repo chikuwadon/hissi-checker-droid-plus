@@ -95,9 +95,7 @@ class HomeActivity : CheckerActivity() {
             override fun handleOnBackPressed() {
                 val active = supportFragmentManager.findFragmentByTag(activeDestination.name)
                 if ((active as? HistoryFragment)?.handleBack() == true) return
-                if (activeDestination != MainNavigation.Destination.HOME) {
-                    showDestination(MainNavigation.Destination.HOME)
-                } else {
+                if (!MainNavigation.backToPrevious(this@HomeActivity, activeDestination)) {
                     MainNavigation.exitFromHome(this@HomeActivity)
                 }
             }

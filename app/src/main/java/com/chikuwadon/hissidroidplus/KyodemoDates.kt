@@ -7,48 +7,53 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Futaba thread IDs are sequential, not Unix timestamps. Read the displayed creation metadata. */
+/** Thread IDs are not necessarily timestamps; read only the creation metadata. */
 object KyodemoDates {
-    private val date = Regex("(?<!\\d)(?:(20\\d{2}|\\d{2})[/-])?(\\d{1,2})[/-](\\d{1,2})(?:\\s*\\([^)]{1,8}\\))?\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?(?!\\d)")
+    private val japan = ZoneId.of("Asia/Tokyo")
+    private val date = Regex("(?<![\\d/])(?:(20\\d{2}|\\d{2})[/-])?(\\d{1,2})[/-](\\d{1,2})(?:\\s*\\([^)]{1,8}\\))?(?:[ T]+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?)?(?![\\d/:])")
     private val fullFormat = DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss")
-    @JvmStatic fun parse(value: String): String {
+    @JvmStatic @JvmOverloads fun parse(value: String, currentYear: Int = LocalDate.now(japan).year): String {
         runCatching {
-            val time = OffsetDateTime.parse(value.trim()).atZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+            val time = OffsetDateTime.parse(value.trim()).atZoneSameInstant(japan)
             return fullFormat.format(time)
         }
-        val m = date.find(value) ?: return ""
-        return runCatching {
-            val year = m.groupValues[1].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
-            val month = m.groupValues[2].toInt()
-            val day = m.groupValues[3].toInt()
-            val hour = m.groupValues[4].toInt()
-            val minute = m.groupValues[5].toInt()
-            val second = m.groupValues[6].toIntOrNull()
-            LocalDate.of(year ?: 2000, month, day)
-            LocalTime.of(hour, minute, second ?: 0)
-            val dateText = if (year == null) "%02d/%02d".format(java.util.Locale.ROOT, month, day)
-                else "%04d/%02d/%02d".format(java.util.Locale.ROOT, year, month, day)
-            dateText + " " + "%02d:%02d".format(java.util.Locale.ROOT, hour, minute) +
-                (second?.let { ":%02d".format(java.util.Locale.ROOT, it) } ?: "")
-        }.getOrDefault("")
-    }
-
-    @JvmStatic fun created(anchor: Element): String {
-        // Prefer explicit creation fields; do not parse dates embedded in thread titles.
-        val row = anchor.closest("article.panel-block") ?: anchor
-        for (el in row.select("time[datetime], [data-created], [data-created-at]")) {
-            if (el.closest("h2.cltitle") != null) continue
-            for (attr in listOf("data-created", "data-created-at", "datetime")) {
-                parse(el.attr(attr)).takeIf { it.isNotEmpty() }?.let { return it }
-            }
-        }
-        val metadata = row.clone()
-        metadata.select("h2.cltitle").remove()
-        for (el in metadata.select("small, time")) {
-            for (value in listOf(el.attr("title"), el.text())) {
-                parse(value).takeIf { it.isNotEmpty() }?.let { return it }
-            }
+        for (m in date.findAll(value)) {
+            val statedYear = m.groupValues[1].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
+            val hour = m.groupValues[4].toIntOrNull()
+            // Kyodemo shows full dates for earlier years and MM/dd HH:mm for this year.
+            if (statedYear == null && hour == null) continue
+            val result = runCatching {
+                val day = LocalDate.of(statedYear ?: currentYear, m.groupValues[2].toInt(), m.groupValues[3].toInt())
+                val dateText = day.format(DateTimeFormatter.ofPattern("uuuu/MM/dd"))
+                if (hour == null) dateText else {
+                    val second = m.groupValues[6].toIntOrNull()
+                    val time = LocalTime.of(hour, m.groupValues[5].toInt(), second ?: 0)
+                    dateText + " " + time.format(DateTimeFormatter.ofPattern(if (second == null) "HH:mm" else "HH:mm:ss"))
+                }
+            }.getOrDefault("")
+            if (result.isNotEmpty()) return result
         }
         return ""
+    }
+
+    @JvmStatic @JvmOverloads fun created(anchor: Element, currentYear: Int = LocalDate.now(japan).year): String {
+        val metadata = (anchor.closest("article.panel-block") ?: anchor).clone()
+        metadata.select("h2.cltitle").remove()
+        for (el in metadata.select("time[datetime], [data-created], [data-created-at]")) {
+            for (attr in listOf("data-created", "data-created-at", "datetime")) {
+                parse(el.attr(attr), currentYear).takeIf { it.isNotEmpty() }?.let { return it }
+            }
+        }
+        // Dates can be plain text, a clock's tooltip, or a nested span within the metadata.
+        metadata.select("small.right_i").remove()
+        for (el in metadata.select("small.left_i, .left_i, time, small")) {
+            for (node in el.getAllElements()) {
+                for (attr in listOf("datetime", "title", "data-original-title", "aria-label")) {
+                    parse(node.attr(attr), currentYear).takeIf { it.isNotEmpty() }?.let { return it }
+                }
+            }
+            parse(el.text(), currentYear).takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        return parse(metadata.text(), currentYear)
     }
 }

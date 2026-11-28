@@ -8,7 +8,7 @@ object OtherBoardSelection {
     private fun prefs(context: Context) = context.getSharedPreferences("other_archive_boards", Context.MODE_PRIVATE)
     @JvmOverloads fun root(context: Context, board: String = ""): String {
         val roots = KyodemoOtherBoards.services.map { it.root }
-        return roots.firstOrNull { board.startsWith(it) }
+        return KyodemoOtherBoards.serviceFor(board)?.root
             ?: prefs(context).getString("root", "").orEmpty().takeIf { it in roots }.orEmpty()
     }
     fun setRoot(context: Context, root: String) {
@@ -21,7 +21,7 @@ object OtherBoardSelection {
     fun favorites(context: Context, root: String): List<KyodemoOtherBoards.Item> {
         if (KyodemoOtherBoards.services.none { it.root == root }) return emptyList()
         val j = entries(context)
-        return j.keys().asSequence().filter { it.startsWith(root) && KyodemoOtherBoards.validBoard(it) }
+        return j.keys().asSequence().filter { KyodemoOtherBoards.serviceFor(it)?.root == root }
             .map { KyodemoOtherBoards.Item(it, j.optString(it, it).take(100).ifBlank { it }) }
             .sortedBy { it.label }.toList()
     }
