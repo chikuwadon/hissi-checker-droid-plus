@@ -13,7 +13,6 @@ import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.net.URI
-import java.net.URLDecoder
 import org.json.JSONTokener
 import org.json.JSONObject
 
@@ -134,7 +133,7 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
         private fun boardRoot(uri: URI): String = pathPattern.matchEntire(uri.rawPath.orEmpty())?.groupValues?.get(1).orEmpty()
         private fun fields(uri: URI): Map<String, String> = runCatching {
             uri.rawQuery.orEmpty().split('&').filter { '=' in it }.associate {
-                it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), "windows-31j")
+                it.substringBefore('=') to ArchiveExternalSearch.decodeKyodemoField(it.substringAfter('='))
             }
         }.getOrDefault(emptyMap())
         @JvmStatic fun allowed(raw: String?, requested: String): Boolean = runCatching {

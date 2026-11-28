@@ -10,6 +10,12 @@ public class KyodemoSearchTransportTest {
         assertEquals(CAPTURED, ArchiveExternalSearch.url(ArchiveProvider.OTHER_KYODEMO, q, 1));
         assertEquals("%81%9A", ArchiveExternalSearch.encodeKyodemoField("★"));
         assertEquals("A+B%26C%2B", ArchiveExternalSearch.encodeKyodemoField("A B&C+"));
+        assertEquals("原神", ArchiveExternalSearch.decodeKyodemoField("%8C%B4%90_"));
+        assertEquals("原神", ArchiveExternalSearch.decodeKyodemoField("%8C%B4%90%5F"));
+        assertEquals("A B&C+", ArchiveExternalSearch.decodeKyodemoField("A+B%26C%2B"));
+        for (String value : new String[]{"原神", "★", "Android スマホ -広告 -PR", "安倍晋三", "あいうえお", "a+b & c", "日本語"}) {
+            assertEquals(value, ArchiveExternalSearch.decodeKyodemoField(ArchiveExternalSearch.encodeKyodemoField(value)));
+        }
     }
     @Test public void browserFallbackRejectsIndexWrongBoardAndLostSearchConditions() {
         String root = "https://www.kyodemo.net/sdemo/b/e_p_vaporeon/";
@@ -18,6 +24,8 @@ public class KyodemoSearchTransportTest {
         assertTrue(KyodemoArchiveBrowserFallback.matchesSearch(CAPTURED, CAPTURED));
         assertTrue(KyodemoArchiveBrowserFallback.matchesSearch(root + "?kt=k_&k=%8C%B4%90%5F", CAPTURED));
         assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root + "?kt=k_&k=other", CAPTURED));
+        assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root + "?kt=k_&k=%8C%B4%90A", CAPTURED));
+        assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root + "?kt=k_&k=%8C%B4%90%ZZ", CAPTURED));
         assertFalse(KyodemoArchiveBrowserFallback.allowed("https://evil.example/sdemo/b/e_p_vaporeon/", CAPTURED));
         assertFalse(KyodemoArchiveBrowserFallback.allowed("https://www.kyodemo.net/sdemo/b/e_p_leafeon/", CAPTURED));
         assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root + "?kt=k_&k=%8C%B4%90_", CAPTURED + "&o1=1"));

@@ -1,6 +1,8 @@
 package com.chikuwadon.hissidroidplus
 
 import java.net.URLEncoder
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.nio.charset.Charset
 
 /** Exact GET form fields verified in the saved provider search forms.
@@ -22,6 +24,11 @@ object ArchiveExternalSearch {
             }
         }
     }
+
+    // Decode percent escapes and literal ASCII to a single byte stream before decoding
+    // Shift_JIS. URLDecoder with Windows-31J directly splits literal trail bytes off.
+    @JvmStatic fun decodeKyodemoField(value: String): String =
+        String(URLDecoder.decode(value, "ISO-8859-1").toByteArray(StandardCharsets.ISO_8859_1), formCharset)
 
     @JvmStatic
     @JvmOverloads
