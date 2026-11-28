@@ -228,6 +228,28 @@ class ResultActivity : CheckerActivity() {
                 ) loadNextPage()
             }
         })
+        val restoreSaved = MainNavigation.consumeRestoreToken(intent.getStringExtra(MainNavigation.EXTRA_RESTORE_RESULT)) ||
+            (state != null && intent.hasExtra(MainNavigation.EXTRA_RESTORE_RESULT) && intent.action == null)
+        if (restoreSaved) {
+            MainNavigation.registerResult(this)
+            registerBackAction { backFromResult() }
+            MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
+            status.text = "検索結果を復元中…"
+            val retained = screenState.snapshot
+            if (retained != null) {
+                showSavedResult(retained)
+                return
+            }
+            worker.execute {
+                val saved = SavedSearchResults.readId(this)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (saved != null && AppSettings.keepSearchResults(this)) showSavedResult(saved)
+                    else { toast("保存された検索結果がありません"); finish() }
+                }
+            }
+            return
+        }
         query = try {
             extract(intent)
         } catch (bad: Exception) {
@@ -1161,10 +1183,27 @@ class ResultActivity : CheckerActivity() {
         copy(builder.toString(), false)
     }
 
+    private fun showSavedResult(saved: ResultScreenState.Snapshot) {
+        query = saved.query
+        result = saved.result
+        nextPage = saved.nextPage
+        noMorePages = saved.noMorePages
+        edgeDiagnostic = saved.edgeDiagnostic
+        screenState.snapshot = saved
+        rebuildIndexes()
+        // Prevent automatic pagination while restoring the initial layout.
+        paging = true
+        loading = false
+        showTabContents(tab)
+        updateHeader()
+        list.post { paging = false }
+    }
+
     private fun rememberLoadedResult() {
         val current = query ?: return
         if (result.posts.isNotEmpty()) {
             screenState.snapshot = ResultScreenState.Snapshot(current, result, nextPage, noMorePages, edgeDiagnostic)
+            SavedSearchResults.saveId(this, screenState.snapshot!!)
         }
     }
 

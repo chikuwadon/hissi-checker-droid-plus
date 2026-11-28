@@ -113,6 +113,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun archiveButton(label: String): TextView = ThemedMenu.formButton(host, label, outlined = false)
 
     fun buildScreen(root: LinearLayout) {
+        val restore = !state.preferencesRestored
         if (!state.preferencesRestored) {
             state.provider = ArchiveSelectionStore.provider(host)
             for (choice in ArchiveProvider.entries) state.drafts[choice] = ArchiveSelectionStore.draft(host, choice)
@@ -145,6 +146,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     state.pages.clear()
                     state.submitted = null
                     state.result = null
+                    SavedSearchResults.clearArchive(host)
                     state.message = ""
                     refresh()
                 }
@@ -305,6 +307,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         refresh()
         val restored = state.submitted?.let { query -> state.result?.let { state.pages.get(state.provider, query, it.page) } }
         restored?.let { restorePosition(it.position) }
+        if (restore && state.result == null && SavedSearchResults.hasArchive(host)) restoreSavedPage()
     }
 
     /** Inline controls leave the actual search results visible while adjusting text. */
@@ -448,6 +451,26 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (adapter.count > 0) list.setSelectionFromTop(position.index.coerceIn(0, adapter.count - 1), position.offset)
     }
 
+    private fun restoreSavedPage() {
+        loading = true
+        val request = ++generation
+        refresh()
+        worker.execute {
+            val saved = SavedSearchResults.readArchive(host)
+            host.runOnUiThread {
+                if (disposed || host.isDestroyed || host.isFinishing || request != generation) return@runOnUiThread
+                loading = false
+                if (saved != null && AppSettings.keepSearchResults(host) &&
+                    saved.provider == state.provider && saved.query.boardCode == state.draft.boardCode) {
+                    state.draft = saved.query
+                    keyword.setText(saved.query.keyword)
+                    state.pages.put(saved.provider, saved.query, saved.page)
+                    displayPage(saved.query, ArchivePageCache.Cached(saved.page))
+                } else refresh()
+            }
+        }
+    }
+
     private fun displayPage(query: ArchiveQuery, cached: ArchivePageCache.Cached) {
         state.result = cached.result
         cached.result.form?.let { state.form = it }
@@ -455,6 +478,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         state.message = ""
         refresh()
         restorePosition(cached.position)
+        SavedSearchResults.saveArchive(host, state.provider, query, cached.result)
     }
 
     private fun readBoardGroups(): List<BoardMenu.Category> {
@@ -571,6 +595,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (state.draft.boardCode != code) {
             state.pages.clear()
             state.result = null
+                    SavedSearchResults.clearArchive(host)
             state.submitted = null
             state.message = ""
         }

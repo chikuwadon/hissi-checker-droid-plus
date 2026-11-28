@@ -24,6 +24,13 @@ object MainNavigation {
     }
 
     const val EXTRA_DESTINATION = "main_navigation_destination"
+    const val EXTRA_RESTORE_RESULT = "restore_result_token"
+    private var restoreToken: String? = null
+    fun consumeRestoreToken(token: String?): Boolean {
+        if (token == null || token != restoreToken) return false
+        restoreToken = null
+        return true
+    }
     val hosted = listOf(Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS)
 
     fun hostDestination(name: String?): Destination =
@@ -90,7 +97,7 @@ object MainNavigation {
             }
         }
         val item = a.window.decorView.findViewWithTag<TextView>(RESULT_TAG) ?: return
-        val available = result(a) != null
+        val available = result(a) != null || SavedSearchResults.hasId(a)
         item.isEnabled = available
         item.alpha = if (available) 1f else 0.4f
     }
@@ -170,16 +177,25 @@ object MainNavigation {
             Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS ->
                 Intent(a, HomeActivity::class.java).putExtra(EXTRA_DESTINATION, destination.name)
             Destination.RESULT -> {
-                val retained = result(a) ?: return
-                retained.setBackDestination(when (a) {
+                val retained = result(a)
+                val origin = when (a) {
                     is HomeActivity -> a.activeDestination
                     is FavoritesActivity -> Destination.FAVORITES
                     is HistoryActivity -> Destination.HISTORY
                     is ArchiveActivity -> Destination.ARCHIVE
                     is SettingsActivity -> Destination.SETTINGS
                     else -> Destination.HOME
-                })
-                Intent(a, ResultActivity::class.java)
+                }
+                if (retained != null) {
+                    retained.setBackDestination(origin)
+                    Intent(a, ResultActivity::class.java)
+                } else {
+                    if (!SavedSearchResults.hasId(a)) return
+                    val token = java.util.UUID.randomUUID().toString()
+                    restoreToken = token
+                    Intent(a, ResultActivity::class.java).putExtra(EXTRA_RESTORE_RESULT, token)
+                        .putExtra(ResultActivity.EXTRA_RETURN_DESTINATION, origin.name)
+                }
             }
         }
         // Bottom destinations are peers, not a push/pop detail stack.
