@@ -594,7 +594,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (state.draft.boardCode != code) {
             state.pages.clear()
             state.result = null
-                    SavedSearchResults.clearArchive(host)
+            SavedSearchResults.clearArchive(host)
             state.submitted = null
             state.message = ""
         }
