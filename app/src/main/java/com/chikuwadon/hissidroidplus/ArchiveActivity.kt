@@ -97,6 +97,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
     private var nukoBrowser: NukoBrowserFallback? = null
+    private var kyodemoBrowser: KyodemoArchiveBrowserFallback? = null
     private val nukoUserAgent by lazy { runCatching { android.webkit.WebSettings.getDefaultUserAgent(host) }.getOrDefault("") }
     private var resolvedBoardAddresses: Map<String, String> = emptyMap()
     private fun otherBoards() = state.provider == ArchiveProvider.OTHER_KYODEMO
@@ -1124,7 +1125,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         loading = true
         val request = ++generation
-        val browserUa = if (requested == ArchiveProvider.FIVECH_NUKO) nukoUserAgent else ""
+        val browserUa = if (requested == ArchiveProvider.FIVECH_NUKO || requested == ArchiveProvider.OTHER_KYODEMO) nukoUserAgent else ""
+        if (requested == ArchiveProvider.OTHER_KYODEMO) HttpTransport.enableWebViewCookies()
         refresh()
         worker.execute {
             val outcome = runCatching {
@@ -1153,6 +1155,27 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                                     android.util.Log.i("HissiArchive", "Nuko WebView success / chars=" + body.length + " / rows=" + fetched.items.size)
                                     resolveOriginalLinks(requested, ArchiveRepository.filterRange(fetched, query))
                                 }
+                                host.runOnUiThread { finishLoad(request, requested, query, fresh, parsed) }
+                            }
+                        }
+                    }
+                } else if (requested == ArchiveProvider.OTHER_KYODEMO && failure is KyodemoArchiveFormatException) {
+                    val nativeDiagnostic = failure.message.orEmpty()
+                    android.util.Log.w("HissiArchive", "Kyodemo native: " + nativeDiagnostic)
+                    message.text = "Kyodemo / ブラウザ方式で再取得中…"
+                    kyodemoBrowser = KyodemoArchiveBrowserFallback(host)
+                    kyodemoBrowser?.load(ArchiveExternalSearch.url(requested, query, page)) { html ->
+                        kyodemoBrowser = null
+                        if (disposed || request != generation) return@load
+                        if (html.isFailure) {
+                            finishLoad(request, requested, query, fresh, Result.failure(java.io.IOException(
+                                nativeDiagnostic + " / " + html.exceptionOrNull()?.message)))
+                        } else {
+                            worker.execute {
+                                val parsed = runCatching {
+                                    val fetched = ArchiveProviderParser.kyodemoOther(html.getOrThrow(), page, query.boardCode, query.boardName)
+                                    resolveOriginalLinks(requested, ArchiveRepository.filterRange(fetched, query))
+                                }.recoverCatching { throw java.io.IOException(nativeDiagnostic + " / WebView: " + it.message, it) }
                                 host.runOnUiThread { finishLoad(request, requested, query, fresh, parsed) }
                             }
                         }
@@ -1256,6 +1279,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         generation++
         nukoBrowser?.close()
         nukoBrowser = null
+        kyodemoBrowser?.close()
+        kyodemoBrowser = null
         worker.shutdownNow()
     }
 

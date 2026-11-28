@@ -9,6 +9,20 @@ object ArchiveExternalSearch {
     private val formCharset = Charset.forName("windows-31j")
     private val whitespace = Regex("\\s+")
 
+    // Browser form encoding operates on encoded bytes, not UTF-16 characters.
+    // For example 原神 ends in the Shift_JIS byte 0x5f, which Chromium sends as "_".
+    @JvmStatic fun encodeKyodemoField(value: String): String = buildString {
+        val hex = "0123456789ABCDEF"
+        for (byte in value.toByteArray(formCharset)) {
+            val b = byte.toInt() and 255
+            when {
+                b == 32 -> append('+')
+                b in 65..90 || b in 97..122 || b in 48..57 || b == 42 || b == 45 || b == 46 || b == 95 -> append(b.toChar())
+                else -> { append('%'); append(hex[b ushr 4]); append(hex[b and 15]) }
+            }
+        }
+    }
+
     @JvmStatic
     @JvmOverloads
     fun url(provider: ArchiveProvider, query: ArchiveQuery, page: Int = 1): String {
@@ -50,7 +64,8 @@ object ArchiveExternalSearch {
             ArchiveProvider.EDGE_ARCHIVE -> return ArchiveRepository.url(query, page)
         }
         return base + "?" + parameters.entries.joinToString("&") {
-            it.key + "=" + URLEncoder.encode(it.value, formCharset.name())
+            it.key + "=" + if (provider == ArchiveProvider.FIVECH_NUKO)
+                URLEncoder.encode(it.value, formCharset.name()) else encodeKyodemoField(it.value)
         }
     }
 

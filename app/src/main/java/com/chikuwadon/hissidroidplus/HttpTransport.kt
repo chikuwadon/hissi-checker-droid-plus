@@ -52,6 +52,16 @@ object HttpTransport {
         return request(url, null, charset, 10_000, 15_000, browserUserAgent)
     }
 
+    /** Use the real browser UA and app cookie jar only for scoped Kyodemo archive GETs. */
+    @JvmStatic
+    @Throws(IOException::class)
+    fun getForKyodemoArchive(url: String, charset: Charset, browserUserAgent: String): String {
+        val target = URL(url)
+        require(target.protocol == "https" && target.host.equals("www.kyodemo.net", true) &&
+            target.path.matches(Regex("^/sdemo/b/[A-Za-z0-9_]{1,60}/(?:[0-9]+)?$")))
+        return request(url, null, charset, 10_000, 15_000, browserUserAgent)
+    }
+
     @JvmStatic
     @Throws(IOException::class)
     fun post(url: String, data: String, charset: Charset): String =
@@ -94,7 +104,11 @@ object HttpTransport {
                     val cookie = try { requestCookies?.read(target.toExternalForm()) }
                         catch (_: RuntimeException) { null }
                     if (!cookie.isNullOrEmpty()) connection.setRequestProperty("Cookie", cookie)
-                    connection.setRequestProperty("Referer", "https://www.kyodemo.net/sdemo/")
+                    val boardPage = target.path.substringBeforeLast('/').takeIf {
+                        it.matches(Regex("^/sdemo/b/[A-Za-z0-9_]{1,60}$"))
+                    }
+                    connection.setRequestProperty("Referer", if (boardPage != null)
+                        "https://www.kyodemo.net$boardPage/" else "https://www.kyodemo.net/sdemo/")
                 }
                 // Request properties must be read before outputStream connects a POST.
                 val hadCookie = connection.getRequestProperty("Cookie") != null
@@ -116,6 +130,8 @@ object HttpTransport {
                     " / リダイレクト=" + redirects + " / Cookie送信=" +
                     (if (hadCookie) "あり" else "なし") +
                     " / UA=" + (if (requestUserAgent.isNotEmpty()) "Android WebView" else "標準HTTP") +
+                    (if (isKyodemo && target.path.startsWith("/sdemo/b/"))
+                        " / 最終URLの検索条件=" + (if (target.query.orEmpty().split('&').any { it.startsWith("k=") && it.length > 2 }) "あり" else "なし") else "") +
                     " / Content-Length=" + connection.contentLengthLong +
                     " / Content-Encoding=" + (connection.contentEncoding?.replace(Regex("[\\r\\n]"), " ") ?: "未指定"))
                 if (isKyodemo) {

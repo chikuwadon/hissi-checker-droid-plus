@@ -93,6 +93,8 @@ object ArchiveRepository {
         val charset = if (provider == ArchiveProvider.EDGE_ARCHIVE) StandardCharsets.UTF_8 else java.nio.charset.Charset.forName("windows-31j")
         val html = if (provider == ArchiveProvider.FIVECH_NUKO)
             HttpTransport.getForNuko(target, charset, nukoUserAgent)
+        else if (provider == ArchiveProvider.OTHER_KYODEMO)
+            HttpTransport.getForKyodemoArchive(target, charset, nukoUserAgent)
         else HttpTransport.get(target, charset)
         if (provider == ArchiveProvider.FIVECH_NUKO && html.isEmpty())
             throw NukoPageFormatException("ぬこのHTTP応答本文が空です / " + HttpTransport.lastDiagnostic())
@@ -103,7 +105,7 @@ object ArchiveRepository {
             ArchiveProvider.OTHER_KYODEMO -> try {
                 ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
             } catch (failure: IOException) {
-                throw IOException(failure.message.orEmpty() + " / " + HttpTransport.lastDiagnostic(), failure)
+                throw KyodemoArchiveFormatException(failure.message.orEmpty() + " / " + HttpTransport.lastDiagnostic(), failure)
             }
             ArchiveProvider.FIVECH_NUKO -> try {
                 ArchiveProviderParser.nuko(html, page, query.boardCode)
