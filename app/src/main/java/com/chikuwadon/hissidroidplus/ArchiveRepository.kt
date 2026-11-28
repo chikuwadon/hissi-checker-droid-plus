@@ -121,13 +121,18 @@ object ArchiveRepository {
         for (target in listOf(compact, formUrl).distinct()) {
             val html = HttpTransport.getForKyodemoArchive(target, charset, browserUa)
             try {
-                if (!KyodemoArchiveBrowserFallback.matchesSearch(HttpTransport.lastFinalUrl(), target))
+                val final = HttpTransport.lastFinalUrl()
+                if (!KyodemoArchiveBrowserFallback.matchesSearch(final, target))
                     throw IOException("検索条件がリダイレクトで失われました")
                 val fetched = ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
                 return filterRange(fetched, query)
             } catch (error: IOException) {
                 failure = error
                 diagnostics.add(error.message.orEmpty() + " / " + HttpTransport.lastDiagnostic())
+                val finalPath = runCatching { URI.create(HttpTransport.lastFinalUrl()).path }.getOrNull()
+                // A top-page redirect is not a count/encoding error. Do not repeat the same
+                // board request; let the browser visit the site's actual category menu.
+                if (finalPath?.trimEnd('/') == "/sdemo") break
             }
         }
         throw KyodemoArchiveFormatException(diagnostics.joinToString(" / 再試行: "),

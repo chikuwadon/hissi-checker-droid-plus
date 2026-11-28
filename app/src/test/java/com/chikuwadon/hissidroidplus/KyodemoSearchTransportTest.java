@@ -54,4 +54,29 @@ public class KyodemoSearchTransportTest {
         assertEquals(java.util.Arrays.asList(4), CategoryLabelSearch.indices(keys,"ａａ"));
         assertEquals(java.util.Collections.emptyList(), CategoryLabelSearch.indices(keys,"不存在"));
     }
+
+    @Test public void capturedOrgSearchAndMenuRoutesAreDistinct() {
+        ArchiveQuery q = new ArchiveQuery("正月", "", "", "", "", "", "new", "", false, false, "e_o_poverty", "嫌儲.org");
+        String url = "https://www.kyodemo.net/sdemo/b/e_o_poverty/?bs=&kt=k_&fr=&to=&k=%90%B3%8C%8E";
+        assertEquals(url, ArchiveExternalSearch.url(ArchiveProvider.OTHER_KYODEMO, q, 1));
+        String menu = "https://www.kyodemo.net/sdemo/k/e_";
+        assertTrue(KyodemoArchiveBrowserFallback.isMenuRoute("https://www.kyodemo.net/sdemo/", menu));
+        assertTrue(KyodemoArchiveBrowserFallback.isMenuRoute(menu, menu));
+        assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(menu, url));
+        assertFalse(KyodemoArchiveBrowserFallback.isMenuRoute("https://evil.example/sdemo/", menu));
+        assertFalse(KyodemoArchiveBrowserFallback.isMenuRoute("https://www.kyodemo.net/sdemo/k/o_", menu));
+    }
+    @Test public void descendantSearchIncludesBoardsAndPreservesCategoryParentPaths() {
+        KyodemoOtherBoards.Service service = KyodemoOtherBoards.services.get(3);
+        KyodemoOtherBoards.Menu root = KyodemoOtherBoards.parse(service, "o_", "<a href='/sdemo/k/o_1'>人気</a>");
+        KyodemoOtherBoards.SearchIndex index = KyodemoOtherBoards.index(service,"o_",java.util.Collections.emptyList(),root,10,10000L,code -> {
+            if (code.equals("o_1")) return KyodemoOtherBoards.parse(service, code, "<a href='/sdemo/k/o_2'>ゲーム</a><a href='/sdemo/b/o_livejupiter/'>なんでも実況J</a>");
+            return KyodemoOtherBoards.parse(service,code,"<a href='/sdemo/k/o_1'>人気</a><a href='/sdemo/b/o_game/'>ゲーム板</a>");
+        });
+        assertTrue(index.getComplete());
+        assertEquals(4,index.getEntries().size());
+        KyodemoOtherBoards.SearchEntry board = index.getEntries().stream().filter(e -> e.getCode().equals("o_game")).findFirst().get();
+        assertFalse(board.getCategory());
+        assertEquals(java.util.Arrays.asList("o_", "o_1", "o_2"),board.getParents());
+    }
 }

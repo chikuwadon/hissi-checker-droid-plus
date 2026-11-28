@@ -96,6 +96,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
+    private val otherMenuCache = mutableMapOf<String, KyodemoOtherBoards.Menu>()
+    private val otherSearchCache = mutableMapOf<String, KyodemoOtherBoards.SearchIndex>()
     private var nukoBrowser: NukoBrowserFallback? = null
     private var kyodemoBrowser: KyodemoArchiveBrowserFallback? = null
     private val nukoUserAgent by lazy { runCatching { android.webkit.WebSettings.getDefaultUserAgent(host) }.getOrDefault("") }
@@ -613,7 +615,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         refresh()
         message.text = "板一覧を取得中…"
         worker.execute {
-            val loaded = runCatching { KyodemoOtherBoards.fetch(service, category) }
+            val loaded = runCatching { otherMenuCache.getOrPut(category) { KyodemoOtherBoards.fetch(service, category) } }
             host.runOnUiThread {
                 if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
                 loading = false
@@ -629,12 +631,56 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                         { loadOtherMenu(service, parents.last(), parents.dropLast(1)) }
                     }
                     showBoardList("カテゴリを選択", entries.map { it.label }, back,
-                        filterKeys = entries.map { it.label + " " + it.code }) { index ->
+                        search = { searchOtherTree(service, category, parents, menu) }) { index ->
                         val entry = entries[index]
                         if (index < menu.categories.size) loadOtherMenu(service, entry.code, parents + category)
                         else selectBoard(entry.code, entry.label)
                     }
                 }.onFailure { Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show() }
+            }
+        }
+    }
+
+    private fun searchOtherTree(service: KyodemoOtherBoards.Service, category: String,
+                                parents: List<String>, menu: KyodemoOtherBoards.Menu) {
+        if (loading || disposed || !otherBoards()) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "下位カテゴリを含む板一覧を取得中…"
+        worker.execute {
+            val loaded = runCatching {
+                val cached = otherSearchCache[category]
+                if (cached != null && cached.complete) cached else
+                    KyodemoOtherBoards.index(service, category, parents, menu, 100, 45000L) { code ->
+                        otherMenuCache.getOrPut(code) { KyodemoOtherBoards.fetch(service, code) }
+                    }.also { if (it.complete) otherSearchCache[category] = it }
+            }
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (!boardButton.isShown || !host.hasWindowFocus() || !otherBoards()) return@runOnUiThread
+                loaded.onSuccess { index ->
+                    if (!index.complete) Toast.makeText(host, "一部の下位カテゴリを取得できませんでした。取得済みの範囲で検索できます", Toast.LENGTH_LONG).show()
+                    val entries = index.entries
+                    if (entries.isEmpty()) {
+                        Toast.makeText(host, "検索対象の板がありません", Toast.LENGTH_SHORT).show()
+                        loadOtherMenu(service, category, parents)
+                        return@onSuccess
+                    }
+                    showBoardList(if (index.complete) "カテゴリ・板を検索" else "カテゴリ・板を検索（一部）",
+                        entries.map { it.label + " (" + it.code + ")" },
+                        { loadOtherMenu(service, category, parents) },
+                        filterKeys = entries.map { it.label + " " + it.code }, startFiltering = true) { position ->
+                        val entry = entries[position]
+                        if (entry.category) loadOtherMenu(service, entry.code, entry.parents)
+                        else selectBoard(entry.code, entry.label)
+                    }
+                }.onFailure {
+                    Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
+                    loadOtherMenu(service, category, parents)
+                }
             }
         }
     }
@@ -761,7 +807,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?,
-                              search: (() -> Unit)? = null, filterKeys: List<String>? = null, pick: (Int) -> Unit) {
+                              search: (() -> Unit)? = null, filterKeys: List<String>? = null,
+                              startFiltering: Boolean = false, pick: (Int) -> Unit) {
         val panel = ThemedMenu.formPanel(host)
         val heading = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(ThemedMenu.formTitle(host, title), LinearLayout.LayoutParams(0, -2, 1f))
@@ -837,6 +884,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     }
                 }
             }
+            if (startFiltering) searchIcon?.performClick()
         } else searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }
 

@@ -84,6 +84,54 @@ object KyodemoOtherBoards {
         }
         return mergeKnown(service, category, live)
     }
+    data class SearchEntry(val code: String, val label: String, val parents: List<String>, val category: Boolean)
+    data class SearchIndex(val entries: List<SearchEntry>, val complete: Boolean)
+
+    /** Walk each category once, never follow back-links to ancestors. Bounds protect the site
+     * and the UI against an unexpectedly large, cyclic or failing category tree. */
+    @JvmStatic fun index(service: Service, root: String, ancestors: List<String>,
+                         initial: Menu, maxMenus: Int, maxMillis: Long,
+                         loader: (String) -> Menu): SearchIndex {
+        require(maxMenus > 0 && maxMillis > 0)
+        data class Node(val code: String, val parents: List<String>, val menu: Menu?)
+        val pending = java.util.ArrayDeque<Node>()
+        val seen = HashSet<String>()
+        seen.addAll(ancestors)
+        val entries = LinkedHashMap<String, SearchEntry>()
+        pending.add(Node(root, ancestors, initial))
+        val start = System.nanoTime()
+        var requests = 0
+        var complete = true
+        while (pending.isNotEmpty()) {
+            if (Thread.currentThread().isInterrupted || requests >= maxMenus ||
+                (System.nanoTime() - start) / 1_000_000 >= maxMillis) {
+                complete = false
+                break
+            }
+            val node = pending.removeFirst()
+            if (!seen.add(node.code)) continue
+            val menu = node.menu ?: try {
+                requests++
+                loader(node.code)
+            } catch (_: java.io.IOException) {
+                complete = false
+                continue
+            }
+            for (board in menu.boards) {
+                if (serviceFor(board.code) != service) continue
+                entries.putIfAbsent("b:" + board.code, SearchEntry(board.code, board.name,
+                    node.parents + node.code, false))
+            }
+            for (category in menu.categories) {
+                if (!category.code.startsWith(service.root) || category.code in seen) continue
+                entries.putIfAbsent("k:" + category.code, SearchEntry(category.code, category.label,
+                    node.parents + node.code, true))
+                pending.add(Node(category.code, node.parents + node.code, null))
+            }
+        }
+        return SearchIndex(entries.values.toList(), complete)
+    }
+
     @JvmStatic fun parse(service: Service, category: String, html: String): Menu {
         require(service in services && codePattern.matches(category) && category.startsWith(service.root))
         val actual = if (category == service.root) menuRoot(service) else category

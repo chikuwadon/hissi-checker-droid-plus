@@ -26,6 +26,8 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
     private var callback: ((Result<String>) -> Unit)? = null
     private var submittedForm = false
     private var stage = "開始"
+    private var menuOpened = false
+    @Volatile private var boardOpened = false
     private val timeout = Runnable { fail("タイムアウト（" + stage + "）") }
 
     private fun finish(result: Result<String>) {
@@ -51,6 +53,10 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
             return
         }
         val fields = fields(expected)
+        val boardCode = boardRoot(expected).trimEnd('/').substringAfterLast('/')
+        val service = KyodemoOtherBoards.serviceFor(boardCode)
+        val menuUrl = service?.let { "https://www.kyodemo.net/sdemo/k/" + KyodemoOtherBoards.menuRoot(it) }
+        val useMenu = service?.root?.startsWith("e_") == true && menuUrl != null
         if (fields["k"].isNullOrEmpty() || fields["kt"] != "k_") {
             fail("検索条件が不正です")
             return
@@ -71,9 +77,11 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
                 domStorageEnabled = true
             }
             CookieManager.getInstance().setAcceptThirdPartyCookies(view, false)
+            fun permittedPage(raw: String?): Boolean =
+                allowed(raw, url) || (useMenu && !boardOpened && isMenuRoute(raw, menuUrl.orEmpty()))
             view.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    if (allowed(request.url.toString(), url)) return false
+                    if (permittedPage(request.url.toString())) return false
                     if (request.isForMainFrame && web === view) {
                         val route = route(request.url.toString())
                         handler.post { if (web === view) fail("対象外のリダイレクト: " + route) }
@@ -84,12 +92,12 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
                 override fun onPageStarted(view: WebView, startedUrl: String, favicon: android.graphics.Bitmap?) {
                     if (web !== view) return
                     stage = "読込中: " + route(startedUrl)
-                    if (!allowed(startedUrl, url)) fail("対象外のページ: " + route(startedUrl))
+                    if (!permittedPage(startedUrl)) fail("対象外のページ: " + route(startedUrl))
                 }
 
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                     val raw = request.url.toString()
-                    val permitted = if (request.isForMainFrame) allowed(raw, url)
+                    val permitted = if (request.isForMainFrame) permittedPage(raw)
                         else ExternalUrlPolicy.isCheckerWebOrigin(raw)
                     return if (permitted) null else WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
                 }
@@ -102,8 +110,25 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
                 override fun onPageFinished(view: WebView, finishedUrl: String) {
                     if (web !== view) return
                     stage = "読込完了: " + route(finishedUrl)
-                    if (!allowed(finishedUrl, url) || !allowed(view.url, url)) {
+                    if (!permittedPage(finishedUrl) || !permittedPage(view.url)) {
                         fail("対象外のページ: " + route(finishedUrl))
+                        return
+                    }
+                    if (useMenu && !boardOpened && isMenuRoute(view.url, menuUrl.orEmpty())) {
+                        val current = URI.create(view.url ?: return)
+                        val home = current.rawPath == "/sdemo/" || current.rawPath == "/sdemo"
+                        if (home && menuOpened) {
+                            fail("トップに戻されました。サイトの掲示板一覧を開けません")
+                            return
+                        }
+                        val target = if (home) menuUrl.orEmpty() else "https://www.kyodemo.net" + boardRoot(expected)
+                        if (home) menuOpened = true else boardOpened = true
+                        stage = if (home) "サイトの掲示板メニューを確認" else "サイトの対象板リンクを確認"
+                        val destination = JSONObject.quote(target)
+                        val script = "(function(){var t=new URL($destination);var a=Array.from(document.querySelectorAll('a[href]')).find(function(x){try{var u=new URL(x.href);return u.origin===t.origin&&u.pathname.replace(/\\/$/,'')===t.pathname.replace(/\\/$/,'')&&!u.search&&!u.hash;}catch(e){return false;}});if(!a)return false;a.click();return true;})()"
+                        view.evaluateJavascript(script) { raw ->
+                            if (web === view && raw != "true") fail(if (home) "サイトのメニューにその他の掲示板がありません" else "サイトのメニューに対象板がありません。外部ブラウザとのサイト設定・利用状態をご確認ください")
+                        }
                         return
                     }
                     if (!matchesSearch(view.url, url)) {
@@ -145,8 +170,9 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
             // For ordinary first-page searches, start at the board itself, then submit
             // its real GET form as a browser user would. Preserve all advanced filters.
             val formOnly = pageNumber(expected) == 1 && fields.keys.all { it in setOf("bs", "kt", "fr", "to", "k") }
-            stage = if (formOnly) "掲示板を開く" else "検索リンクを開く"
-            view.loadUrl(if (formOnly) "https://www.kyodemo.net" + boardRoot(expected) else url)
+            val startAtMenu = useMenu && formOnly
+            stage = if (startAtMenu) "サイトトップを開く" else if (formOnly) "掲示板を開く" else "検索リンクを開く"
+            view.loadUrl(if (startAtMenu) "https://www.kyodemo.net/sdemo/" else if (formOnly) "https://www.kyodemo.net" + boardRoot(expected) else url)
         } catch (failure: RuntimeException) {
             finish(Result.failure(IOException("Kyodemo / WebViewを開始できませんでした", failure)))
         }
@@ -174,6 +200,13 @@ internal class KyodemoArchiveBrowserFallback(private val host: Activity) {
                 it.substringBefore('=') to ArchiveExternalSearch.decodeKyodemoField(it.substringAfter('='))
             }
         }.getOrDefault(emptyMap())
+        @JvmStatic fun isMenuRoute(raw: String?, menu: String): Boolean = runCatching {
+            val uri = URI.create(raw.orEmpty())
+            val target = URI.create(menu)
+            ExternalUrlPolicy.isCheckerWebOrigin(raw) && uri.rawQuery == null && uri.rawFragment == null &&
+                (uri.rawPath.trimEnd('/') == "/sdemo" ||
+                    uri.rawPath.trimEnd('/') == target.rawPath.trimEnd('/'))
+        }.getOrDefault(false)
         @JvmStatic fun allowed(raw: String?, requested: String): Boolean = runCatching {
             val uri = URI.create(raw.orEmpty())
             val expected = URI.create(requested)
