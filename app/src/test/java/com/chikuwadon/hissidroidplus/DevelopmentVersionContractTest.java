@@ -14,8 +14,8 @@ public final class DevelopmentVersionContractTest {
 
     @Test public void releaseVersionIsNewerThanValidatedDev37() throws Exception {
         String gradle = projectFile("app/build.gradle");
-        assertTrue(gradle.contains("versionCode = 90"));
-        assertTrue(gradle.contains("versionName = '1.2.0-dev.7'"));
+        assertTrue(gradle.contains("versionCode = 91"));
+        assertTrue(gradle.contains("versionName = '1.2.0-dev.8'"));
         String menu = projectFile(
             "app/src/main/java/com/chikuwadon/hissidroidplus/ThemedMenu.kt");
         assertTrue(menu.contains("PackageQueries.packageInfo(a.packageManager, a.packageName).versionName"));
@@ -24,8 +24,8 @@ public final class DevelopmentVersionContractTest {
 
     @Test public void artifactContainsVersionedApkFilenameNotAppRelease() throws Exception {
         String workflow = projectFile(".github/workflows/public-ci.yml");
-        String filename = "hissi-checker-droid-plus-v1.2.0-dev.7.apk";
-        assertTrue(workflow.contains("name: hissi-checker-droid-plus-v1.2.0-dev.7-signed"));
+        String filename = "hissi-checker-droid-plus-v1.2.0-dev.8.apk";
+        assertTrue(workflow.contains("name: hissi-checker-droid-plus-v1.2.0-dev.8-signed"));
         assertTrue(workflow.contains("app/build/outputs/apk/release/" + filename));
         assertTrue(workflow.contains("mv app/build/outputs/apk/release/app-release.apk"));
         assertTrue(workflow.contains("apksigner\" verify --verbose"));

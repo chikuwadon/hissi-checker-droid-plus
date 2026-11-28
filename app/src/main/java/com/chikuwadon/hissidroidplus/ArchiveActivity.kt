@@ -625,18 +625,11 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                         Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
                         return@onSuccess
                     }
-                    val group = BoardMenu.Category(service.label).apply { boards.addAll(menu.boards) }
                     val back: (() -> Unit)? = if (parents.isEmpty()) null else {
                         { loadOtherMenu(service, parents.last(), parents.dropLast(1)) }
                     }
                     showBoardList("カテゴリを選択", entries.map { it.label }, back,
-                        search = if (menu.boards.isEmpty()) null else {
-                            {
-                                BoardSearchDialog.show(host, listOf(group), { loadOtherMenu(service, category, parents) }) { entry ->
-                                    selectBoard(entry.code, entry.name)
-                                }
-                            }
-                        }) { index ->
+                        filterKeys = entries.map { it.label + " " + it.code }) { index ->
                         val entry = entries[index]
                         if (index < menu.categories.size) loadOtherMenu(service, entry.code, parents + category)
                         else selectBoard(entry.code, entry.label)
@@ -768,26 +761,37 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?,
-                              search: (() -> Unit)? = null, pick: (Int) -> Unit) {
+                              search: (() -> Unit)? = null, filterKeys: List<String>? = null, pick: (Int) -> Unit) {
         val panel = ThemedMenu.formPanel(host)
         val heading = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(ThemedMenu.formTitle(host, title), LinearLayout.LayoutParams(0, -2, 1f))
         panel.addView(heading)
-        val searchIcon = if (search != null) boardSearchIcon().also {
+        val searchIcon = if (search != null || filterKeys != null) boardSearchIcon().also {
             heading.addView(it, LinearLayout.LayoutParams(dp(48), dp(48)))
         } else null
+        val input = if (filterKeys != null) ThemedMenu.formInput(host, "").apply {
+            hint = "カテゴリ名・板名・板コード"
+            setHintTextColor(host.getColor(R.color.text_secondary))
+            visibility = View.GONE
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        } else null
+        if (input != null) panel.addView(input, LinearLayout.LayoutParams(-1, dp(44)))
+        var visibleIndices = labels.indices.toList()
+        val rows = object : ArrayAdapter<String>(host, android.R.layout.simple_list_item_1, labels.toMutableList()) {
+            override fun getCount(): Int = visibleIndices.size
+            override fun getItem(position: Int): String = labels[visibleIndices[position]]
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                (super.getView(position, convertView, parent) as TextView).apply {
+                    setTextColor(host.getColor(R.color.text_primary))
+                    textSize = 14f
+                    minHeight = dp(49)
+                }
+        }
         val choices = ListView(host).apply {
             divider = android.graphics.drawable.ColorDrawable(host.getColor(R.color.divider))
             dividerHeight = dp(1)
             selector = TouchFeedback.listSelector(host)
-            adapter = object : ArrayAdapter<String>(host, android.R.layout.simple_list_item_1, labels) {
-                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
-                    (super.getView(position, convertView, parent) as TextView).apply {
-                        setTextColor(host.getColor(R.color.text_primary))
-                        textSize = 14f
-                        minHeight = dp(49)
-                    }
-            }
+            adapter = rows
         }
         panel.addView(choices, LinearLayout.LayoutParams(-1, minOf(dp(540), (host.resources.displayMetrics.heightPixels * 0.60f).toInt())))
         val buttons = LinearLayout(host)
@@ -797,11 +801,43 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         buttons.addView(close, LinearLayout.LayoutParams(0, dp(46), 1f))
         panel.addView(buttons)
         val dialog = ThemedMenu.showForm(host, panel)
-        choices.setOnItemClickListener { _, _, position, _ -> dialog.dismiss(); pick(position) }
+        choices.setOnItemClickListener { _, _, position, _ ->
+            val index = visibleIndices.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            pick(index)
+        }
         close.setOnClickListener { dialog.dismiss() }
         previous?.setOnClickListener { dialog.dismiss(); back?.invoke() }
         if (back != null) dialog.setOnCancelListener { back.invoke() }
-        searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
+        if (input != null && filterKeys != null) {
+            fun filter() {
+                visibleIndices = CategoryLabelSearch.indices(filterKeys, input.text.toString())
+                rows.notifyDataSetChanged()
+                choices.setSelection(0)
+            }
+            input.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) = filter()
+            })
+            searchIcon?.contentDescription = "カテゴリ・板を検索"
+            searchIcon?.setOnClickListener {
+                if (input.visibility == View.VISIBLE) {
+                    (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                        ?.hideSoftInputFromWindow(input.windowToken, 0)
+                    input.setText("")
+                    input.visibility = View.GONE
+                } else {
+                    input.visibility = View.VISIBLE
+                    dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                    input.requestFocus()
+                    input.post {
+                        if (dialog.isShowing) (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                            ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                }
+            }
+        } else searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }
 
     private fun boardSearchIcon(): View = BoardSearchDialog.icon(host)

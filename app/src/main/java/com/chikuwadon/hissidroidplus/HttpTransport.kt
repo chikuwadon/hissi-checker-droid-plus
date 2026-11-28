@@ -12,6 +12,8 @@ import java.util.regex.Pattern
 object HttpTransport {
     private const val LIMIT = 4 * 1024 * 1024
     private val diagnostics = HttpRequestDiagnostics()
+    private val finalUrl = ThreadLocal<String>()
+    @JvmStatic fun lastFinalUrl(): String = finalUrl.get().orEmpty()
     @Volatile private var userAgent = ""
     private val CHARSET = Pattern.compile("(?i)charset\\s*=\\s*[\"' ]*([A-Za-z0-9_-]+)")
 
@@ -79,6 +81,8 @@ object HttpTransport {
         nukoUserAgent: String? = null
     ): String {
         diagnostics.set("HTTP応答未取得")
+        finalUrl.remove()
+        val redirectTrace = ArrayList<String>()
         val requestUserAgent = nukoUserAgent ?: userAgent
         val requestCookies = cookieJar
         var current = url
@@ -124,14 +128,16 @@ object HttpTransport {
                     }
                 }
                 val status = connection.responseCode
+                finalUrl.set(target.toExternalForm())
                 val contentType = connection.contentType
                 diagnostics.set("HTTP=" + status + " / 形式=" +
                     (contentType?.replace(Regex("[\r\n]"), " ") ?: "未指定") +
                     " / リダイレクト=" + redirects + " / Cookie送信=" +
                     (if (hadCookie) "あり" else "なし") +
                     " / UA=" + (if (requestUserAgent.isNotEmpty()) "Android WebView" else "標準HTTP") +
-                    (if (isKyodemo && target.path.startsWith("/sdemo/b/"))
-                        " / 最終URLの検索条件=" + (if (target.query.orEmpty().split('&').any { it.startsWith("k=") && it.length > 2 }) "あり" else "なし") else "") +
+                    (if (isKyodemo)
+                        " / 最終経路=" + archiveRoute(target) +
+                            (if (redirectTrace.isEmpty()) "" else " / 遷移=" + redirectTrace.joinToString(" → ")) else "") +
                     " / Content-Length=" + connection.contentLengthLong +
                     " / Content-Encoding=" + (connection.contentEncoding?.replace(Regex("[\\r\\n]"), " ") ?: "未指定"))
                 if (isKyodemo) {
@@ -153,6 +159,7 @@ object HttpTransport {
                         ?: throw IOException("Redirect without Location")
                     val next = URL(target, location)
                     validate(next)
+                    if (isKyodemo) redirectTrace.add(status.toString() + ":" + archiveRoute(next))
                     current = next.toExternalForm()
                     if (status == 301 || status == 302 || status == 303) form = null
                     continue
@@ -201,6 +208,14 @@ object HttpTransport {
             }
         }
         throw IOException("Redirectが多すぎます")
+    }
+
+    /** Redacted diagnostics: no keyword, cookies, tokens, or raw query values. */
+    private fun archiveRoute(target: URL): String {
+        val path = target.path.take(120).replace(Regex("[^A-Za-z0-9_/.-]"), "?")
+        val keys = target.query.orEmpty().split('&').map { it.substringBefore('=') }
+            .filter { it in setOf("bs","kt","fr","to","k","j","r","rf","o1","o2","o3") }.distinct()
+        return target.host + path + (if (keys.isEmpty()) " (検索条件なし)" else " (" + keys.joinToString(",") + ")")
     }
 
     /** Visible for reflection-backed allowlist tests, never allows arbitrary hosts. */

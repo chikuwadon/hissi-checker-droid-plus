@@ -90,11 +90,10 @@ object ArchiveRepository {
     @JvmOverloads
     fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int, nukoUserAgent: String = ""): ArchivePage {
         val target = ArchiveExternalSearch.url(provider, query, page)
+        if (provider == ArchiveProvider.OTHER_KYODEMO) return searchOther(target, query, page, nukoUserAgent)
         val charset = if (provider == ArchiveProvider.EDGE_ARCHIVE) StandardCharsets.UTF_8 else java.nio.charset.Charset.forName("windows-31j")
         val html = if (provider == ArchiveProvider.FIVECH_NUKO)
             HttpTransport.getForNuko(target, charset, nukoUserAgent)
-        else if (provider == ArchiveProvider.OTHER_KYODEMO)
-            HttpTransport.getForKyodemoArchive(target, charset, nukoUserAgent)
         else HttpTransport.get(target, charset)
         if (provider == ArchiveProvider.FIVECH_NUKO && html.isEmpty())
             throw NukoPageFormatException("ぬこのHTTP応答本文が空です / " + HttpTransport.lastDiagnostic())
@@ -102,11 +101,7 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
-            ArchiveProvider.OTHER_KYODEMO -> try {
-                ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
-            } catch (failure: IOException) {
-                throw KyodemoArchiveFormatException(failure.message.orEmpty() + " / " + HttpTransport.lastDiagnostic(), failure)
-            }
+            ArchiveProvider.OTHER_KYODEMO -> error("handled above")
             ArchiveProvider.FIVECH_NUKO -> try {
                 ArchiveProviderParser.nuko(html, page, query.boardCode)
             } catch (failure: NukoPageFormatException) {
@@ -114,6 +109,29 @@ object ArchiveRepository {
             }
         }
         return filterRange(result, query)
+    }
+
+    private fun searchOther(formUrl: String, query: ArchiveQuery, page: Int, browserUa: String): ArchivePage {
+        val charset = java.nio.charset.Charset.forName("windows-31j")
+        val compact = ArchiveExternalSearch.kyodemoPageLink(formUrl)
+        // Prefer the site-generated paging link; try the observed form URL once on format failure.
+        // HTTP access-denied / transport errors do not trigger another request.
+        val diagnostics = ArrayList<String>()
+        var failure: IOException? = null
+        for (target in listOf(compact, formUrl).distinct()) {
+            val html = HttpTransport.getForKyodemoArchive(target, charset, browserUa)
+            try {
+                if (!KyodemoArchiveBrowserFallback.matchesSearch(HttpTransport.lastFinalUrl(), target))
+                    throw IOException("検索条件がリダイレクトで失われました")
+                val fetched = ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
+                return filterRange(fetched, query)
+            } catch (error: IOException) {
+                failure = error
+                diagnostics.add(error.message.orEmpty() + " / " + HttpTransport.lastDiagnostic())
+            }
+        }
+        throw KyodemoArchiveFormatException(diagnostics.joinToString(" / 再試行: "),
+            failure ?: IOException("検索結果未取得"))
     }
 
     /** Read option values from the current site rather than guessing undocumented codes. */

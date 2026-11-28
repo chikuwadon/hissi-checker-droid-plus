@@ -32,4 +32,26 @@ public class KyodemoSearchTransportTest {
         String page2 = root + "51?kt=k_&k=%8C%B4%90_&j=1";
         assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(CAPTURED, page2));
     }
+
+    @Test public void pageLinkMatchesActualCapturedPagingLinksAndPreservesFilters() {
+        String root = "https://www.kyodemo.net/sdemo/b/e_p_vaporeon/";
+        assertEquals(root + "?k=%8C%B4%90_&kt=k_&j=1", ArchiveExternalSearch.kyodemoPageLink(CAPTURED));
+        assertEquals(root + "51?k=%8C%B4%90_&kt=k_&j=1", ArchiveExternalSearch.kyodemoPageLink(
+            root + "51?bs=&kt=k_&fr=&to=&k=%8C%B4%90_&j=1"));
+        String filtered = CAPTURED + "&o1=1&j=a";
+        String compact = ArchiveExternalSearch.kyodemoPageLink(filtered);
+        assertTrue(compact.endsWith("&o1=1&j=a"));
+        assertTrue(KyodemoArchiveBrowserFallback.matchesSearch(compact, filtered));
+        assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root, CAPTURED));
+        assertTrue(KyodemoArchiveBrowserFallback.matchesSearch(root + "1?k=%8C%B4%90_&kt=k_&j=1", CAPTURED));
+        assertTrue(KyodemoArchiveBrowserFallback.allowed(root.substring(0, root.length()-1), CAPTURED));
+        assertFalse(KyodemoArchiveBrowserFallback.matchesSearch(root + "51?k=%8C%B4%90_&kt=k_&j=1", CAPTURED));
+    }
+    @Test public void categoryFilterRetainsOriginalIndicesIncludingDuplicateLabels() {
+        java.util.List<String> keys = java.util.Arrays.asList("人気 o_1", "運営 o_2", "ニュース o_5", "運営 o_8", "AA o_10");
+        assertEquals(java.util.Arrays.asList(1,3), CategoryLabelSearch.indices(keys,"運営"));
+        assertEquals(java.util.Arrays.asList(3), CategoryLabelSearch.indices(keys,"運営 o_8"));
+        assertEquals(java.util.Arrays.asList(4), CategoryLabelSearch.indices(keys,"ａａ"));
+        assertEquals(java.util.Collections.emptyList(), CategoryLabelSearch.indices(keys,"不存在"));
+    }
 }

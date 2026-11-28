@@ -76,6 +76,26 @@ object ArchiveExternalSearch {
         }
     }
 
+    /** Site-generated page link format captured in the real Punipuni search MHT.
+     * Omit only empty form fields; preserve date, sort and reply filters. */
+    @JvmStatic fun kyodemoPageLink(formUrl: String): String {
+        val uri = java.net.URI.create(formUrl)
+        require(uri.scheme == "https" && uri.host == "www.kyodemo.net" && uri.port == -1 &&
+            uri.rawUserInfo == null && uri.rawFragment == null &&
+            uri.rawPath.matches(Regex("^/sdemo/b/[A-Za-z0-9_]{1,60}/(?:[0-9]+)?$")))
+        val fields = uri.rawQuery.orEmpty().split('&').filter { '=' in it }.associate {
+            it.substringBefore('=') to it.substringAfter('=')
+        }
+        require(!fields["k"].isNullOrEmpty() && fields["kt"] == "k_")
+        val ordered = linkedMapOf("k" to fields.getValue("k"), "kt" to "k_")
+        fields.forEach { (name, value) ->
+            if (name !in ordered && value.isNotEmpty()) ordered[name] = value
+        }
+        if ("j" !in ordered && "r" !in ordered) ordered["j"] = "1"
+        return "https://www.kyodemo.net" + uri.rawPath + "?" +
+            ordered.entries.joinToString("&") { it.key + "=" + it.value }
+    }
+
     @JvmStatic
     fun metadata(entry: ArchiveThread): String =
         listOfNotNull(entry.date.takeIf { it.isNotBlank() }, "レス: " + entry.replies, entry.board.takeIf { it.isNotBlank() }).joinToString("　")
