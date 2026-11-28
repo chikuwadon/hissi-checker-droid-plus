@@ -9,10 +9,9 @@ public class ArchiveBoardSearchTest {
         String url = ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO,q);
         String prefix = "https://www.kyodemo.net/sdemo/b/livegalileo/?bs=&kt=k_&fr=&to=&k=";
         assertTrue(url.startsWith(prefix));
-        // The browser MHT leaves ASCII-valued trail bytes unescaped, while Java
-        // percent-encodes them. Both decode to exactly the same Windows-31J bytes.
-        assertEquals(prefix + "%88%C0%94%7B%90%57%8E%4F", url);
-        assertEquals("安倍晋三", java.net.URLDecoder.decode(url.substring(prefix.length()), "windows-31j"));
+        // Match the captured browser form, including literal ASCII-valued trail bytes.
+        assertEquals(prefix + "%88%C0%94%7B%90W%8EO", url);
+        assertEquals("安倍晋三", ArchiveExternalSearch.decodeKyodemoField(url.substring(prefix.length())));
         // Decode escapes to bytes before interpreting the multibyte character set,
         // since a browser may leave a Shift_JIS trail byte as literal ASCII.
         byte[] saved = java.net.URLDecoder.decode("%88%C0%94%7B%90W%8EO", "ISO-8859-1")

@@ -14,6 +14,7 @@ object AppSettings {
     const val TAB_ANIMATIONS = "tab_switch_animations"
     const val ARCHIVE_SEARCH_BOTTOM = "archive_search_bottom"
     const val ARCHIVE_FONT_PERCENT = "archive_font_percent"
+    const val KEEP_SEARCH_RESULTS = "keep_search_results"
     const val THREAD_OPEN_MODE = "thread_open_mode"
     const val THREAD_ASK = "ask"
     const val THREAD_CHMATE = "chmate"
@@ -101,6 +102,14 @@ object AppSettings {
     @JvmStatic
     fun setArchiveFontPercent(context: Context, percent: Int) {
         prefs(context).edit().putInt(ARCHIVE_FONT_PERCENT, ArchiveFontScale.normalize(percent)).apply()
+    }
+
+    @JvmStatic fun keepSearchResults(context: Context): Boolean =
+        prefs(context).getBoolean(KEEP_SEARCH_RESULTS, true)
+
+    @JvmStatic fun setKeepSearchResults(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEEP_SEARCH_RESULTS, enabled).apply()
+        if (!enabled) SavedSearchResults.clearAll(context)
     }
 
     @JvmStatic

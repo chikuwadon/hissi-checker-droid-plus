@@ -77,6 +77,21 @@ internal class SettingsContent(host: Activity) : SectionContent(host) {
         body.addView(animationRow, LinearLayout.LayoutParams(-1, -2))
         body.addView(View(this).apply { setBackgroundColor(getColor(R.color.divider)) },
             LinearLayout.LayoutParams(-1, dp(1)))
+        val retain = CheckBox(this).apply {
+            text = "検索結果を保持"
+            textSize = 15f
+            setTextColor(getColor(R.color.text_primary))
+            buttonTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
+            isChecked = AppSettings.keepSearchResults(host)
+            minHeight = dp(52)
+            setPadding(dp(12), 0, dp(12), 0)
+            setOnCheckedChangeListener { _, enabled ->
+                AppSettings.setKeepSearchResults(host, enabled)
+                MainNavigation.refresh(host)
+            }
+        }
+        body.addView(retain, LinearLayout.LayoutParams(-1, -2))
+        body.addView(ThemedMenu.formLabel(host, "ID検索と過去ログ検索の直近の結果を端末内に保存し、アプリ終了後も復元します。OFFにすると保存済みの結果を削除します。"))
         caption(body, "過去ログ検索")
         val placementLabels = arrayOf("画面上部", "画面下部")
         fun placementText(): String = "検索欄の位置：" + placementLabels[if (AppSettings.archiveSearchAtBottom(host)) 1 else 0]

@@ -39,10 +39,10 @@ jobs:
           python3 tools/verify_gradle_buildscript_dependencies.py "$RUNNER_TEMP/gradle-build-environment.txt"
       - name: Unit tests, lint and debug build
         run: bash tools/gradle-retry.sh --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-      # Sign only the maintainer's own PR or the explicitly authorized v1.1.0 main release push.
+      # Sign only the maintainer's own PR, never forks or bot contributions.
       # The QA APK is non-debuggable and uses the release certificate for in-place upgrades.
       - name: Build signed QA APK
-        if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0')) }}
+        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         env:
           HISSI_KEYSTORE_B64: ${{ secrets.HISSI_KEYSTORE_B64 }}
           HISSI_KEYSTORE_PASSWORD: ${{ secrets.HISSI_KEYSTORE_PASSWORD }}
@@ -60,79 +60,22 @@ jobs:
             bash tools/gradle-retry.sh --no-daemon :app:assembleRelease
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
             app/build/outputs/apk/release/app-release.apk
-      - name: Give signed QA APK the versioned filename
-        if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0')) }}
+      - name: Give signed QA APK the development version filename
+        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         shell: bash
         run: |
           set -euo pipefail
           mv app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/release/HissiCheckerDroidPlus-v1.1.0.apk
+            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.2.0-dev.9.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
-            app/build/outputs/apk/release/HissiCheckerDroidPlus-v1.1.0.apk
-      - name: Verify official APK version and signing continuity
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0') }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK=app/build/outputs/apk/release/HissiCheckerDroidPlus-v1.1.0.apk
-          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
-          BADGING="$("$TOOLS/aapt" dump badging "$APK")"
-          grep -F "package: name='com.chikuwadon.hissidroidplus' versionCode='83' versionName='1.1.0'" <<< "$BADGING"
-          if grep -q '^application-debuggable' <<< "$BADGING"; then
-            echo "Release APK must not be debuggable."
-            exit 1
-          fi
-          gh release download v1.0.5 --repo "$GITHUB_REPOSITORY" --pattern 'HissiCheckerDroidPlus-v1.0.5.apk' --dir "$RUNNER_TEMP/prior-release"
-          signer() {
-            "$TOOLS/apksigner" verify --print-certs "$1" | grep -F 'Signer #1 certificate SHA-256 digest:'
-          }
-          current_signer="$(signer "$APK")"
-          prior_signer="$(signer "$RUNNER_TEMP/prior-release/HissiCheckerDroidPlus-v1.0.5.apk")"
-          test -n "$current_signer"
-          test "$current_signer" = "$prior_signer"
-          sha256sum "$APK"
+            app/build/outputs/apk/release/hissi-checker-droid-plus-v1.2.0-dev.9.apk
       - name: Upload signed QA APK
-        if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0')) }}
+        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'chikuwadon' && github.actor == 'chikuwadon' }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: hissi-checker-droid-plus-v1.1.0-signed
-          path: app/build/outputs/apk/release/HissiCheckerDroidPlus-v1.1.0.apk
+          name: hissi-checker-droid-plus-v1.2.0-dev.9-signed
+          path: app/build/outputs/apk/release/hissi-checker-droid-plus-v1.2.0-dev.9.apk
           if-no-files-found: error
           retention-days: 7
 
-  publish-v1-1-0:
-    name: Publish authorized v1.1.0 release
-    needs: verify
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'chikuwadon/hissi-checker-droid-plus' && github.actor == 'chikuwadon' && startsWith(github.event.head_commit.message, 'Release v1.1.0') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      actions: read
-    concurrency:
-      group: release-v1-1-0
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - name: Publish verified main APK and approved release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -F "versionName = '1.1.0'" app/build.gradle
-          grep -F "versionCode = 83" app/build.gradle
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          if gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "v1.1.0 already exists; refusing to overwrite."
-            exit 1
-          fi
-          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name hissi-checker-droid-plus-v1.1.0-signed --dir "$RUNNER_TEMP/publish"
-          APK="$RUNNER_TEMP/publish/HissiCheckerDroidPlus-v1.1.0.apk"
-          test -s "$APK"
-          gh release create v1.1.0 "$APK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title v1.1.0 --notes-file docs/releases/v1.1.0.md --latest
-          gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets,url
+

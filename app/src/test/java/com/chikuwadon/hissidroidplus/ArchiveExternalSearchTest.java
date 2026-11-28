@@ -11,7 +11,7 @@ public class ArchiveExternalSearchTest {
         String url = ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, query);
         assertTrue(url.startsWith("https://www.kyodemo.net/sdemo/b/android/?bs=&kt=k_&fr=2026-11-01&to=2026-11-26&k="));
         assertEquals("Android スマホ -広告 -PR",
-            URLDecoder.decode(url.substring(url.indexOf("&k=") + 3), "windows-31j"));
+            ArchiveExternalSearch.decodeKyodemoField(url.substring(url.indexOf("&k=") + 3)));
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.FIVECH_KYODEMO, query).contains("kt=k_"));
     }
 

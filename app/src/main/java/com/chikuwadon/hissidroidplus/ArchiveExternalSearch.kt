@@ -1,6 +1,8 @@
 package com.chikuwadon.hissidroidplus
 
 import java.net.URLEncoder
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.nio.charset.Charset
 
 /** Exact GET form fields verified in the saved provider search forms.
@@ -9,21 +11,43 @@ object ArchiveExternalSearch {
     private val formCharset = Charset.forName("windows-31j")
     private val whitespace = Regex("\\s+")
 
+    // Browser form encoding operates on encoded bytes, not UTF-16 characters.
+    // For example 原神 ends in the Shift_JIS byte 0x5f, which Chromium sends as "_".
+    @JvmStatic fun encodeKyodemoField(value: String): String = buildString {
+        val hex = "0123456789ABCDEF"
+        for (byte in value.toByteArray(formCharset)) {
+            val b = byte.toInt() and 255
+            when {
+                b == 32 -> append('+')
+                b in 65..90 || b in 97..122 || b in 48..57 || b == 42 || b == 45 || b == 46 || b == 95 -> append(b.toChar())
+                else -> { append('%'); append(hex[b ushr 4]); append(hex[b and 15]) }
+            }
+        }
+    }
+
+    // Decode percent escapes and literal ASCII to a single byte stream before decoding
+    // Shift_JIS. URLDecoder with Windows-31J directly splits literal trail bytes off.
+    @JvmStatic fun decodeKyodemoField(value: String): String =
+        String(URLDecoder.decode(value, "ISO-8859-1").toByteArray(StandardCharsets.ISO_8859_1), formCharset)
+
     @JvmStatic
     @JvmOverloads
     fun url(provider: ArchiveProvider, query: ArchiveQuery, page: Int = 1): String {
         query.validate()
         require(page in 1..ArchiveRepository.MAX_PAGE)
         val (base, parameters) = when (provider) {
-            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> {
+            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO, ArchiveProvider.OTHER_KYODEMO -> {
                 val key = query.keyword.trim() + query.exclude.trim().split(whitespace)
                     .filter { it.isNotBlank() }.joinToString("") { " -" + it.trimStart('-') }
                 val board = if (provider == ArchiveProvider.EDGE_KYODEMO) "e_e_liveedge" else query.boardCode
-                require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "5chの板を選択してください" }
+                require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "板を選択してください" }
+                if (provider == ArchiveProvider.OTHER_KYODEMO) require(KyodemoOtherBoards.validBoard(board)) { "その他の掲示板を選択してください" }
                 val baseUrl = "https://www.kyodemo.net/sdemo/b/" + board + "/" +
                     if (page == 1) "" else ((page.toLong() - 1) * 50 + 1).toString()
                 baseUrl to linkedMapOf("bs" to "", "kt" to "k_",
                     "fr" to query.from, "to" to query.to, "k" to key).apply {
+                    // The captured successful all-log form for Punipuni has no rf parameter.
+                    // rf is a board-specific link option, not a search-form field.
                     when (query.sort) {
                         "old" -> put("j", "a")
                         "replies" -> put("r", "1")
@@ -47,8 +71,29 @@ object ArchiveExternalSearch {
             ArchiveProvider.EDGE_ARCHIVE -> return ArchiveRepository.url(query, page)
         }
         return base + "?" + parameters.entries.joinToString("&") {
-            it.key + "=" + URLEncoder.encode(it.value, formCharset.name())
+            it.key + "=" + if (provider == ArchiveProvider.FIVECH_NUKO)
+                URLEncoder.encode(it.value, formCharset.name()) else encodeKyodemoField(it.value)
         }
+    }
+
+    /** Site-generated page link format captured in the real Punipuni search MHT.
+     * Omit only empty form fields; preserve date, sort and reply filters. */
+    @JvmStatic fun kyodemoPageLink(formUrl: String): String {
+        val uri = java.net.URI.create(formUrl)
+        require(uri.scheme == "https" && uri.host == "www.kyodemo.net" && uri.port == -1 &&
+            uri.rawUserInfo == null && uri.rawFragment == null &&
+            uri.rawPath.matches(Regex("^/sdemo/b/[A-Za-z0-9_]{1,60}/(?:[0-9]+)?$")))
+        val fields = uri.rawQuery.orEmpty().split('&').filter { '=' in it }.associate {
+            it.substringBefore('=') to it.substringAfter('=')
+        }
+        require(!fields["k"].isNullOrEmpty() && fields["kt"] == "k_")
+        val ordered = linkedMapOf("k" to fields.getValue("k"), "kt" to "k_")
+        fields.forEach { (name, value) ->
+            if (name !in ordered && value.isNotEmpty()) ordered[name] = value
+        }
+        if ("j" !in ordered && "r" !in ordered) ordered["j"] = "1"
+        return "https://www.kyodemo.net" + uri.rawPath + "?" +
+            ordered.entries.joinToString("&") { it.key + "=" + it.value }
     }
 
     @JvmStatic

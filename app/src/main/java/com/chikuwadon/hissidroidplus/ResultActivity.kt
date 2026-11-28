@@ -228,6 +228,32 @@ class ResultActivity : CheckerActivity() {
                 ) loadNextPage()
             }
         })
+        val restoreSaved = MainNavigation.consumeRestoreToken(intent.getStringExtra(MainNavigation.EXTRA_RESTORE_RESULT)) ||
+            (state != null && intent.hasExtra(MainNavigation.EXTRA_RESTORE_RESULT) && intent.action == null)
+        if (restoreSaved) {
+            MainNavigation.registerResult(this)
+            registerBackAction { backFromResult() }
+            MainNavigation.attach(this, findViewById(R.id.result_root), MainNavigation.Destination.RESULT)
+            status.text = "検索結果を復元中…"
+            val retained = screenState.snapshot
+            if (retained != null) {
+                showSavedResult(retained)
+                return
+            }
+            worker.execute {
+                val saved = SavedSearchResults.readId(this)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (saved != null && AppSettings.keepSearchResults(this)) showSavedResult(saved)
+                    else {
+                        MainNavigation.rememberDestination(this, MainNavigation.Destination.HOME)
+                        toast("保存された検索結果がありません")
+                        finish()
+                    }
+                }
+            }
+            return
+        }
         query = try {
             extract(intent)
         } catch (bad: Exception) {
@@ -398,17 +424,9 @@ class ResultActivity : CheckerActivity() {
     }
 
     private fun backFromResult() {
-        val origin = intent.getStringExtra(EXTRA_RETURN_DESTINATION)
-        val connected = origin == null && launchedExternally() && !AppSettings.standalone(this)
-        if (!::list.isInitialized || query == null ||
-            NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))) {
-            exitResults()
-        } else {
-            val destination = if (enteredViaNavigation) backDestination else
-                MainNavigation.Destination.values().firstOrNull { it.name == origin && it != MainNavigation.Destination.RESULT }
-                    ?: MainNavigation.Destination.HOME
-            MainNavigation.navigate(this, destination)
-        }
+        // Every entry path, including ChMate/Haiagaru, consumes the same actual tab history.
+        if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return
+        MainNavigation.exitFromResult(this)
     }
 
     private fun exitResults() {
@@ -1161,10 +1179,27 @@ class ResultActivity : CheckerActivity() {
         copy(builder.toString(), false)
     }
 
+    private fun showSavedResult(saved: ResultScreenState.Snapshot) {
+        query = saved.query
+        result = saved.result
+        nextPage = saved.nextPage
+        noMorePages = saved.noMorePages
+        edgeDiagnostic = saved.edgeDiagnostic
+        screenState.snapshot = saved
+        rebuildIndexes()
+        // Prevent automatic pagination while restoring the initial layout.
+        paging = true
+        loading = false
+        showTabContents(tab)
+        updateHeader()
+        list.post { paging = false }
+    }
+
     private fun rememberLoadedResult() {
         val current = query ?: return
         if (result.posts.isNotEmpty()) {
             screenState.snapshot = ResultScreenState.Snapshot(current, result, nextPage, noMorePages, edgeDiagnostic)
+            SavedSearchResults.saveId(this, screenState.snapshot!!)
         }
     }
 
@@ -1193,6 +1228,7 @@ class ResultActivity : CheckerActivity() {
     override fun onResume() {
         super.onResume()
         MainNavigation.refresh(this)
+        if (::list.isInitialized && !isFinishing) MainNavigation.rememberDestination(this, MainNavigation.Destination.RESULT)
         if (::list.isInitialized && !isFinishing &&
             themeAtCreation != AppSettings.prefs(this).getString(AppSettings.THEME, AppSettings.THEME_DARK)) {
             recreate()

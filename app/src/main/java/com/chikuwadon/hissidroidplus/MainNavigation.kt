@@ -24,6 +24,33 @@ object MainNavigation {
     }
 
     const val EXTRA_DESTINATION = "main_navigation_destination"
+    private const val LAST_DESTINATION = "last_main_destination"
+    private val tabHistories = HashMap<Int, TabHistory>()
+    fun rememberDestination(context: Context, destination: Destination) {
+        AppSettings.prefs(context).edit().putString(LAST_DESTINATION, destination.name).apply()
+        if (context is Activity) tabHistories.getOrPut(context.taskId) { TabHistory() }.visit(destination)
+    }
+
+    fun backToPrevious(a: Activity, current: Destination): Boolean {
+        val target = tabHistories[a.taskId]?.previous(current) {
+            isVisible(a, it) && (it != Destination.RESULT || result(a) != null || SavedSearchResults.hasId(a))
+        } ?: return false
+        navigate(a, target)
+        return true
+    }
+    fun lastDestination(context: Context): Destination = decodeDestination(AppSettings.prefs(context).getString(LAST_DESTINATION, null))
+    @JvmStatic fun decodeDestination(raw: String?): Destination = Destination.entries.firstOrNull { it.name == raw } ?: Destination.HOME
+    fun startDestination(context: Context, raw: String?): Destination {
+        val target = decodeDestination(raw)
+        return if (!isVisible(context, target) || (target == Destination.RESULT && !SavedSearchResults.hasId(context))) Destination.HOME else target
+    }
+    const val EXTRA_RESTORE_RESULT = "restore_result_token"
+    private var restoreToken: String? = null
+    fun consumeRestoreToken(token: String?): Boolean {
+        if (token == null || token != restoreToken) return false
+        restoreToken = null
+        return true
+    }
     val hosted = listOf(Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS)
 
     fun hostDestination(name: String?): Destination =
@@ -50,7 +77,10 @@ object MainNavigation {
     }
 
     fun unregisterHome(a: HomeActivity) {
-        if (homes[a.taskId]?.get() === a) homes.remove(a.taskId)
+        if (homes[a.taskId]?.get() === a) {
+            homes.remove(a.taskId)
+            if (a.isFinishing && result(a) == null) tabHistories.remove(a.taskId)
+        }
     }
 
     fun hasHome(a: Activity): Boolean =
@@ -58,12 +88,21 @@ object MainNavigation {
 
     /** Back from the root home leaves the checker, rather than revealing its retained peer. */
     fun exitFromHome(a: HomeActivity) {
+        tabHistories.remove(a.taskId)
         val retained = result(a)
         if (retained != null) {
             results.remove(a.taskId)
             retained.finish()
         }
         // Finish only our two activities in this task; never finish the caller's task.
+        a.finish()
+    }
+
+    /** A root result must not reveal a retained peer after its visit history is exhausted. */
+    fun exitFromResult(a: ResultActivity) {
+        tabHistories.remove(a.taskId)
+        val retained = homes.remove(a.taskId)?.get()
+        if (retained != null && !retained.isFinishing && !retained.isDestroyed) retained.finish()
         a.finish()
     }
 
@@ -79,7 +118,10 @@ object MainNavigation {
     }
 
     fun unregisterResult(a: ResultActivity) {
-        if (results[a.taskId]?.get() === a) results.remove(a.taskId)
+        if (results[a.taskId]?.get() === a) {
+            results.remove(a.taskId)
+            if (a.isFinishing && !hasHome(a)) tabHistories.remove(a.taskId)
+        }
     }
 
     fun refresh(a: Activity) {
@@ -90,7 +132,7 @@ object MainNavigation {
             }
         }
         val item = a.window.decorView.findViewWithTag<TextView>(RESULT_TAG) ?: return
-        val available = result(a) != null
+        val available = result(a) != null || SavedSearchResults.hasId(a)
         item.isEnabled = available
         item.alpha = if (available) 1f else 0.4f
     }
@@ -170,16 +212,25 @@ object MainNavigation {
             Destination.HOME, Destination.ARCHIVE, Destination.HISTORY, Destination.FAVORITES, Destination.SETTINGS ->
                 Intent(a, HomeActivity::class.java).putExtra(EXTRA_DESTINATION, destination.name)
             Destination.RESULT -> {
-                val retained = result(a) ?: return
-                retained.setBackDestination(when (a) {
+                val retained = result(a)
+                val origin = when (a) {
                     is HomeActivity -> a.activeDestination
                     is FavoritesActivity -> Destination.FAVORITES
                     is HistoryActivity -> Destination.HISTORY
                     is ArchiveActivity -> Destination.ARCHIVE
                     is SettingsActivity -> Destination.SETTINGS
                     else -> Destination.HOME
-                })
-                Intent(a, ResultActivity::class.java)
+                }
+                if (retained != null) {
+                    retained.setBackDestination(origin)
+                    Intent(a, ResultActivity::class.java)
+                } else {
+                    if (!SavedSearchResults.hasId(a)) return
+                    val token = java.util.UUID.randomUUID().toString()
+                    restoreToken = token
+                    Intent(a, ResultActivity::class.java).putExtra(EXTRA_RESTORE_RESULT, token)
+                        .putExtra(ResultActivity.EXTRA_RETURN_DESTINATION, origin.name)
+                }
             }
         }
         // Bottom destinations are peers, not a push/pop detail stack.

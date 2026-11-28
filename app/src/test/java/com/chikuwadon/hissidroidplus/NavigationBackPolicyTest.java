@@ -52,7 +52,66 @@ public class NavigationBackPolicyTest {
         assertTrue(activity.contains("MainNavigation.unregisterHome(this)"));
         assertTrue(activity.contains("MainNavigation.exitFromHome(this@HomeActivity)"));
         assertTrue(activity.contains("(active as? HistoryFragment)?.handleBack() == true"));
-        assertTrue(source("ResultActivity.kt").contains(
-            "NavigationBackPolicy.exitConnectedResult(connected, enteredViaNavigation, MainNavigation.hasHome(this))"));
+        String resultActivity = source("ResultActivity.kt");
+        assertTrue(resultActivity.contains("MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)"));
+        assertTrue(resultActivity.contains("MainNavigation.exitFromResult(this)"));
+        assertFalse(resultActivity.contains("NavigationBackPolicy.exitConnectedResult("));
+        assertTrue(nav.contains("fun exitFromResult(a: ResultActivity)"));
+    }
+
+    @Test public void backTraversesActualTabVisitsWithoutAddingReturnVisits() {
+        TabHistory history = new TabHistory();
+        MainNavigation.Destination home = MainNavigation.Destination.HOME;
+        MainNavigation.Destination archive = MainNavigation.Destination.ARCHIVE;
+        MainNavigation.Destination settings = MainNavigation.Destination.SETTINGS;
+        MainNavigation.Destination result = MainNavigation.Destination.RESULT;
+        history.visit(home);
+        history.visit(archive);
+        history.visit(settings);
+        history.visit(settings);
+        history.visit(result);
+        assertEquals(settings, history.previous(result, d -> true));
+        history.visit(settings);
+        assertEquals(archive, history.previous(settings, d -> true));
+        history.visit(archive);
+        assertEquals(home, history.previous(archive, d -> true));
+        assertNull(history.previous(home, d -> true));
+    }
+    @Test public void backSkipsUnavailableDestinations() {
+        TabHistory history = new TabHistory();
+        history.visit(MainNavigation.Destination.HOME);
+        history.visit(MainNavigation.Destination.RESULT);
+        history.visit(MainNavigation.Destination.SETTINGS);
+        assertEquals(MainNavigation.Destination.HOME, history.previous(MainNavigation.Destination.SETTINGS,
+            d -> d != MainNavigation.Destination.RESULT));
+    }
+
+    @Test public void externallyLaunchedResultUsesActualVisitsNotInventedHome() {
+        TabHistory history = new TabHistory();
+        MainNavigation.Destination result = MainNavigation.Destination.RESULT;
+        MainNavigation.Destination archive = MainNavigation.Destination.ARCHIVE;
+        MainNavigation.Destination settings = MainNavigation.Destination.SETTINGS;
+        history.visit(result);
+        history.visit(archive);
+        history.visit(settings);
+        assertEquals(archive, history.previous(settings, d -> true));
+        history.visit(archive);
+        assertEquals(result, history.previous(archive, d -> true));
+        history.visit(result);
+        assertNull(history.previous(result, d -> true));
+    }
+
+    @Test public void resultRootExitFinishesOnlyRetainedCheckerHostAndSelf() throws Exception {
+        String nav = source("MainNavigation.kt");
+        int start = nav.indexOf("fun exitFromResult(a: ResultActivity)");
+        int end = nav.indexOf("private fun result", start);
+        assertTrue(start >= 0 && end > start);
+        String exit = nav.substring(start, end);
+        assertTrue(exit.contains("tabHistories.remove(a.taskId)"));
+        assertTrue(exit.contains("homes.remove(a.taskId)"));
+        assertTrue(exit.indexOf("retained.finish()") >= 0);
+        assertTrue(exit.indexOf("retained.finish()") < exit.indexOf("a.finish()"));
+        assertFalse(exit.contains("finishAffinity("));
+        assertFalse(exit.contains("finishAndRemoveTask("));
     }
 }

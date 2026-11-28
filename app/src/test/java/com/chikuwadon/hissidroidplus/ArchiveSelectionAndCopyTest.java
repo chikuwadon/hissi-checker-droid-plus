@@ -45,6 +45,9 @@ public class ArchiveSelectionAndCopyTest {
         assertTrue(a.contains("entry.copy(originalUrl = original"));
         assertTrue(a.contains("ThreadOpener.open(host, original, false)"));
         assertTrue(a.contains("検索サービスのページを外部ブラウザで開きますか？"));
+        assertTrue(a.contains("検索サービスのページで開く"));
+        assertTrue(a.contains("BrowserLauncher.open(host, servicePage(entry))"));
+        assertTrue(a.contains("ArchiveOriginalLink.resolveOther(entry.url)"));
     }
     @Test public void nukoNativeUsesScopedRealBrowserUaAndReportsEmptyBody() throws Exception {
         String a = source("ArchiveActivity.kt");

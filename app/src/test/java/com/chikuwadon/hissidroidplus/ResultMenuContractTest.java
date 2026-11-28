@@ -89,6 +89,7 @@ public final class ResultMenuContractTest {
         assertTrue(code.contains("ResultMenuAction.COPY_THREADS -> copyWrittenThreads()"));
         assertTrue(code.contains("ResultMenuAction.COPY_POSTS -> copyAllVisible()"));
         assertTrue(code.contains("Intent.FLAG_ACTIVITY_NEW_TASK or"));
-        assertTrue(code.contains("MainNavigation.navigate(this, destination)"));
+        assertTrue(code.contains("if (MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)) return"));
+        assertTrue(code.contains("MainNavigation.exitFromResult(this)"));
     }
 }

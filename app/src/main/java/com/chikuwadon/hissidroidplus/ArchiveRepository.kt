@@ -12,6 +12,7 @@ enum class ArchiveProvider(val label: String, val url: String) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/"),
     EDGE_KYODEMO("Kyodemo / エッヂ", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k="),
     FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/"),
+    OTHER_KYODEMO("Kyodemo / その他の掲示板", "https://www.kyodemo.net/sdemo/"),
     FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON")
 }
 
@@ -89,6 +90,7 @@ object ArchiveRepository {
     @JvmOverloads
     fun search(provider: ArchiveProvider, query: ArchiveQuery, page: Int, nukoUserAgent: String = ""): ArchivePage {
         val target = ArchiveExternalSearch.url(provider, query, page)
+        if (provider == ArchiveProvider.OTHER_KYODEMO) return searchOther(target, query, page, nukoUserAgent)
         val charset = if (provider == ArchiveProvider.EDGE_ARCHIVE) StandardCharsets.UTF_8 else java.nio.charset.Charset.forName("windows-31j")
         val html = if (provider == ArchiveProvider.FIVECH_NUKO)
             HttpTransport.getForNuko(target, charset, nukoUserAgent)
@@ -99,6 +101,7 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
+            ArchiveProvider.OTHER_KYODEMO -> error("handled above")
             ArchiveProvider.FIVECH_NUKO -> try {
                 ArchiveProviderParser.nuko(html, page, query.boardCode)
             } catch (failure: NukoPageFormatException) {
@@ -106,6 +109,34 @@ object ArchiveRepository {
             }
         }
         return filterRange(result, query)
+    }
+
+    private fun searchOther(formUrl: String, query: ArchiveQuery, page: Int, browserUa: String): ArchivePage {
+        val charset = java.nio.charset.Charset.forName("windows-31j")
+        val compact = ArchiveExternalSearch.kyodemoPageLink(formUrl)
+        // Prefer the site-generated paging link; try the observed form URL once on format failure.
+        // HTTP access-denied / transport errors do not trigger another request.
+        val diagnostics = ArrayList<String>()
+        var failure: IOException? = null
+        for (target in listOf(compact, formUrl).distinct()) {
+            val html = HttpTransport.getForKyodemoArchive(target, charset, browserUa)
+            try {
+                val final = HttpTransport.lastFinalUrl()
+                if (!KyodemoArchiveBrowserFallback.matchesSearch(final, target))
+                    throw IOException("検索条件がリダイレクトで失われました")
+                val fetched = ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
+                return filterRange(fetched, query)
+            } catch (error: IOException) {
+                failure = error
+                diagnostics.add(error.message.orEmpty() + " / " + HttpTransport.lastDiagnostic())
+                val finalPath = runCatching { URI.create(HttpTransport.lastFinalUrl()).path }.getOrNull()
+                // A top-page redirect is not a count/encoding error. Do not repeat the same
+                // board request; let the browser visit the site's actual category menu.
+                if (finalPath?.trimEnd('/') == "/sdemo") break
+            }
+        }
+        throw KyodemoArchiveFormatException(diagnostics.joinToString(" / 再試行: "),
+            failure ?: IOException("検索結果未取得"))
     }
 
     /** Read option values from the current site rather than guessing undocumented codes. */

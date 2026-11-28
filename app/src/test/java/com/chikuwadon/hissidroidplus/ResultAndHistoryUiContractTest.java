@@ -17,8 +17,15 @@ public class ResultAndHistoryUiContractTest {
         String result = source("ResultActivity.kt");
         assertTrue(result.contains("registerBackAction { backFromResult() }"));
         assertTrue(source("CheckerActivity.kt").contains("onBackPressedDispatcher.addCallback(this"));
-        assertTrue(result.contains("MainNavigation.navigate(this, destination)"));
-        assertTrue(result.contains("launchedExternally() && !AppSettings.standalone(this)"));
+        int start = result.indexOf("private fun backFromResult()");
+        int end = result.indexOf("private fun exitResults()", start);
+        assertTrue(start >= 0 && end > start);
+        String back = result.substring(start, end);
+        assertTrue(back.contains("MainNavigation.backToPrevious(this, MainNavigation.Destination.RESULT)"));
+        assertTrue(back.contains("MainNavigation.exitFromResult(this)"));
+        assertFalse(back.contains("launchedExternally()"));
+        assertFalse(back.contains("AppSettings.standalone(this)"));
+        assertTrue(back.indexOf("MainNavigation.backToPrevious") < back.indexOf("MainNavigation.exitFromResult"));
     }
     @Test public void starUsesIndependentClickAndExplicitDatabaseState() throws Exception {
         String history = source("HistoryActivity.kt");

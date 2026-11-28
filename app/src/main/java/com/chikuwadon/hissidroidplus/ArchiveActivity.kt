@@ -81,6 +81,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private lateinit var keyword: EditText
     private lateinit var boardButton: TextView
     private lateinit var boardRow: LinearLayout
+    private lateinit var otherServiceButton: TextView
+    private var otherServiceRoot = OtherBoardSelection.root(host)
     private lateinit var saveBoardButton: TextView
     private lateinit var favoriteBoardsButton: TextView
     private lateinit var searchTop: LinearLayout
@@ -94,10 +96,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private var bottomPlacement: Boolean? = null
     private lateinit var searchHistoryButton: View
     private var boardGroups: List<BoardMenu.Category>? = null
+    private val otherMenuCache = mutableMapOf<String, KyodemoOtherBoards.Menu>()
+    private val otherSearchCache = mutableMapOf<String, KyodemoOtherBoards.SearchIndex>()
     private var nukoBrowser: NukoBrowserFallback? = null
+    private var kyodemoBrowser: KyodemoArchiveBrowserFallback? = null
     private val nukoUserAgent by lazy { runCatching { android.webkit.WebSettings.getDefaultUserAgent(host) }.getOrDefault("") }
     private var resolvedBoardAddresses: Map<String, String> = emptyMap()
-    private fun supportsBoardSelection() = state.provider == ArchiveProvider.FIVECH_KYODEMO || state.provider == ArchiveProvider.FIVECH_NUKO
+    private fun otherBoards() = state.provider == ArchiveProvider.OTHER_KYODEMO
+    private fun requiresBoard() = state.provider == ArchiveProvider.FIVECH_KYODEMO || otherBoards()
+    private fun supportsBoardSelection() = requiresBoard() || state.provider == ArchiveProvider.FIVECH_NUKO
     private lateinit var search: TextView
     private lateinit var options: TextView
     private lateinit var message: TextView
@@ -111,10 +118,12 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private fun archiveButton(label: String): TextView = ThemedMenu.formButton(host, label, outlined = false)
 
     fun buildScreen(root: LinearLayout) {
+        val restore = !state.preferencesRestored
         if (!state.preferencesRestored) {
             state.provider = ArchiveSelectionStore.provider(host)
             for (choice in ArchiveProvider.entries) state.drafts[choice] = ArchiveSelectionStore.draft(host, choice)
             state.draft = state.drafts.getValue(state.provider)
+            if (otherBoards()) otherServiceRoot = OtherBoardSelection.root(host, state.draft.boardCode)
             state.preferencesRestored = true
         }
         val controls = LinearLayout(host).apply {
@@ -136,21 +145,27 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     val previousKeyword = state.draft.keyword
                     state.form = null
                     state.provider = selected
+                    boardGroups = null
                     state.draft = state.drafts[selected]?.let { if (it.keyword.isEmpty()) it.copy(keyword = previousKeyword) else it } ?: ArchiveQuery(previousKeyword)
+                    if (otherBoards()) otherServiceRoot = OtherBoardSelection.root(host, state.draft.boardCode)
                     ArchiveSelectionStore.save(host, state.provider, state.draft)
                     keyword.setText(state.draft.keyword)
                     state.pages.clear()
                     state.submitted = null
                     state.result = null
+                    SavedSearchResults.clearArchive(host)
                     state.message = ""
                     refresh()
                 }
             }
         }
+        otherServiceButton = archiveButton("掲示板を選択 ▾")
+        otherServiceButton.setOnClickListener { showOtherServices() }
         boardRow = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         controls.addView(boardRow, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(4) })
+        boardRow.addView(otherServiceButton, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(4) })
         boardButton = archiveButton("板を選択 ▾")
-        boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1f))
+        boardRow.addView(boardButton, LinearLayout.LayoutParams(0, -1, 1.15f))
         boardButton.setOnClickListener { showBoards() }
         saveBoardButton = archiveButton("☆ 保存").apply {
             contentDescription = "選択した板をお気に入りに保存"
@@ -228,7 +243,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         browser.setOnClickListener {
             if (loading || disposed) return@setOnClickListener
             saveKeyword()
-            if (state.provider == ArchiveProvider.FIVECH_KYODEMO && state.draft.boardCode.isEmpty()) {
+            if (requiresBoard() && state.draft.boardCode.isEmpty()) {
                 showBoards()
                 return@setOnClickListener
             }
@@ -238,7 +253,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     message.text = error.message ?: "検索条件が不正です"
                     return@setOnClickListener
                 }
-            } else if (state.provider == ArchiveProvider.FIVECH_KYODEMO) "https://www.kyodemo.net/sdemo/b/" + state.draft.boardCode + "/" else state.provider.url
+            } else if (requiresBoard()) "https://www.kyodemo.net/sdemo/b/" + state.draft.boardCode + "/" else state.provider.url
             if (state.provider == ArchiveProvider.EDGE_ARCHIVE && state.draft.maximum.isNotEmpty()) {
                 android.widget.Toast.makeText(host, "レス数の上限はアプリ内表示にのみ適用されます", android.widget.Toast.LENGTH_SHORT).show()
             }
@@ -265,9 +280,10 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     ThreadOpener.validatedThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, true)
                     ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
-                    else -> ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
-                        "検索サービスのページを外部ブラウザで開きますか？", "開く",
-                        Runnable { BrowserLauncher.open(host, entry.url) })
+                    state.provider == ArchiveProvider.OTHER_KYODEMO -> withOtherOriginal(entry) { resolved ->
+                        if (resolved.isNotEmpty()) openOtherOriginal(resolved) else showUnresolved(entry)
+                    }
+                    else -> showUnresolved(entry)
                 }
             }
         }
@@ -301,6 +317,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         refresh()
         val restored = state.submitted?.let { query -> state.result?.let { state.pages.get(state.provider, query, it.page) } }
         restored?.let { restorePosition(it.position) }
+        if (restore && state.result == null && SavedSearchResults.hasArchive(host)) restoreSavedPage()
     }
 
     /** Inline controls leave the actual search results visible while adjusting text. */
@@ -379,22 +396,77 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         updateBoardButtons()
     }
 
+    private fun servicePage(entry: ArchiveThread): String {
+        val provider = state.provider
+        val query = state.submitted
+        if (provider == ArchiveProvider.EDGE_ARCHIVE ||
+            (provider == ArchiveProvider.FIVECH_KYODEMO && ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty())) {
+            if (provider == ArchiveProvider.FIVECH_KYODEMO) {
+                val board = query?.boardCode.orEmpty()
+                val key = entry.url.trimEnd('/').substringAfterLast('/')
+                if (BoardFavorites.valid(board) && key.matches(Regex("[0-9]{10,20}")))
+                    return "https://www.kyodemo.net/sdemo/r/$board/$key/"
+            }
+            if (query != null) return ArchiveExternalSearch.url(provider, query, state.result?.page ?: 1)
+            return provider.url
+        }
+        return entry.url
+    }
+
+    private fun showUnresolved(entry: ArchiveThread) {
+        ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
+            "検索サービスのページを外部ブラウザで開きますか？", "開く",
+            Runnable { BrowserLauncher.open(host, servicePage(entry)) })
+    }
+
+    private fun openOtherOriginal(original: String) {
+        // Only known board thread formats are handed to configured readers.
+        if (ThreadOpener.validatedOtherThreadUrl(original).isNotEmpty()) ThreadOpener.open(host, original, false)
+        else BrowserLauncher.open(host, original)
+    }
+
+    private fun withOtherOriginal(entry: ArchiveThread, action: (String) -> Unit) {
+        val known = entry.originalUrl.ifBlank { ArchiveOriginalLink.kyodemoOther(entry.url) }
+        if (known.isNotEmpty()) { action(known); return }
+        if (loading || disposed) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "元スレッドURLを取得中…"
+        worker.execute {
+            val original = runCatching { ArchiveOriginalLink.resolveOther(entry.url) }.getOrDefault("")
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (list.isShown && host.hasWindowFocus()) action(original)
+            }
+        }
+    }
+
     private fun showCopyMenu(entry: ArchiveThread) {
-        ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
-            val original = entry.originalUrl
-            if (index != 1 && original.isEmpty()) {
-                Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
+        ThemedMenu.choose(host, "操作", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー", "検索サービスのページで開く"), -1) { index ->
+            if (index == 3) {
+                BrowserLauncher.open(host, servicePage(entry))
                 return@choose
             }
-            val value = when (index) {
-                0 -> entry.title + "\n" + original
-                1 -> entry.title
-                2 -> original
-                else -> return@choose
+            fun copy(original: String) {
+                if (index != 1 && original.isEmpty()) {
+                    Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val value = when (index) {
+                    0 -> entry.title + "\n" + original
+                    1 -> entry.title
+                    2 -> original
+                    else -> return
+                }
+                val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+                clipboard.setPrimaryClip(ClipData.newPlainText("過去ログ検索", value))
+                if (Build.VERSION.SDK_INT < 33) Toast.makeText(host, "コピーしました", Toast.LENGTH_SHORT).show()
             }
-            val clipboard = host.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@choose
-            clipboard.setPrimaryClip(ClipData.newPlainText("過去ログ検索", value))
-            if (Build.VERSION.SDK_INT < 33) Toast.makeText(host, "コピーしました", Toast.LENGTH_SHORT).show()
+            if (index != 1 && state.provider == ArchiveProvider.OTHER_KYODEMO) withOtherOriginal(entry, ::copy)
+            else copy(entry.originalUrl)
         }
     }
 
@@ -444,6 +516,26 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (adapter.count > 0) list.setSelectionFromTop(position.index.coerceIn(0, adapter.count - 1), position.offset)
     }
 
+    private fun restoreSavedPage() {
+        loading = true
+        val request = ++generation
+        refresh()
+        worker.execute {
+            val saved = SavedSearchResults.readArchive(host)
+            host.runOnUiThread {
+                if (disposed || host.isDestroyed || host.isFinishing || request != generation) return@runOnUiThread
+                loading = false
+                if (saved != null && AppSettings.keepSearchResults(host) &&
+                    saved.provider == state.provider && saved.query.boardCode == state.draft.boardCode) {
+                    state.draft = saved.query
+                    keyword.setText(saved.query.keyword)
+                    state.pages.put(saved.provider, saved.query, saved.page)
+                    displayPage(saved.query, ArchivePageCache.Cached(saved.page))
+                } else refresh()
+            }
+        }
+    }
+
     private fun displayPage(query: ArchiveQuery, cached: ArchivePageCache.Cached) {
         state.result = cached.result
         cached.result.form?.let { state.form = it }
@@ -451,6 +543,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         state.message = ""
         refresh()
         restorePosition(cached.position)
+        SavedSearchResults.saveArchive(host, state.provider, query, cached.result)
     }
 
     private fun readBoardGroups(): List<BoardMenu.Category> {
@@ -476,6 +569,11 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun showBoards() {
         if (loading || disposed || !supportsBoardSelection()) return
+        if (otherBoards()) {
+            val service = KyodemoOtherBoards.services.firstOrNull { it.root == otherServiceRoot }
+            if (service == null) showOtherServices() else loadOtherMenu(service, service.root)
+            return
+        }
         boardGroups?.takeIf { it.isNotEmpty() }?.let { showBoardCategories(it); return }
         loading = true
         val request = ++generation
@@ -491,6 +589,98 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 if (!boardButton.isShown || !host.hasWindowFocus()) return@runOnUiThread
                 if (groups.isEmpty()) Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
                 else showBoardCategories(groups)
+            }
+        }
+    }
+
+    private fun showOtherServices() {
+        val services = KyodemoOtherBoards.services
+        showBoardList("掲示板を選択", services.map { it.label }, null) { index ->
+            services.getOrNull(index)?.let { service ->
+                if (service.root != otherServiceRoot) {
+                    otherServiceRoot = service.root
+                    OtherBoardSelection.setRoot(host, service.root)
+                    selectBoard("", "")
+                }
+                refresh()
+            }
+        }
+    }
+
+    private fun loadOtherMenu(service: KyodemoOtherBoards.Service, category: String,
+                              parents: List<String> = emptyList()) {
+        if (loading || disposed || !otherBoards()) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "板一覧を取得中…"
+        worker.execute {
+            val loaded = runCatching { otherMenuCache.getOrPut(category) { KyodemoOtherBoards.fetch(service, category) } }
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (!boardButton.isShown || !host.hasWindowFocus() || !otherBoards()) return@runOnUiThread
+                loaded.onSuccess { menu ->
+                    val entries = menu.categories + menu.boards.map { KyodemoOtherBoards.Item(it.code, it.name) }
+                    if (entries.isEmpty()) {
+                        Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
+                        return@onSuccess
+                    }
+                    val back: (() -> Unit)? = if (parents.isEmpty()) null else {
+                        { loadOtherMenu(service, parents.last(), parents.dropLast(1)) }
+                    }
+                    showBoardList("カテゴリを選択", entries.map { it.label }, back,
+                        search = { searchOtherTree(service, category, parents, menu) }) { index ->
+                        val entry = entries[index]
+                        if (index < menu.categories.size) loadOtherMenu(service, entry.code, parents + category)
+                        else selectBoard(entry.code, entry.label)
+                    }
+                }.onFailure { Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show() }
+            }
+        }
+    }
+
+    private fun searchOtherTree(service: KyodemoOtherBoards.Service, category: String,
+                                parents: List<String>, menu: KyodemoOtherBoards.Menu) {
+        if (loading || disposed || !otherBoards()) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "下位カテゴリを含む板一覧を取得中…"
+        worker.execute {
+            val loaded = runCatching {
+                val cached = otherSearchCache[category]
+                if (cached != null && cached.complete) cached else
+                    KyodemoOtherBoards.index(service, category, parents, menu, 100, 45000L) { code ->
+                        otherMenuCache.getOrPut(code) { KyodemoOtherBoards.fetch(service, code) }
+                    }.also { if (it.complete) otherSearchCache[category] = it }
+            }
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (!boardButton.isShown || !host.hasWindowFocus() || !otherBoards()) return@runOnUiThread
+                loaded.onSuccess { index ->
+                    if (!index.complete) Toast.makeText(host, "一部の下位カテゴリを取得できませんでした。取得済みの範囲で検索できます", Toast.LENGTH_LONG).show()
+                    val entries = index.entries
+                    if (entries.isEmpty()) {
+                        Toast.makeText(host, "検索対象の板がありません", Toast.LENGTH_SHORT).show()
+                        loadOtherMenu(service, category, parents)
+                        return@onSuccess
+                    }
+                    showBoardList(if (index.complete) "カテゴリ・板を検索" else "カテゴリ・板を検索（一部）",
+                        entries.map { it.label + " (" + it.code + ")" },
+                        { loadOtherMenu(service, category, parents) },
+                        filterKeys = entries.map { it.label + " " + it.code }, startFiltering = true) { position ->
+                        val entry = entries[position]
+                        if (entry.category) loadOtherMenu(service, entry.code, entry.parents)
+                        else selectBoard(entry.code, entry.label)
+                    }
+                }.onFailure {
+                    Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
+                    loadOtherMenu(service, category, parents)
+                }
             }
         }
     }
@@ -515,11 +705,14 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     }
 
     private fun selectBoard(code: String, name: String) {
-        if (disposed || loading || !supportsBoardSelection() || (!BoardFavorites.valid(code) && !(state.provider == ArchiveProvider.FIVECH_NUKO && code.isEmpty()))) return
+        if (disposed || loading || !supportsBoardSelection() ||
+            (!BoardFavorites.valid(code) && !((state.provider == ArchiveProvider.FIVECH_NUKO || otherBoards()) && code.isEmpty()))) return
+        if (otherBoards() && code.isNotEmpty() && (KyodemoOtherBoards.serviceFor(code)?.root != otherServiceRoot)) return
         saveKeyword()
         if (state.draft.boardCode != code) {
             state.pages.clear()
             state.result = null
+            SavedSearchResults.clearArchive(host)
             state.submitted = null
             state.message = ""
         }
@@ -535,13 +728,30 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             Toast.makeText(host, "板を選択してください", Toast.LENGTH_SHORT).show()
             return
         }
-        BoardFavorites.add(host, code)
+        if (otherBoards()) OtherBoardSelection.add(host, code, state.draft.boardName)
+        else BoardFavorites.add(host, code)
         updateBoardButtons()
         Toast.makeText(host, "お気に入りに登録しました", Toast.LENGTH_SHORT).show()
     }
 
     private fun showFavoriteBoards() {
         if (loading || disposed || !supportsBoardSelection()) return
+        if (otherBoards()) {
+            val favorites = OtherBoardSelection.allFavorites(host)
+            if (favorites.isEmpty()) {
+                Toast.makeText(host, "掲示板 / カテゴリ板のお気に入りがありません", Toast.LENGTH_SHORT).show()
+                return
+            }
+            showBoardList("掲示板 / カテゴリ板のお気に入り", favorites.map { OtherBoardSelection.displayLabel(it) }, null) { index ->
+                favorites.getOrNull(index)?.let { item ->
+                    val service = KyodemoOtherBoards.serviceFor(item.code) ?: return@let
+                    otherServiceRoot = service.root
+                    OtherBoardSelection.setRoot(host, service.root)
+                    selectBoard(item.code, item.label)
+                }
+            }
+            return
+        }
         val favorites = BoardFavorites.read(host)
         if (favorites.isEmpty()) {
             Toast.makeText(host, "板のお気に入りがありません", Toast.LENGTH_SHORT).show()
@@ -564,41 +774,118 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         boardRow.visibility = if (fivech) View.VISIBLE else View.GONE
         boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { if (state.provider == ArchiveProvider.FIVECH_NUKO) "全板" else "板を選択" } }) + " ▾"
         boardButton.isEnabled = !loading
+        otherServiceButton.visibility = if (otherBoards()) View.VISIBLE else View.GONE
+        otherServiceButton.text = (KyodemoOtherBoards.services.firstOrNull { it.root == otherServiceRoot }?.label ?: "掲示板を選択") + " ▾"
+        otherServiceButton.isEnabled = !loading
+        if (otherBoards()) {
+            boardButton.text = state.draft.boardName.ifBlank { "カテゴリを選択" } + " ▾"
+            boardButton.isEnabled = !loading && otherServiceRoot.isNotEmpty()
+        }
+        saveBoardButton.visibility = View.VISIBLE
+        favoriteBoardsButton.visibility = View.VISIBLE
         saveBoardButton.isEnabled = !loading && BoardFavorites.valid(state.draft.boardCode)
         saveBoardButton.alpha = if (saveBoardButton.isEnabled) 1f else 0.45f
-        saveBoardButton.text = if (state.draft.boardCode in BoardFavorites.read(host)) "★ 保存済" else "☆ 保存"
+        val saved = if (otherBoards()) OtherBoardSelection.favorites(host, otherServiceRoot).any { it.code == state.draft.boardCode }
+            else state.draft.boardCode in BoardFavorites.read(host)
+        val compact = otherBoards()
+        for (button in listOf(otherServiceButton, boardButton)) {
+            button.textSize = if (compact) 12f else 14f
+            button.setPadding(dp(if (compact) 4 else 8), 0, dp(if (compact) 4 else 8), 0)
+            button.maxLines = if (compact) 2 else 1
+            button.ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        (saveBoardButton.layoutParams as LinearLayout.LayoutParams).width = dp(if (compact) 52 else 82)
+        (favoriteBoardsButton.layoutParams as LinearLayout.LayoutParams).width = dp(if (compact) 44 else 48)
+        saveBoardButton.textSize = if (compact) 11f else 14f
+        saveBoardButton.setPadding(dp(if (compact) 2 else 8), 0, dp(if (compact) 2 else 8), 0)
+        saveBoardButton.text = if (compact) {
+            if (saved) "★済" else "☆保存"
+        } else if (saved) "★ 保存済" else "☆ 保存"
+        saveBoardButton.contentDescription = if (otherBoards()) "選択した掲示板 / カテゴリ板をお気に入りに保存" else "選択した板をお気に入りに保存"
+        favoriteBoardsButton.contentDescription = if (otherBoards()) "掲示板 / カテゴリ板のお気に入り" else "板のお気に入り"
         favoriteBoardsButton.isEnabled = !loading
     }
 
     private fun showBoardList(title: String, labels: List<String>, back: (() -> Unit)?,
-                              search: (() -> Unit)? = null, pick: (Int) -> Unit) {
+                              search: (() -> Unit)? = null, filterKeys: List<String>? = null,
+                              startFiltering: Boolean = false, pick: (Int) -> Unit) {
         val panel = ThemedMenu.formPanel(host)
         val heading = LinearLayout(host).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(ThemedMenu.formTitle(host, title), LinearLayout.LayoutParams(0, -2, 1f))
         panel.addView(heading)
-        val searchIcon = if (search != null) boardSearchIcon().also {
+        val searchIcon = if (search != null || filterKeys != null) boardSearchIcon().also {
             heading.addView(it, LinearLayout.LayoutParams(dp(48), dp(48)))
         } else null
+        val input = if (filterKeys != null) ThemedMenu.formInput(host, "").apply {
+            hint = "カテゴリ名・板名・板コード"
+            setHintTextColor(host.getColor(R.color.text_secondary))
+            visibility = View.GONE
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        } else null
+        if (input != null) panel.addView(input, LinearLayout.LayoutParams(-1, dp(44)))
+        var visibleIndices = labels.indices.toList()
+        val rows = object : ArrayAdapter<String>(host, android.R.layout.simple_list_item_1, labels.toMutableList()) {
+            override fun getCount(): Int = visibleIndices.size
+            override fun getItem(position: Int): String = labels[visibleIndices[position]]
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                (super.getView(position, convertView, parent) as TextView).apply {
+                    setTextColor(host.getColor(R.color.text_primary))
+                    textSize = 14f
+                    minHeight = dp(49)
+                }
+        }
         val choices = ListView(host).apply {
             divider = android.graphics.drawable.ColorDrawable(host.getColor(R.color.divider))
             dividerHeight = dp(1)
             selector = TouchFeedback.listSelector(host)
-            adapter = object : ArrayAdapter<String>(host, android.R.layout.simple_list_item_1, labels) {
-                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
-                    (super.getView(position, convertView, parent) as TextView).apply {
-                        setTextColor(host.getColor(R.color.text_primary))
-                        textSize = 14f
-                        minHeight = dp(49)
-                    }
-            }
+            adapter = rows
         }
         panel.addView(choices, LinearLayout.LayoutParams(-1, minOf(dp(540), (host.resources.displayMetrics.heightPixels * 0.60f).toInt())))
-        val close = ThemedMenu.formAction(host, if (back == null) "閉じる" else "カテゴリに戻る")
-        panel.addView(close, LinearLayout.LayoutParams(-1, dp(46)))
+        val buttons = LinearLayout(host)
+        val previous = back?.let { ThemedMenu.formAction(host, "戻る") }
+        if (previous != null) buttons.addView(previous, LinearLayout.LayoutParams(0, dp(46), 1f))
+        val close = ThemedMenu.formAction(host, "閉じる")
+        buttons.addView(close, LinearLayout.LayoutParams(0, dp(46), 1f))
+        panel.addView(buttons)
         val dialog = ThemedMenu.showForm(host, panel)
-        choices.setOnItemClickListener { _, _, position, _ -> dialog.dismiss(); pick(position) }
-        close.setOnClickListener { dialog.dismiss(); back?.invoke() }
-        searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
+        choices.setOnItemClickListener { _, _, position, _ ->
+            val index = visibleIndices.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            pick(index)
+        }
+        close.setOnClickListener { dialog.dismiss() }
+        previous?.setOnClickListener { dialog.dismiss(); back?.invoke() }
+        if (back != null) dialog.setOnCancelListener { back.invoke() }
+        if (input != null && filterKeys != null) {
+            fun filter() {
+                visibleIndices = CategoryLabelSearch.indices(filterKeys, input.text.toString())
+                rows.notifyDataSetChanged()
+                choices.setSelection(0)
+            }
+            input.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) = filter()
+            })
+            searchIcon?.contentDescription = "カテゴリ・板を検索"
+            searchIcon?.setOnClickListener {
+                if (input.visibility == View.VISIBLE) {
+                    (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                        ?.hideSoftInputFromWindow(input.windowToken, 0)
+                    input.setText("")
+                    input.visibility = View.GONE
+                } else {
+                    input.visibility = View.VISIBLE
+                    dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                    input.requestFocus()
+                    input.post {
+                        if (dialog.isShowing) (host.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                            ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                }
+            }
+            if (startFiltering) searchIcon?.performClick()
+        } else searchIcon?.setOnClickListener { dialog.dismiss(); search?.invoke() }
     }
 
     private fun boardSearchIcon(): View = BoardSearchDialog.icon(host)
@@ -739,7 +1026,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             day("開始日", true)
             day("終了日", false)
             panel.addView(ThemedMenu.formLabel(host, "複数の検索ワードは空白区切りでAND検索"))
-            if (state.provider == ArchiveProvider.EDGE_KYODEMO || state.provider == ArchiveProvider.FIVECH_KYODEMO) {
+            if (state.provider == ArchiveProvider.EDGE_KYODEMO || requiresBoard()) {
                 fun choice(label: String, values: List<String>, labels: List<String>, selected: String, apply: (String) -> Unit) {
                     panel.addView(ThemedMenu.formLabel(host, label))
                     var index = values.indexOf(selected).coerceAtLeast(0)
@@ -808,7 +1095,10 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             setHintTextColor(host.getColor(R.color.text_secondary))
         }
         range.addView(min, LinearLayout.LayoutParams(0, dp(44), 1f))
-        range.addView(ThemedMenu.formLabel(host, "～"), LinearLayout.LayoutParams(dp(28), -2))
+        range.addView(ThemedMenu.formLabel(host, "～").apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 0)
+        }, LinearLayout.LayoutParams(dp(28), dp(44)))
         range.addView(max, LinearLayout.LayoutParams(0, dp(44), 1f))
         fields.addView(range)
         fields.addView(ThemedMenu.formLabel(host, "上限は取得ページごとに絞り込みます"))
@@ -893,7 +1183,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (loading || disposed) return
         saveKeyword()
         val query = state.draft
-        if (state.provider == ArchiveProvider.FIVECH_KYODEMO && query.boardCode.isEmpty()) {
+        if (requiresBoard() && query.boardCode.isEmpty()) {
             showBoards()
             return
         }
@@ -919,7 +1209,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         }
         loading = true
         val request = ++generation
-        val browserUa = if (requested == ArchiveProvider.FIVECH_NUKO) nukoUserAgent else ""
+        val browserUa = if (requested == ArchiveProvider.FIVECH_NUKO || requested == ArchiveProvider.OTHER_KYODEMO) nukoUserAgent else ""
+        if (requested == ArchiveProvider.OTHER_KYODEMO) HttpTransport.enableWebViewCookies()
         refresh()
         worker.execute {
             val outcome = runCatching {
@@ -952,6 +1243,27 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                             }
                         }
                     }
+                } else if (requested == ArchiveProvider.OTHER_KYODEMO && failure is KyodemoArchiveFormatException) {
+                    val nativeDiagnostic = failure.message.orEmpty()
+                    android.util.Log.w("HissiArchive", "Kyodemo native: " + nativeDiagnostic)
+                    message.text = "Kyodemo / ブラウザ方式で再取得中…"
+                    kyodemoBrowser = KyodemoArchiveBrowserFallback(host)
+                    kyodemoBrowser?.load(ArchiveExternalSearch.url(requested, query, page)) { html ->
+                        kyodemoBrowser = null
+                        if (disposed || request != generation) return@load
+                        if (html.isFailure) {
+                            finishLoad(request, requested, query, fresh, Result.failure(java.io.IOException(
+                                nativeDiagnostic + " / " + html.exceptionOrNull()?.message)))
+                        } else {
+                            worker.execute {
+                                val parsed = runCatching {
+                                    val fetched = ArchiveProviderParser.kyodemoOther(html.getOrThrow(), page, query.boardCode, query.boardName)
+                                    resolveOriginalLinks(requested, ArchiveRepository.filterRange(fetched, query))
+                                }.recoverCatching { throw java.io.IOException(nativeDiagnostic + " / WebView: " + it.message, it) }
+                                host.runOnUiThread { finishLoad(request, requested, query, fresh, parsed) }
+                            }
+                        }
+                    }
                 } else finishLoad(request, requested, query, fresh, outcome)
             }
         }
@@ -975,6 +1287,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     /** Keep archive reading URLs and original-copy URLs separate. Resolve each board once. */
     private fun resolveOriginalLinks(requested: ArchiveProvider, result: ArchivePage): ArchivePage {
         if (result.items.isEmpty()) return result
+        if (requested == ArchiveProvider.OTHER_KYODEMO) return result.copy(items = result.items.map { entry ->
+            entry.copy(originalUrl = ArchiveOriginalLink.kyodemoOther(entry.url))
+        })
         if (requested == ArchiveProvider.EDGE_ARCHIVE || requested == ArchiveProvider.EDGE_KYODEMO) {
             return result.copy(items = result.items.map { entry ->
                 val original = ThreadOpener.validatedThreadUrl(entry.url)
@@ -997,7 +1312,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 ArchiveOriginalLink.nuko5ch(entry.url, board, address)
             else ArchiveOriginalLink.kyodemo5ch(entry.url, board, address)
             val original = ThreadOpener.validated5chThreadUrl(converted)
-            entry.copy(originalUrl = original, url = if (requested == ArchiveProvider.FIVECH_KYODEMO && original.isNotEmpty()) original else entry.url)
+            entry.copy(originalUrl = original)
         })
     }
 
@@ -1048,6 +1363,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         generation++
         nukoBrowser?.close()
         nukoBrowser = null
+        kyodemoBrowser?.close()
+        kyodemoBrowser = null
         worker.shutdownNow()
     }
 
@@ -1074,7 +1391,15 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             }
             (row.getChildAt(1) as TextView).apply {
                 textSize = 12f * scale
-                text = ArchiveExternalSearch.metadata(entry)
+                val metadata = ArchiveExternalSearch.metadata(entry)
+                val numberStart = metadata.indexOf("レス: ") + "レス: ".length
+                text = android.text.SpannableString(metadata).apply {
+                    val end = numberStart + entry.replies.toString().length
+                    if (numberStart >= "レス: ".length && end <= length) {
+                        setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), numberStart, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        setSpan(android.text.style.ForegroundColorSpan(host.getColor(R.color.accent)), numberStart, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
             }
             return row
         }

@@ -40,4 +40,18 @@ public class ArchiveProviderParserTest {
         assertThrows(IOException.class, () -> ArchiveProviderParser.kyodemoBoard("Access denied", 1, "android", "Android"));
         assertThrows(IOException.class, () -> ArchiveProviderParser.nuko("Access denied", 1));
     }
+
+    @Test public void otherBoardSearchAcceptsVerifiedCountVariantsAndExplicitZero() throws Exception {
+        String row = "<article class='panel-block'><a href='/sdemo/r/m_hokkaidou/1784728920/'><h2 class='cltitle'>1:北見市</h2>"
+            + "<small class='right_i'><b>25</b></small></a></article>";
+        ArchivePage full = ArchiveProviderParser.kyodemoOther("<title>北海道地区 全ログ検索結果</title><p>1件（1／1）</p>" + row, 1, "m_hokkaidou", "北海道地区");
+        assertEquals(1L, full.getTotal());
+        assertEquals(25, full.getItems().get(0).getReplies());
+        ArchivePage implicit = ArchiveProviderParser.kyodemoOther("<title>北海道地区 全ログ検索結果</title>" + row, 1, "m_hokkaidou", "北海道地区");
+        assertEquals(1, implicit.getItems().size());
+        assertEquals(0, ArchiveProviderParser.kyodemoOther("<title>検索結果</title><p>該当するスレッドがありません</p>", 1, "m_hokkaidou", "北海道地区").getItems().size());
+        assertThrows(IOException.class, () -> ArchiveProviderParser.kyodemoOther("<title>北海道地区</title>" + row, 1, "m_hokkaidou", "北海道地区"));
+        assertThrows(IOException.class, () -> ArchiveProviderParser.kyodemoOther("<title>Forbidden</title>", 1, "m_hokkaidou", "北海道地区"));
+        assertThrows(IOException.class, () -> ArchiveProviderParser.kyodemoOther("<title>検索結果</title>" + row, 2, "m_hokkaidou", "北海道地区"));
+    }
 }
