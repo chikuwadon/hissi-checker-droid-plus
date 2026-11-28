@@ -48,7 +48,7 @@ public class ArchiveRepositoryTest {
         assertThrows(IOException.class, () -> ArchiveRepository.parse("<p>検索結果：10件</p>", 1));
     }
     @Test public void allFourProviderChoicesHaveNativeRequestRoutes() {
-        assertEquals(4, ArchiveProvider.values().length);
+        assertEquals(5, ArchiveProvider.values().length);
         ArchiveQuery q = new ArchiveQuery("Android", "", "", "", "", "", "new", "", false, false, "android", "Android");
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_ARCHIVE, q).startsWith("https://eddiarchive3rd.boy.jp/?"));
         assertTrue(ArchiveExternalSearch.url(ArchiveProvider.EDGE_KYODEMO, q).startsWith("https://www.kyodemo.net/sdemo/b/e_e_liveedge/"));

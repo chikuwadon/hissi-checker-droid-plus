@@ -44,6 +44,7 @@ object SavedSearchResults {
                     target.finishWrite(stream)
                 } catch (_: Exception) {
                     if (stream != null) target.failWrite(stream)
+                    target.delete()
                 }
             }
         }

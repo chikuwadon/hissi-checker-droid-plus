@@ -270,7 +270,6 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     ThreadOpener.validatedThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, true)
                     ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
-                    state.provider == ArchiveProvider.OTHER_KYODEMO -> BrowserLauncher.open(host, entry.url)
                     else -> ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
                         "検索サービスのページを外部ブラウザで開きますか？", "開く",
                         Runnable { BrowserLauncher.open(host, entry.url) })
@@ -388,7 +387,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun showCopyMenu(entry: ArchiveThread) {
         ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
-            val original = entry.originalUrl.ifEmpty { if (otherBoards()) entry.url else "" }
+            val original = entry.originalUrl
             if (index != 1 && original.isEmpty()) {
                 Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
                 return@choose
