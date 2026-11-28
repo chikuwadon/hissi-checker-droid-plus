@@ -36,7 +36,13 @@ object ArchiveProviderParser {
         return parseKyodemo(html, page, code, name.ifBlank { code })
     }
 
-    private fun parseKyodemo(html: String, page: Int, code: String, name: String): ArchivePage {
+    @JvmStatic
+    fun kyodemoOther(html: String, page: Int, code: String, name: String): ArchivePage {
+        require(KyodemoOtherBoards.validBoard(code))
+        return parseKyodemo(html, page, code, name.ifBlank { code }, true)
+    }
+
+    private fun parseKyodemo(html: String, page: Int, code: String, name: String, other: Boolean = false): ArchivePage {
         val doc = Jsoup.parse(html, "https://www.kyodemo.net/sdemo/")
         val count = kyodemoCount.find(doc.text()) ?: throw IOException("Kyodemoの検索結果件数を確認できませんでした")
         val total = count.groupValues[1].replace(",", "").toLong()
@@ -47,14 +53,16 @@ object ArchiveProviderParser {
         val rows = LinkedHashMap<String, ArchiveThread>()
         for (anchor in doc.select("article.panel-block a[href]")) {
             val uri = safeUri(anchor.absUrl("href"), "www.kyodemo.net") ?: continue
-            val path = kyodemoPath.matchEntire(uri.path.orEmpty()) ?: continue
+            val path = (if (other) Regex("^/sdemo/r/([A-Za-z0-9_]{1,60})/(\\d{1,20})/?$") else kyodemoPath).matchEntire(uri.path.orEmpty()) ?: continue
             if (uri.rawQuery != null || path.groupValues[1] != code) continue
             val title = anchor.selectFirst("h2.cltitle")?.wholeText()?.replaceFirst(resultNumber, "")?.trim().orEmpty()
             val replies = anchor.selectFirst("small.right_i b")?.text()?.replace(",", "")?.toIntOrNull() ?: continue
             if (title.isBlank()) continue
             val board = name
             val link = uri.toASCIIString()
-            rows.putIfAbsent(link, ArchiveThread(title, link, replies, timestamp(path.groupValues[2]), board))
+            val key = path.groupValues[2]
+            val time = if (!other || (!code.startsWith("f_") && key.length == 10)) runCatching { timestamp(key) }.getOrDefault("") else ""
+            rows.putIfAbsent(link, ArchiveThread(title, link, replies, time, board))
         }
         if (total > 0 && rows.isEmpty()) throw IOException("Kyodemoのスレッド一覧を解析できませんでした")
         return ArchivePage(rows.values.toList(), total, page, page < last, pageSize = 50, totalCapped = capped)

@@ -15,11 +15,12 @@ object ArchiveExternalSearch {
         query.validate()
         require(page in 1..ArchiveRepository.MAX_PAGE)
         val (base, parameters) = when (provider) {
-            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO -> {
+            ArchiveProvider.EDGE_KYODEMO, ArchiveProvider.FIVECH_KYODEMO, ArchiveProvider.OTHER_KYODEMO -> {
                 val key = query.keyword.trim() + query.exclude.trim().split(whitespace)
                     .filter { it.isNotBlank() }.joinToString("") { " -" + it.trimStart('-') }
                 val board = if (provider == ArchiveProvider.EDGE_KYODEMO) "e_e_liveedge" else query.boardCode
-                require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "5chの板を選択してください" }
+                require(board.matches(Regex("[A-Za-z0-9_]{1,60}"))) { "板を選択してください" }
+                if (provider == ArchiveProvider.OTHER_KYODEMO) require(KyodemoOtherBoards.validBoard(board)) { "その他の掲示板を選択してください" }
                 val baseUrl = "https://www.kyodemo.net/sdemo/b/" + board + "/" +
                     if (page == 1) "" else ((page.toLong() - 1) * 50 + 1).toString()
                 baseUrl to linkedMapOf("bs" to "", "kt" to "k_",

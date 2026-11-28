@@ -12,7 +12,8 @@ enum class ArchiveProvider(val label: String, val url: String) {
     EDGE_ARCHIVE("エッヂの過去ログ（3代目）", "https://eddiarchive3rd.boy.jp/"),
     EDGE_KYODEMO("Kyodemo / エッヂ", "https://www.kyodemo.net/sdemo/b/e_e_liveedge/?bs=&kt=k_&fr=&to=&k="),
     FIVECH_KYODEMO("Kyodemo / 5ch", "https://www.kyodemo.net/sdemo/"),
-    FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON")
+    FIVECH_NUKO("ぬこ / 5ch", "https://n2ch.net/q/-/?kako=1&guid=ON"),
+    OTHER_KYODEMO("Kyodemo / その他の掲示板", "https://www.kyodemo.net/sdemo/")
 }
 
 data class ArchiveQuery @JvmOverloads constructor(
@@ -99,6 +100,7 @@ object ArchiveRepository {
             ArchiveProvider.EDGE_ARCHIVE -> parse(html, page)
             ArchiveProvider.EDGE_KYODEMO -> ArchiveProviderParser.kyodemoEdge(html, page)
             ArchiveProvider.FIVECH_KYODEMO -> ArchiveProviderParser.kyodemoBoard(html, page, query.boardCode, query.boardName)
+            ArchiveProvider.OTHER_KYODEMO -> ArchiveProviderParser.kyodemoOther(html, page, query.boardCode, query.boardName)
             ArchiveProvider.FIVECH_NUKO -> try {
                 ArchiveProviderParser.nuko(html, page, query.boardCode)
             } catch (failure: NukoPageFormatException) {

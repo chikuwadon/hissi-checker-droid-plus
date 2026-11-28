@@ -97,7 +97,9 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     private var nukoBrowser: NukoBrowserFallback? = null
     private val nukoUserAgent by lazy { runCatching { android.webkit.WebSettings.getDefaultUserAgent(host) }.getOrDefault("") }
     private var resolvedBoardAddresses: Map<String, String> = emptyMap()
-    private fun supportsBoardSelection() = state.provider == ArchiveProvider.FIVECH_KYODEMO || state.provider == ArchiveProvider.FIVECH_NUKO
+    private fun otherBoards() = state.provider == ArchiveProvider.OTHER_KYODEMO
+    private fun requiresBoard() = state.provider == ArchiveProvider.FIVECH_KYODEMO || otherBoards()
+    private fun supportsBoardSelection() = requiresBoard() || state.provider == ArchiveProvider.FIVECH_NUKO
     private lateinit var search: TextView
     private lateinit var options: TextView
     private lateinit var message: TextView
@@ -136,6 +138,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     val previousKeyword = state.draft.keyword
                     state.form = null
                     state.provider = selected
+                    boardGroups = null
                     state.draft = state.drafts[selected]?.let { if (it.keyword.isEmpty()) it.copy(keyword = previousKeyword) else it } ?: ArchiveQuery(previousKeyword)
                     ArchiveSelectionStore.save(host, state.provider, state.draft)
                     keyword.setText(state.draft.keyword)
@@ -228,7 +231,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         browser.setOnClickListener {
             if (loading || disposed) return@setOnClickListener
             saveKeyword()
-            if (state.provider == ArchiveProvider.FIVECH_KYODEMO && state.draft.boardCode.isEmpty()) {
+            if (requiresBoard() && state.draft.boardCode.isEmpty()) {
                 showBoards()
                 return@setOnClickListener
             }
@@ -238,7 +241,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     message.text = error.message ?: "検索条件が不正です"
                     return@setOnClickListener
                 }
-            } else if (state.provider == ArchiveProvider.FIVECH_KYODEMO) "https://www.kyodemo.net/sdemo/b/" + state.draft.boardCode + "/" else state.provider.url
+            } else if (requiresBoard()) "https://www.kyodemo.net/sdemo/b/" + state.draft.boardCode + "/" else state.provider.url
             if (state.provider == ArchiveProvider.EDGE_ARCHIVE && state.draft.maximum.isNotEmpty()) {
                 android.widget.Toast.makeText(host, "レス数の上限はアプリ内表示にのみ適用されます", android.widget.Toast.LENGTH_SHORT).show()
             }
@@ -265,6 +268,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                     ThreadOpener.validatedThreadUrl(original).isNotEmpty() -> ThreadOpener.open(host, original, true)
                     ThreadOpener.validated5chThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, false)
                     ThreadOpener.validatedThreadUrl(entry.url).isNotEmpty() -> ThreadOpener.open(host, entry.url, true)
+                    state.provider == ArchiveProvider.OTHER_KYODEMO -> BrowserLauncher.open(host, entry.url)
                     else -> ThemedMenu.confirm(host, "元スレッドURLを確認できませんでした",
                         "検索サービスのページを外部ブラウザで開きますか？", "開く",
                         Runnable { BrowserLauncher.open(host, entry.url) })
@@ -381,7 +385,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun showCopyMenu(entry: ArchiveThread) {
         ThemedMenu.choose(host, "コピー", arrayOf("スレタイとURLをコピー", "スレタイをコピー", "URLをコピー"), -1) { index ->
-            val original = entry.originalUrl
+            val original = entry.originalUrl.ifEmpty { if (otherBoards()) entry.url else "" }
             if (index != 1 && original.isEmpty()) {
                 Toast.makeText(host, "元スレッドURLを確認できませんでした", Toast.LENGTH_SHORT).show()
                 return@choose
@@ -476,6 +480,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun showBoards() {
         if (loading || disposed || !supportsBoardSelection()) return
+        if (otherBoards()) { showOtherServices(); return }
         boardGroups?.takeIf { it.isNotEmpty() }?.let { showBoardCategories(it); return }
         loading = true
         val request = ++generation
@@ -491,6 +496,51 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
                 if (!boardButton.isShown || !host.hasWindowFocus()) return@runOnUiThread
                 if (groups.isEmpty()) Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
                 else showBoardCategories(groups)
+            }
+        }
+    }
+
+    private fun showOtherServices() {
+        val services = KyodemoOtherBoards.services
+        showBoardList("掲示板を選択", services.map { it.label }, null) { index ->
+            services.getOrNull(index)?.let { loadOtherMenu(it, it.root) }
+        }
+    }
+
+    private fun loadOtherMenu(service: KyodemoOtherBoards.Service, category: String) {
+        if (loading || disposed || !otherBoards()) return
+        loading = true
+        val request = ++generation
+        refresh()
+        message.text = "板一覧を取得中…"
+        worker.execute {
+            val loaded = runCatching { KyodemoOtherBoards.fetch(service, category) }
+            host.runOnUiThread {
+                if (disposed || host.isFinishing || host.isDestroyed || request != generation) return@runOnUiThread
+                loading = false
+                refresh()
+                if (!boardButton.isShown || !host.hasWindowFocus() || !otherBoards()) return@runOnUiThread
+                loaded.onSuccess { menu ->
+                    val entries = menu.categories + menu.boards.map { KyodemoOtherBoards.Item(it.code, it.name) }
+                    if (entries.isEmpty()) {
+                        Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show()
+                        return@onSuccess
+                    }
+                    val group = BoardMenu.Category(service.label).apply { boards.addAll(menu.boards) }
+                    showBoardList(service.label, entries.map { it.label },
+                        { if (category == service.root) showOtherServices() else loadOtherMenu(service, service.root) },
+                        search = if (menu.boards.isEmpty()) null else {
+                            {
+                                BoardSearchDialog.show(host, listOf(group), { loadOtherMenu(service, category) }) { entry ->
+                                    selectBoard(entry.code, entry.name)
+                                }
+                            }
+                        }) { index ->
+                        val entry = entries[index]
+                        if (index < menu.categories.size) loadOtherMenu(service, entry.code)
+                        else selectBoard(entry.code, entry.label)
+                    }
+                }.onFailure { Toast.makeText(host, "板一覧を取得できませんでした", Toast.LENGTH_LONG).show() }
             }
         }
     }
@@ -516,6 +566,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
 
     private fun selectBoard(code: String, name: String) {
         if (disposed || loading || !supportsBoardSelection() || (!BoardFavorites.valid(code) && !(state.provider == ArchiveProvider.FIVECH_NUKO && code.isEmpty()))) return
+        if (otherBoards() && !KyodemoOtherBoards.validBoard(code)) return
         saveKeyword()
         if (state.draft.boardCode != code) {
             state.pages.clear()
@@ -564,6 +615,8 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         boardRow.visibility = if (fivech) View.VISIBLE else View.GONE
         boardButton.text = (state.draft.boardName.ifBlank { state.draft.boardCode.ifBlank { if (state.provider == ArchiveProvider.FIVECH_NUKO) "全板" else "板を選択" } }) + " ▾"
         boardButton.isEnabled = !loading
+        saveBoardButton.visibility = if (otherBoards()) View.GONE else View.VISIBLE
+        favoriteBoardsButton.visibility = if (otherBoards()) View.GONE else View.VISIBLE
         saveBoardButton.isEnabled = !loading && BoardFavorites.valid(state.draft.boardCode)
         saveBoardButton.alpha = if (saveBoardButton.isEnabled) 1f else 0.45f
         saveBoardButton.text = if (state.draft.boardCode in BoardFavorites.read(host)) "★ 保存済" else "☆ 保存"
@@ -739,7 +792,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             day("開始日", true)
             day("終了日", false)
             panel.addView(ThemedMenu.formLabel(host, "複数の検索ワードは空白区切りでAND検索"))
-            if (state.provider == ArchiveProvider.EDGE_KYODEMO || state.provider == ArchiveProvider.FIVECH_KYODEMO) {
+            if (state.provider == ArchiveProvider.EDGE_KYODEMO || requiresBoard()) {
                 fun choice(label: String, values: List<String>, labels: List<String>, selected: String, apply: (String) -> Unit) {
                     panel.addView(ThemedMenu.formLabel(host, label))
                     var index = values.indexOf(selected).coerceAtLeast(0)
@@ -808,7 +861,10 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
             setHintTextColor(host.getColor(R.color.text_secondary))
         }
         range.addView(min, LinearLayout.LayoutParams(0, dp(44), 1f))
-        range.addView(ThemedMenu.formLabel(host, "～"), LinearLayout.LayoutParams(dp(28), -2))
+        range.addView(ThemedMenu.formLabel(host, "～").apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 0)
+        }, LinearLayout.LayoutParams(dp(28), dp(44)))
         range.addView(max, LinearLayout.LayoutParams(0, dp(44), 1f))
         fields.addView(range)
         fields.addView(ThemedMenu.formLabel(host, "上限は取得ページごとに絞り込みます"))
@@ -893,7 +949,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
         if (loading || disposed) return
         saveKeyword()
         val query = state.draft
-        if (state.provider == ArchiveProvider.FIVECH_KYODEMO && query.boardCode.isEmpty()) {
+        if (requiresBoard() && query.boardCode.isEmpty()) {
             showBoards()
             return
         }
@@ -975,6 +1031,7 @@ internal class ArchiveContent(host: Activity, private val state: ArchiveScreenSt
     /** Keep archive reading URLs and original-copy URLs separate. Resolve each board once. */
     private fun resolveOriginalLinks(requested: ArchiveProvider, result: ArchivePage): ArchivePage {
         if (result.items.isEmpty()) return result
+        if (requested == ArchiveProvider.OTHER_KYODEMO) return result
         if (requested == ArchiveProvider.EDGE_ARCHIVE || requested == ArchiveProvider.EDGE_KYODEMO) {
             return result.copy(items = result.items.map { entry ->
                 val original = ThreadOpener.validatedThreadUrl(entry.url)
